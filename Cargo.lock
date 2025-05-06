@@ -109,7 +109,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_with 3.12.0",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -180,7 +180,7 @@ dependencies = [
  "alloy-rlp",
  "crc",
  "serde",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -204,7 +204,7 @@ dependencies = [
  "alloy-rlp",
  "k256 0.13.4",
  "serde",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -268,7 +268,7 @@ dependencies = [
  "alloy-sol-types",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -282,7 +282,7 @@ dependencies = [
  "alloy-sol-types",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -308,7 +308,7 @@ dependencies = [
  "futures-utils-wasm",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -334,7 +334,7 @@ dependencies = [
  "futures-utils-wasm",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -422,7 +422,7 @@ dependencies = [
  "reqwest 0.12.12",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "url",
@@ -587,7 +587,7 @@ dependencies = [
  "itertools 0.13.0",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -607,7 +607,7 @@ dependencies = [
  "itertools 0.13.0",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -643,7 +643,7 @@ dependencies = [
  "auto_impl",
  "elliptic-curve 0.13.8",
  "k256 0.13.4",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -660,7 +660,7 @@ dependencies = [
  "either",
  "elliptic-curve 0.13.8",
  "k256 0.13.4",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -677,7 +677,7 @@ dependencies = [
  "aws-sdk-kms",
  "k256 0.13.4",
  "spki 0.7.3",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -695,7 +695,7 @@ dependencies = [
  "gcloud-sdk",
  "k256 0.13.4",
  "spki 0.7.3",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -715,7 +715,7 @@ dependencies = [
  "coins-ledger",
  "futures-util",
  "semver 1.0.26",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -734,7 +734,7 @@ dependencies = [
  "coins-bip39",
  "k256 0.13.4",
  "rand 0.8.5",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -822,7 +822,7 @@ dependencies = [
  "futures-utils-wasm",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "tokio",
  "tower 0.5.2",
  "tracing",
@@ -927,7 +927,7 @@ dependencies = [
 
 [[package]]
 name = "anvil-zksync"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "alloy",
  "anvil_zksync_api_server",
@@ -963,7 +963,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_api_decl"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anvil_zksync_types",
  "jsonrpsee",
@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_api_server"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anvil_zksync_api_decl",
  "anvil_zksync_common",
@@ -1000,7 +1000,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_common"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "alloy",
  "anstream",
@@ -1024,7 +1024,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1041,7 +1041,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_console"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1057,7 +1057,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1105,7 +1105,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_l1_sidecar"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1130,7 +1130,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_traces"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "alloy",
  "anstyle",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anvil_zksync_common",
  "clap",
@@ -1953,7 +1953,7 @@ dependencies = [
  "semver 1.0.26",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -2033,14 +2033,14 @@ dependencies = [
 
 [[package]]
 name = "circuit_sequencer_api"
-version = "0.151.5"
+version = "0.152.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7a52138983ea94b367d689fc6183ad60a769d6c7ce8041c5120cb5074486ea2"
+checksum = "3b07b0b3a0c8c392f322d04f5caaf8c2d38cab62d0f0d168859aafb1378bc1fc"
 dependencies = [
  "derivative",
  "rayon",
  "serde",
- "zk_evm 0.151.5",
+ "zk_evm 0.152.2",
  "zksync_bellman",
 ]
 
@@ -5324,7 +5324,7 @@ dependencies = [
  "rustc-hash 2.1.0",
  "rustls 0.23.19",
  "socket2",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]
@@ -5343,7 +5343,7 @@ dependencies = [
  "rustls 0.23.19",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "tinyvec",
  "tracing",
  "web-time",
@@ -6473,7 +6473,7 @@ checksum = "297f631f50729c8c99b84667867963997ec0b50f32b2a7dbcab828ef0541e8bb"
 dependencies = [
  "num-bigint",
  "num-traits",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "time",
 ]
 
@@ -6832,11 +6832,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.11"
+version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
+checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
 dependencies = [
- "thiserror-impl 2.0.11",
+ "thiserror-impl 2.0.12",
 ]
 
 [[package]]
@@ -6852,9 +6852,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.11"
+version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26afc1baea8a989337eeb52b6e72a039780ce45c3edfcc9c5b9d112feeb173c2"
+checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7476,8 +7476,9 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vise"
-version = "0.2.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "269640ec8679c379b8ffefbd4623f7a435f40c159b87bee4620fd9585ea573ba"
 dependencies = [
  "compile-fmt",
  "ctor",
@@ -7489,8 +7490,9 @@ dependencies = [
 
 [[package]]
 name = "vise-macros"
-version = "0.2.0"
-source = "git+https://github.com/matter-labs/vise.git?rev=51669f42f60c50b3a521662a4ecd71212a303299#51669f42f60c50b3a521662a4ecd71212a303299"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b03810422b55b87bb8cba95a3708664c049125789a8d79ee524da6ed07ed067d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8181,6 +8183,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_evm"
+version = "0.152.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fcee1c29243b857b374c1b23023af81453180447b7d07af6a92f43c1a3433a"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "num",
+ "serde",
+ "serde_json",
+ "static_assertions",
+ "zk_evm_abstractions 0.152.2",
+]
+
+[[package]]
 name = "zk_evm_abstractions"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8208,19 +8225,6 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.150.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7616edbdeeeb214211e9bdc4346b6a62c6c6118c3d2b83b7db24c01f65f6e25"
-dependencies = [
- "anyhow",
- "num_enum 0.6.1",
- "serde",
- "static_assertions",
- "zkevm_opcode_defs 0.150.20",
-]
-
-[[package]]
-name = "zk_evm_abstractions"
 version = "0.151.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c91ea662a71ec92c72f5d1628486d1e68c1a50fd13e07ef57dcd2a6d4161b68f"
@@ -8230,6 +8234,19 @@ dependencies = [
  "serde",
  "static_assertions",
  "zkevm_opcode_defs 0.151.5",
+]
+
+[[package]]
+name = "zk_evm_abstractions"
+version = "0.152.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5045537f21a73dc99f709daa951e89b857c1b00584d0d8395e8fe6d3b1bedeb5"
+dependencies = [
+ "anyhow",
+ "num_enum 0.6.1",
+ "serde",
+ "static_assertions",
+ "zkevm_opcode_defs 0.152.2",
 ]
 
 [[package]]
@@ -8276,9 +8293,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.150.20"
+version = "0.151.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce6b4a47c0e7f95b51d29ca336821321cec4bbba0acdd412c3a209270a0d37fe"
+checksum = "fb02c38d4486568f3ce4aed592a26139aa942eb3cef973a78cfc053cddc54d06"
 dependencies = [
  "bitflags 2.6.0",
  "blake2",
@@ -8293,9 +8310,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.151.5"
+version = "0.152.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb02c38d4486568f3ce4aed592a26139aa942eb3cef973a78cfc053cddc54d06"
+checksum = "117d135367b66f3c4dab8717113eb3898d514e8c3886ac3d4367919ae3f2824d"
 dependencies = [
  "bitflags 2.6.0",
  "blake2",
@@ -8306,6 +8323,7 @@ dependencies = [
  "serde",
  "sha2",
  "sha3",
+ "zksync_pairing",
 ]
 
 [[package]]
@@ -8326,7 +8344,7 @@ dependencies = [
  "strum 0.27.1",
  "strum_macros 0.27.1",
  "tera",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "zksync-error-description",
  "zksync-error-model",
 ]
@@ -8349,13 +8367,13 @@ dependencies = [
  "const_format",
  "derive_more 2.0.1",
  "serde",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
 name = "zksync_basic_types"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8369,16 +8387,16 @@ dependencies = [
  "serde_with 1.14.0",
  "sha2",
  "strum 0.26.3",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tiny-keccak 2.0.2",
  "url",
 ]
 
 [[package]]
 name = "zksync_bellman"
-version = "0.31.0"
+version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0c48d04dd04eceedd4d1ced200b227ddb0795335151e7d80a0cbd0dd62e9872"
+checksum = "7dda34f04d6e840723172101e0961a85da204ea0ceef0190fdd394975853b08f"
 dependencies = [
  "arrayvec 0.7.6",
  "bit-vec",
@@ -8398,55 +8416,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_concurrency"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a437d604f41b4fd587107e79bcbcb36f669f4b4e4c29e42ae2f26871a8c99bb7"
-dependencies = [
- "anyhow",
- "once_cell",
- "pin-project 1.1.7",
- "rand 0.8.5",
- "sha3",
- "thiserror 1.0.69",
- "time",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "vise",
-]
-
-[[package]]
-name = "zksync_config"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
-dependencies = [
- "anyhow",
- "rand 0.8.5",
- "secrecy",
- "serde",
- "zksync_basic_types",
- "zksync_concurrency",
- "zksync_consensus_utils",
- "zksync_crypto_primitives",
-]
-
-[[package]]
-name = "zksync_consensus_utils"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed85ed3bccb73a24f3cade637db54d3da504e250b673a47c8179bd64fcb68ea8"
-dependencies = [
- "anyhow",
- "rand 0.8.5",
- "thiserror 1.0.69",
- "zksync_concurrency",
-]
-
-[[package]]
 name = "zksync_contracts"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "envy",
  "hex",
@@ -8459,8 +8431,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_crypto_primitives"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "anyhow",
  "blake2",
@@ -8470,23 +8442,13 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "zksync_basic_types",
 ]
 
 [[package]]
-name = "zksync_da_client"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
-dependencies = [
- "anyhow",
- "async-trait",
- "serde",
-]
-
-[[package]]
 name = "zksync_error"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8500,9 +8462,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_ff"
-version = "0.31.0"
+version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab3db5c178ae12b338d1e93e50a6a04f412e538f3896750198874504c25cdc27"
+checksum = "eebf1eedfc02d875f9553f88d96cd44945fa2978bc380498328f4bdc3961d09c"
 dependencies = [
  "byteorder",
  "hex",
@@ -8513,9 +8475,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_ff_derive"
-version = "0.31.0"
+version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82177d7ec9f0472042b8e1f4c8ae90030f2ce4833e9ad4ba538bf9e9834fe4c7"
+checksum = "894d4fd05cde3567a547d5c31505511f79862edd7c9b0c5addfd0533724803dd"
 dependencies = [
  "num-bigint",
  "num-integer",
@@ -8528,8 +8490,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_mini_merkle_tree"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8538,16 +8500,16 @@ dependencies = [
 
 [[package]]
 name = "zksync_multivm"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
  "ethabi",
  "hex",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "once_cell",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tracing",
  "vise",
  "zk_evm 0.131.0-rc.2",
@@ -8555,6 +8517,7 @@ dependencies = [
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
  "zk_evm 0.151.5",
+ "zk_evm 0.152.2",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
@@ -8565,9 +8528,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_pairing"
-version = "0.31.0"
+version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "425a3f2a2334bc8bdee9cab20a1d144dbc76c171dbf1f9b24763e35ff92e3da9"
+checksum = "3895f40044daf50998b531bd5053181a245eff58ddfdf5b3bc7055c0e77c1411"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -8578,8 +8541,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_system_constants"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8598,20 +8561,20 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "uuid",
 ]
 
 [[package]]
 name = "zksync_types"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "anyhow",
  "async-trait",
  "blake2",
  "chrono",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "hex",
  "num_enum 0.7.3",
  "once_cell",
@@ -8619,20 +8582,19 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with 1.14.0",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tracing",
  "zksync_basic_types",
  "zksync_contracts",
  "zksync_crypto_primitives",
- "zksync_da_client",
  "zksync_mini_merkle_tree",
  "zksync_system_constants",
 ]
 
 [[package]]
 name = "zksync_utils"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8642,37 +8604,37 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a05288e092ece683b9d3de5654d3fc747792bc55201a9e9375ad12f440e0c0c"
+checksum = "43b3bc8ecfdfdc986aff5229f995340cad4c7c1967f0ad96ac870d354847925f"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
- "zk_evm_abstractions 0.150.20",
- "zkevm_opcode_defs 0.150.20",
+ "zk_evm_abstractions 0.152.2",
+ "zkevm_opcode_defs 0.152.2",
  "zksync_vm2_interface",
 ]
 
 [[package]]
 name = "zksync_vm2_interface"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "603c54ea4253fa03e9844e874e13c105fd09a79499b88d7a2bc762252c1b7ce6"
+checksum = "a24e80c29891fcdfe80f273b60a72c1778268c9719a7224d2e15b8e3712f8c62"
 dependencies = [
  "primitive-types",
 ]
 
 [[package]]
 name = "zksync_vm_interface"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "anyhow",
  "async-trait",
  "hex",
  "pretty_assertions",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tracing",
  "zksync_contracts",
  "zksync_system_constants",
@@ -8681,8 +8643,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_web3_decl"
-version = "27.2.0-non-semver-compat"
-source = "git+https://github.com/matter-labs/zksync-era?rev=core-v27.2.0#0d2bb67af441758690c195380d6f6d137967f19a"
+version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=core-v28.0.0#1cdf7f01075b2ed0e8d622ee271ecc0c119c60a2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8693,10 +8655,9 @@ dependencies = [
  "rustls 0.23.19",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "vise",
- "zksync_config",
  "zksync_types",
 ]

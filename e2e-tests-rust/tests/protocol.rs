@@ -3,7 +3,7 @@ use alloy_zksync::provider::ZksyncProvider;
 use anvil_zksync_e2e_tests::AnvilZksyncTesterBuilder;
 
 #[tokio::test]
-async fn protocol_v26_by_default_and_on_demand() -> anyhow::Result<()> {
+async fn protocol_v27_by_default_and_on_demand() -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default().build().await?;
     let receipt = tester.tx().finalize().await?;
     let block_number = receipt.block_number().unwrap();
@@ -15,7 +15,7 @@ async fn protocol_v26_by_default_and_on_demand() -> anyhow::Result<()> {
         .unwrap();
     assert_eq!(
         block_details.protocol_version,
-        Some("Version26".to_string())
+        Some("Version27".to_string())
     );
 
     let tester = AnvilZksyncTesterBuilder::default()
