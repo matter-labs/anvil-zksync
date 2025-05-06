@@ -1140,7 +1140,7 @@
                 "summary": "Attempt to load a state with no blocks",
                 "description": "It is not allowed to load a state without any blocks in it.",
                 "likely_causes": [
-                  "You meant to provide a different state."
+                  "Skip loading state or provide a non-empty state file."
                 ]
               }
             },
@@ -1153,7 +1153,15 @@
                   "name": "details",
                   "type": "string"
                 }
-              ]
+              ],
+              "doc" : {
+                "description": "Failed to decompress the state.",
+                "likely_causes": [
+                  "Uncompressed state file is provided, but a compressed one is expected.",
+                  "Wrong state file provided.",
+                  "Provided state file is corrupted."
+                ]
+              }
             },
             {
               "name": "StateDeserialization",
@@ -1164,7 +1172,14 @@
                   "name": "details",
                   "type": "string"
                 }
-              ]
+              ],
+              "doc" : {
+                "description": "Failed to deserialize the state file.",
+                "likely_causes": [
+                  "Wrong state file provided.",
+                  "Provided state file is corrupted."
+                ]
+              }
             },
             {
               "name": "UnknownStateVersion",
@@ -1175,12 +1190,19 @@
                   "name": "version",
                   "type": "uint"
                 }
-              ]
+              ],
+              "doc" : {
+                "description": "The version of the state file is not recognized.",
+                "likely_causes": [
+                  "Wrong state file provided.",
+                  "The state file was produced by an older version of anvil-zksync."
+                ]
+              }
             },
             {
-              "name": "LoadState",
+              "name": "StateFileAccess",
               "code": 6,
-              "message": "Error while attempting to access the state located at `{path}`. Reason: {reason}.",
+              "message": "Error while accessing the state located at `{path}`. Reason: {reason}.",
               "fields": [
                 {
                   "name": "path",
@@ -1190,8 +1212,14 @@
                   "name": "reason",
                   "type": "string"
                 }
-              ]
-
+              ],
+              "doc" : {
+                "description": "Failed to access the state file.",
+                "likely_causes": [
+                  "State file is missing.",
+                  "The file permissions for the state file are insufficient."
+                ]
+              }
             }
           ]
         },

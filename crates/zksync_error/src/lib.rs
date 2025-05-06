@@ -178,10 +178,10 @@ pub mod anvil_zksync {
         pub type StateLoaderResult<T> = core::result::Result<T, StateLoaderError>;
         pub use crate::error::definitions::StateLoader::GenericError;
         pub use crate::error::definitions::StateLoader::LoadEmptyState;
-        pub use crate::error::definitions::StateLoader::LoadState;
         pub use crate::error::definitions::StateLoader::LoadingStateOverExistingState;
         pub use crate::error::definitions::StateLoader::StateDecompression;
         pub use crate::error::definitions::StateLoader::StateDeserialization;
+        pub use crate::error::definitions::StateLoader::StateFileAccess;
         pub use crate::error::definitions::StateLoader::UnknownStateVersion;
         pub use crate::error::definitions::StateLoaderCode as ErrorCode;
         #[macro_export]

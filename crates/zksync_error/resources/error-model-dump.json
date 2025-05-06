@@ -2618,7 +2618,7 @@
           "summary": "Attempt to load a state with no blocks",
           "likely_causes": [
             {
-              "cause": "You meant to provide a different state.",
+              "cause": "Skip loading state or provide a non-empty state file.",
               "fixes": [],
               "report": "",
               "owner": null,
@@ -2651,7 +2651,33 @@
             "type": "string"
           }
         ],
-        "documentation": null,
+        "documentation": {
+          "description": "Failed to decompress the state.",
+          "summary": "",
+          "likely_causes": [
+            {
+              "cause": "Uncompressed state file is provided, but a compressed one is expected.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Wrong state file provided.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Provided state file is corrupted.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
         "bindings": {
           "rust": {
             "expression": "StateDecompression"
@@ -2677,7 +2703,26 @@
             "type": "string"
           }
         ],
-        "documentation": null,
+        "documentation": {
+          "description": "Failed to deserialize the state file.",
+          "summary": "",
+          "likely_causes": [
+            {
+              "cause": "Wrong state file provided.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Provided state file is corrupted.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
         "bindings": {
           "rust": {
             "expression": "StateDeserialization"
@@ -2703,7 +2748,26 @@
             "type": "uint"
           }
         ],
-        "documentation": null,
+        "documentation": {
+          "description": "The version of the state file is not recognized.",
+          "summary": "",
+          "likely_causes": [
+            {
+              "cause": "Wrong state file provided.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "The state file was produced by an older version of anvil-zksync.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
         "bindings": {
           "rust": {
             "expression": "UnknownStateVersion"
@@ -2719,10 +2783,10 @@
       "[anvil_zksync-state-6]": {
         "domain": "AnvilZKsync",
         "component": "StateLoader",
-        "name": "LoadState",
+        "name": "StateFileAccess",
         "code": 6,
         "identifier": "[anvil_zksync-state-6]",
-        "message": "Error while attempting to access the state located at `{path}`. Reason: {reason}.",
+        "message": "Error while accessing the state located at `{path}`. Reason: {reason}.",
         "fields": [
           {
             "name": "path",
@@ -2733,13 +2797,32 @@
             "type": "string"
           }
         ],
-        "documentation": null,
+        "documentation": {
+          "description": "Failed to access the state file.",
+          "summary": "",
+          "likely_causes": [
+            {
+              "cause": "State file is missing.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "The file permissions for the state file are insufficient.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
         "bindings": {
           "rust": {
-            "expression": "LoadState"
+            "expression": "StateFileAccess"
           },
           "typescript": {
-            "expression": "LoadState"
+            "expression": "StateFileAccess"
           }
         },
         "origins": [

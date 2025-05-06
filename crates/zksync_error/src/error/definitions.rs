@@ -935,16 +935,36 @@ pub enum StateLoader {
     #[doc = "# Description"]
     #[doc = "It is not allowed to load a state without any blocks in it."]
     LoadEmptyState = 2u32,
+    #[doc = "# Summary "]
+    #[doc = ""]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Failed to decompress the state."]
     StateDecompression {
         details: String,
     } = 3u32,
+    #[doc = "# Summary "]
+    #[doc = ""]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Failed to deserialize the state file."]
     StateDeserialization {
         details: String,
     } = 4u32,
+    #[doc = "# Summary "]
+    #[doc = ""]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "The version of the state file is not recognized."]
     UnknownStateVersion {
         version: u32,
     } = 5u32,
-    LoadState {
+    #[doc = "# Summary "]
+    #[doc = ""]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Failed to access the state file."]
+    StateFileAccess {
         path: String,
         reason: String,
     } = 6u32,
@@ -1016,8 +1036,8 @@ impl CustomErrorMessage for StateLoader {
             StateLoader::UnknownStateVersion { version } => {
                 format!("[anvil_zksync-state-5] Unknown version of the state: {version}.")
             }
-            StateLoader::LoadState { path, reason } => {
-                format ! ("[anvil_zksync-state-6] Error while attempting to access the state located at `{path}`. Reason: {reason}.")
+            StateLoader::StateFileAccess { path, reason } => {
+                format ! ("[anvil_zksync-state-6] Error while accessing the state located at `{path}`. Reason: {reason}.")
             }
             StateLoader::GenericError { message } => {
                 format!("[anvil_zksync-state-0] Generic error: {message}")
