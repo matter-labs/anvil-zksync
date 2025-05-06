@@ -531,21 +531,20 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 
-    // Load state from `--load-state` if provided
-    if let Some(ref load_state_path) = config.load_state {
-        let bytes = std::fs::read(load_state_path).expect("Failed to read load state file");
-        node.load_state(zksync_types::web3::Bytes(bytes))
-            .await
-            .map_err(to_domain)?;
-    }
-    if let Some(ref state_path) = config.state {
-        let bytes = std::fs::read(state_path).expect("Failed to read load state file");
+    let state_path = config.load_state.as_ref().or(config.state.as_ref());
+    if let Some(state_path) = state_path.as_deref() {
+        let bytes = std::fs::read(state_path).map_err(|error| {
+            zksync_error::anvil_zksync::state::StateFileAccess {
+                path: state_path.to_string_lossy().to_string(),
+                reason: error.to_string(),
+            }
+        })?;
         node.load_state(zksync_types::web3::Bytes(bytes))
             .await
             .map_err(to_domain)?;
     }
 
-    let state_path = config.dump_state.clone().or_else(|| config.state.clone());
+    let dump_state_path = config.dump_state.clone().or_else(|| config.state.clone());
     let dump_interval = config
         .state_interval
         .map(Duration::from_secs)
@@ -554,7 +553,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     let node_for_dumper = node.clone();
     let state_dumper = PeriodicStateDumper::new(
         node_for_dumper,
-        state_path,
+        dump_state_path,
         dump_interval,
         preserve_historical_states,
     );
