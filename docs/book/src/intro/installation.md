@@ -65,23 +65,23 @@ anvil-zksync
 
 These URLs always fetch the **latest** published build:
 
-- [`anvil-zksync-aarch64-apple-darwin.tar.gz`](https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.5.1-aarch64-apple-darwin.tar.gz)
-- [`anvil-zksync-aarch64-unknown-linux-gnu.tar.gz`](https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.5.1-aarch64-unknown-linux-gnu.tar.gz)
-- [`anvil-zksync-x86_64-apple-darwin.tar.gz`](https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.5.1-x86_64-apple-darwin.tar.gz)
-- [`anvil-zksync-x86_64-unknown-linux-gnu.tar.gz`](https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.5.1-x86_64-unknown-linux-gnu.tar.gz)
+- [`anvil-zksync-aarch64-apple-darwin.tar.gz`](https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.6.0-aarch64-apple-darwin.tar.gz)
+- [`anvil-zksync-aarch64-unknown-linux-gnu.tar.gz`](https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.6.0-aarch64-unknown-linux-gnu.tar.gz)
+- [`anvil-zksync-x86_64-apple-darwin.tar.gz`](https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.6.0-x86_64-apple-darwin.tar.gz)
+- [`anvil-zksync-x86_64-unknown-linux-gnu.tar.gz`](https://github.com/matter-labs/anvil-zksync/releases/latest/download/anvil-zksync-v0.6.0-x86_64-unknown-linux-gnu.tar.gz)
 
 ## 4. Docker
 
 `anvil-zksync` is available as Docker image that supports Linux x64 and arm64.
 
 ```bash
-docker pull ghcr.io/matter-labs/anvil-zksync:v0.5.1
+docker pull ghcr.io/matter-labs/anvil-zksync:v0.6.0
 ```
 
 **Run it (interactive):**
 
 ```bash
-docker run --rm -it ghcr.io/matter-labs/anvil-zksync:v0.5.1 \
+docker run --rm -it ghcr.io/matter-labs/anvil-zksync:v0.6.0 \
   anvil-zksync
 ```
 
@@ -117,7 +117,7 @@ With any method above, you can immediately begin:
 anvil-zksync
 
 # Or fork with tracing enabled:
-anvil-zksync -vv fork --fork-url mainnet
+anvil-zksync -vv fork --fork-url era
 ```
 
 If you installed via script or binaries and see a “command not found” error, you may need to add the

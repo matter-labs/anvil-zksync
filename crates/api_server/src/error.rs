@@ -135,8 +135,8 @@ pub fn into_json_rpc(error: RpcError) -> ErrorObjectOwned {
 
 pub fn rpc_unsupported<T>(method_name: &str) -> jsonrpsee::core::RpcResult<T> {
     Err(into_json_rpc(RpcError::UnsupportedMethod {
-            method_name: method_name.to_owned(),
-        }))
+        method_name: method_name.to_owned(),
+    }))
 }
 
 mod code_remap {

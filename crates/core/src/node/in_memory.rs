@@ -693,7 +693,6 @@ impl InMemoryNode {
 
         let mut receipts = Vec::with_capacity(expected_tx_hashes.len());
         for tx_hash in expected_tx_hashes {
-            tokio::time::sleep(Duration::from_millis(100)).await;
             let receipt = (|| async {
                 self.blockchain
                     .get_tx_receipt(&tx_hash)
@@ -702,8 +701,8 @@ impl InMemoryNode {
             })
             .retry(
                 ConstantBuilder::default()
-                    .with_delay(Duration::from_millis(100))
-                    .with_max_times(3),
+                    .with_delay(Duration::from_millis(200))
+                    .with_max_times(5),
             )
             .await?;
             receipts.push(receipt);
