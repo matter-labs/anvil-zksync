@@ -275,6 +275,7 @@ mod tests {
             nonce: Some(U256::from(0)),
             transaction_type: None,
             access_list: None,
+            authorization_list: None,
             eip712_meta: None,
             input: None,
         };

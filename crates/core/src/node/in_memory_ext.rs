@@ -8,7 +8,7 @@ use std::time::Duration;
 use url::Url;
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_types::api::{Block, TransactionVariant};
-use zksync_types::bytecode::BytecodeHash;
+use zksync_types::bytecode::{BytecodeHash, BytecodeMarker};
 use zksync_types::u256_to_h256;
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H256, U256, U64};
 
@@ -283,11 +283,19 @@ impl InMemoryNode {
         let code_slice = code
             .strip_prefix("0x")
             .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
+
         let bytecode = hex::decode(code_slice)?;
-        zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
+        let marker = BytecodeMarker::detect(&bytecode);
+        if marker == BytecodeMarker::EraVm {
+            zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
+        }
+        let bytecode_hash = match marker {
+            BytecodeMarker::EraVm => BytecodeHash::for_bytecode(&bytecode),
+            BytecodeMarker::Evm => BytecodeHash::for_raw_evm_bytecode(&bytecode),
+        };
         tracing::info!(
             ?address,
-            bytecode_hash = ?BytecodeHash::for_bytecode(&bytecode).value(),
+            bytecode_hash = ?bytecode_hash.value(),
             "set code"
         );
         self.node_handle.set_code_sync(address, bytecode).await?;

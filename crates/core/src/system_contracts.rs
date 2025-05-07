@@ -4,8 +4,8 @@ use crate::deps::system_contracts::load_builtin_contract;
 use crate::node::ImpersonationManager;
 use anvil_zksync_config::types::SystemContractsOptions;
 use zksync_contracts::{
-    read_sys_contract_bytecode, BaseSystemContracts, BaseSystemContractsHashes, ContractLanguage,
-    SystemContractCode, SystemContractsRepo,
+    BaseSystemContracts, BaseSystemContractsHashes, ContractLanguage, SystemContractCode,
+    SystemContractsRepo,
 };
 use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::bytecode::BytecodeHash;
@@ -119,6 +119,7 @@ impl SystemContracts {
             %protocol_version,
             use_evm_emulator,
             use_zkos,
+            ?system_contracts_path,
             "initializing system contracts"
         );
         let path = system_contracts_path.unwrap_or_else(|| SystemContractsRepo::default().root);
@@ -246,7 +247,7 @@ fn bsc_load_with_bootloader(
     let evm_emulator = if use_evm_emulator {
         let evm_emulator_bytecode = match options {
             SystemContractsOptions::Local => {
-                read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul)
+                repo.read_sys_contract_bytecode("", "EvmEmulator", None, ContractLanguage::Yul)
             }
             SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
                 load_builtin_contract(protocol_version, "EvmEmulator")
