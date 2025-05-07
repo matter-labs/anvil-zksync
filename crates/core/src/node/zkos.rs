@@ -12,7 +12,7 @@ use forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
     StorageCommitment,
 };
-use rig::chain::evm_bytecode_into_account_properties;
+use rig::utils::evm_bytecode_into_account_properties;
 use ruint::aliases::B160;
 use system_hooks::addresses_constants::{ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS, BASE_TOKEN_ADDRESS};
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
@@ -314,7 +314,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     // if zkos_path is passed, it will also compute witness.
     zkos_path: Option<String>,
 ) -> (VmExecutionResultAndLogs, Option<Vec<u8>>) {
-    let batch_context = basic_system::system_implementation::system::BasicBlockMetadataFromOracle {
+    let batch_context = zk_ee::system::metadata::BlockMetadataFromOracle {
         // TODO: get fee from batch_env.
         eip1559_basefee: ruint::aliases::U256::from(if simulate_only { 0u64 } else { 1000u64 }),
         block_number: batch_env.number.0 as u64,
