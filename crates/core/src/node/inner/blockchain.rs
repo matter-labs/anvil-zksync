@@ -415,6 +415,7 @@ impl ReadBlockchain for Blockchain {
                         zksync_types::l2::TransactionType::LegacyTransaction => 0,
                         zksync_types::l2::TransactionType::EIP2930Transaction => 1,
                         zksync_types::l2::TransactionType::EIP1559Transaction => 2,
+                        zksync_types::l2::TransactionType::EIP7702Transaction => 4,
                         zksync_types::l2::TransactionType::EIP712Transaction => 113,
                         zksync_types::l2::TransactionType::PriorityOpTransaction => 255,
                         zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => 254,
