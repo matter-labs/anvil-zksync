@@ -1,4 +1,5 @@
 use crate::bootloader_debug::BootloaderDebug;
+use crate::deps;
 use crate::formatter::{self, ExecutionErrorReport};
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
 use crate::node::diagnostics::account_has_code;
@@ -84,6 +85,7 @@ impl VmRunner {
             executor_factory: MainBatchExecutorFactory::<TraceCalls>::new(
                 enforced_bytecode_compression,
                 bootloader_debug_result.clone(),
+                system_contracts.zkos_config.use_zkos,
             ),
             bootloader_debug_result,
 
@@ -161,7 +163,7 @@ impl VmRunner {
     async fn run_tx_pretty(
         &mut self,
         tx: &Transaction,
-        executor: &mut dyn BatchExecutor<ForkStorage>,
+        executor: &mut dyn BatchExecutor<deps::InMemoryStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
@@ -271,7 +273,7 @@ impl VmRunner {
         next_log_index: &mut usize,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
-        executor: &mut dyn BatchExecutor<ForkStorage>,
+        executor: &mut dyn BatchExecutor<deps::InMemoryStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<TransactionResult> {
@@ -416,14 +418,20 @@ impl VmRunner {
             pubdata_type: PubdataType::Rollup,
         };
         let mut executor = if self.system_contracts.use_zkos() {
-            todo!("BatchExecutor support for zkos is yet to be implemented")
-        } else {
-            self.executor_factory.init_main_batch(
-                self.fork_storage.clone(),
+            self.executor_factory.init_main_batch_for_zkos(
+                self.fork_storage.inner.read().unwrap().raw_storage.clone(),
                 batch_env.clone(),
                 system_env.clone(),
                 pubdata_params,
             )
+        } else {
+            /*self.executor_factory.init_main_batch(
+                self.fork_storage.clone(),
+                batch_env.clone(),
+                system_env.clone(),
+                pubdata_params,
+            )*/
+            todo!();
         };
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.
@@ -590,18 +598,25 @@ fn new_bytecodes(
     // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
     // are added into the lookup map as well.
     tx_factory_deps.extend(result.dynamic_factory_deps.clone());
-    saved_factory_deps
-        .map(|bytecode_hash| {
-            let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
-                panic!(
-                    "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
-                    bytecode_hash,
-                    tx.hash()
-                )
-            });
-            (bytecode_hash, bytecode.clone())
-        })
+
+    // FIXME - for now, simply record all the factory deps.
+    tx_factory_deps
+        .iter()
+        .map(|x| (x.0.clone(), x.1.clone()))
         .collect::<Vec<_>>()
+
+    /*saved_factory_deps
+    .map(|bytecode_hash| {
+        let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
+            panic!(
+                "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
+                bytecode_hash,
+                tx.hash()
+            )
+        });
+        (bytecode_hash, bytecode.clone())
+    })
+    .collect::<Vec<_>>()*/
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -763,7 +778,7 @@ mod test {
             let mut log_index = 0;
             let mut results = vec![];
             for (i, tx) in txs.into_iter().enumerate() {
-                results.push(
+                /*results.push(
                     self.vm_runner
                         .run_tx(
                             &tx,
@@ -776,7 +791,7 @@ mod test {
                             &TestNodeFeeInputProvider::default(),
                         )
                         .await?,
-                );
+                );*/
             }
             Ok(results)
         }

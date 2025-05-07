@@ -852,10 +852,11 @@ impl InMemoryNodeInner {
                 vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
             }
         };
-        let call_traces = Arc::try_unwrap(call_tracer_result)
-            .expect("failed extracting call traces")
-            .take()
-            .unwrap_or_default();
+        /*let call_traces = Arc::try_unwrap(call_tracer_result)
+        .expect("failed extracting call traces")
+        .take()
+        .unwrap_or_default();*/
+        let call_traces = vec![];
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compression_result: Ok(()),
@@ -879,7 +880,8 @@ impl InMemoryNodeInner {
         } = self.estimate_gas_step(
             tx.clone(),
             gas_per_pubdata_byte,
-            BATCH_GAS_LIMIT,
+            // TODO: check what the max value should be here.
+            MAX_L2_TX_GAS_LIMIT,
             batch_env,
             system_env,
             &self.fork_storage,

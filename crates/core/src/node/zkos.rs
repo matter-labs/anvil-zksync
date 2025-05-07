@@ -26,8 +26,9 @@ use zksync_multivm::{
     HistoryMode,
 };
 use zksync_types::{
-    address_to_h256, web3::keccak256, AccountTreeId, Address, ExecuteTransactionCommon, StorageKey,
-    StorageLog, StorageLogWithPreviousValue, Transaction, H160, H256, U256,
+    address_to_h256, u256_to_h256, web3::keccak256, AccountTreeId, Address,
+    ExecuteTransactionCommon, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction,
+    H160, H256, U256,
 };
 
 use crate::deps::InMemoryStorage;
@@ -38,6 +39,12 @@ static BATCH_WITNESS: Lazy<Mutex<HashMap<u32, Vec<u8>>>> = Lazy::new(|| {
     let m = HashMap::new();
     Mutex::new(m)
 });
+
+// TODO: we're using some unused spot.
+// As nonces are normally kept inside account properties, and here we only 'simulate' putting them in some
+// location, so that the rest of the anvil can work.
+// But if we tried reading stuff from 0x8003, where nonces are normally located - we might be reading some garbage.
+pub const FAKE_NONCE_ADDRESS: B160 = B160::from_limbs([0x8153 as u64, 0, 0]);
 
 pub fn set_batch_witness(key: u32, value: Vec<u8>) {
     let mut map = BATCH_WITNESS.lock().unwrap();
@@ -121,6 +128,11 @@ pub fn create_tree_from_full_state(
     let mut preimage_source = InMemoryPreimageSource {
         inner: HashMap::new(),
     };
+    for entry in &raw_storage.factory_deps {
+        preimage_source
+            .inner
+            .insert(h256_to_bytes32(entry.0), entry.1.clone());
+    }
 
     for entry in original_state {
         let kk = derive_flat_storage_key(
@@ -132,8 +144,7 @@ pub fn create_tree_from_full_state(
         let aa = h256_to_bytes32(entry.0.key());
         let cc = B160::try_from_be_slice(&aa.as_u8_array()[12..]).unwrap();
 
-        if entry.0.address() == &b160_to_h160(NONCE_HOLDER_HOOK_ADDRESS) {
-            dbg!("Got nonce {} for {}", entry.0.key(), entry.0.address());
+        if entry.0.address() == &b160_to_h160(FAKE_NONCE_ADDRESS) {
             set_account_properties(
                 &mut tree,
                 &mut preimage_source,
@@ -144,13 +155,6 @@ pub fn create_tree_from_full_state(
         }
 
         if entry.0.address() == &b160_to_h160(BASE_TOKEN_ADDRESS) {
-            dbg!(
-                "Got base balance {} for {}:  {} ",
-                entry.0.key(),
-                entry.0.address(),
-                entry.1
-            );
-
             set_account_properties(
                 &mut tree,
                 &mut preimage_source,
@@ -164,11 +168,6 @@ pub fn create_tree_from_full_state(
         tree.cold_storage.insert(kk, vv);
     }
 
-    for entry in &raw_storage.factory_deps {
-        preimage_source
-            .inner
-            .insert(h256_to_bytes32(entry.0), entry.1.clone());
-    }
     (tree, preimage_source)
 }
 
@@ -402,6 +401,58 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                 log: storage_log,
                 previous_value: prev_value,
             });
+            if write.account == ACCOUNT_PROPERTIES_STORAGE_ADDRESS {
+                // also update a balance & nonce.
+
+                // find preimage in batch output.published_preimages
+                let hh = write.value;
+                let dst_address = &write.account_key.as_u8_ref()[12..];
+                let dst_address = zksync_types::Address::from_slice(dst_address);
+                let mut found = false;
+
+                for preimage in batch_output.published_preimages.iter() {
+                    if preimage.0 == hh {
+                        found = true;
+                        let account_properties =
+                            AccountProperties::decode(preimage.1.clone().try_into().unwrap())
+                                .unwrap();
+                        let balance = account_properties.nominal_token_balance;
+                        let nonce = account_properties.nonce;
+
+                        println!("For account :{:?} nonce is {:?}", dst_address, nonce);
+
+                        for (key, value) in [
+                            (
+                                zkos_get_nonce_key(&dst_address),
+                                u256_to_h256(U256::from(nonce)),
+                            ),
+                            (
+                                zkos_storage_key_for_standard_token_balance(
+                                    AccountTreeId::new(b160_to_h160(BASE_TOKEN_ADDRESS)),
+                                    &dst_address,
+                                ),
+                                H256::from_slice(&balance.to_be_bytes_vec()),
+                            ),
+                        ] {
+                            let storage_log = StorageLog {
+                                // FIXME - should distinguish between initial write and repeated write.
+                                kind: zksync_types::StorageLogKind::InitialWrite,
+                                key,
+                                value,
+                            };
+                            let prev_value = storage_ptr.set_value(key, value);
+
+                            storage_logs.push(StorageLogWithPreviousValue {
+                                log: storage_log,
+                                previous_value: prev_value,
+                            });
+                        }
+                    }
+                }
+                if !found {
+                    panic!("Failed to find preimage for account_properties");
+                }
+            }
         }
         let mut f_deps = HashMap::new();
 
@@ -484,7 +535,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 }
 
 pub fn zkos_get_nonce_key(account: &Address) -> StorageKey {
-    let nonce_manager = AccountTreeId::new(b160_to_h160(NONCE_HOLDER_HOOK_ADDRESS));
+    let nonce_manager = AccountTreeId::new(b160_to_h160(FAKE_NONCE_ADDRESS));
 
     // The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the `NONCE_HOLDER` system contract
     let key = address_to_h256(account);
@@ -531,6 +582,7 @@ pub fn zkos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
     )
 }
 
+#[derive(Debug)]
 pub struct ZKOsVM<S: WriteStorage, H: HistoryMode> {
     pub storage: StoragePtr<S>,
     pub tree: InMemoryTree,
@@ -551,6 +603,7 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
         raw_storage: &InMemoryStorage,
         config: &ZKOSConfig,
     ) -> Self {
+        println!("++++++ new zkos created +++++");
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
         ZKOsVM {
             storage,
@@ -666,7 +719,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
     }
 
     fn start_new_l2_block(&mut self, _l2_block_env: zksync_multivm::interface::L2BlockEnv) {
-        todo!()
+        // no-op
     }
 
     fn inspect_transaction_with_bytecode_compression(

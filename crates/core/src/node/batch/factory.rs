@@ -1,9 +1,12 @@
 use super::executor::{Command, MainBatchExecutor};
 use super::shared::Sealed;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
+use crate::deps::InMemoryStorage;
 use crate::node::traces::call_error::CallErrorTracer;
+use crate::node::zkos::ZKOsVM;
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
+use std::collections::HashMap;
 use std::sync::RwLock;
 use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc};
 use tokio::sync::mpsc;
@@ -26,6 +29,7 @@ use zksync_multivm::{
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
 use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
+use zksync_types::{StorageKey, StorageValue};
 
 #[doc(hidden)]
 pub trait CallTracingTracer: vm_fast::interface::Tracer + Default {
@@ -90,6 +94,7 @@ pub struct MainBatchExecutorFactory<Tr> {
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
+    use_zkos: bool,
     _tracer: PhantomData<Tr>,
 }
 
@@ -97,6 +102,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
     pub fn new(
         enforced_bytecode_compression: bool,
         legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
+        use_zkos: bool,
     ) -> Self {
         Self {
             enforced_bytecode_compression,
@@ -104,6 +110,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
             skip_signature_verification: false,
             divergence_handler: None,
             legacy_bootloader_debug_result,
+            use_zkos,
             _tracer: PhantomData,
         }
     }
@@ -125,6 +132,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         let executor = CommandReceiver {
             enforced_bytecode_compression: self.enforced_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
+            use_zkos: self.use_zkos,
             skip_signature_verification: self.skip_signature_verification,
             divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
@@ -139,6 +147,42 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
                 l1_batch_params,
                 system_env,
                 pubdata_params_to_builder(pubdata_params),
+                None,
+            )
+        });
+        MainBatchExecutor::new(handle, commands_sender)
+    }
+
+    pub(crate) fn init_main_batch_for_zkos(
+        &mut self,
+        storage: InMemoryStorage,
+        l1_batch_params: L1BatchEnv,
+        system_env: SystemEnv,
+        pubdata_params: PubdataParams,
+    ) -> MainBatchExecutor<InMemoryStorage> {
+        // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
+        // until a previous command is processed), capacity 1 is enough for the commands channel.
+        let (commands_sender, commands_receiver) = mpsc::channel(1);
+        let executor = CommandReceiver {
+            enforced_bytecode_compression: self.enforced_bytecode_compression,
+            fast_vm_mode: self.fast_vm_mode,
+            use_zkos: self.use_zkos,
+            skip_signature_verification: self.skip_signature_verification,
+            divergence_handler: self.divergence_handler.clone(),
+            commands: commands_receiver,
+            legacy_bootloader_debug_result: self.legacy_bootloader_debug_result.clone(),
+            _storage: PhantomData,
+            _tracer: PhantomData::<Tr>,
+        };
+
+        let handle = tokio::task::spawn_blocking(move || {
+            let all_values = storage.clone();
+            executor.run(
+                storage,
+                l1_batch_params,
+                system_env,
+                pubdata_params_to_builder(pubdata_params),
+                Some(all_values),
             )
         });
         MainBatchExecutor::new(handle, commands_sender)
@@ -163,6 +207,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
     Fast(FastVmInstance<S, Tr::Fast>),
+    ZKOS(ZKOsVM<StorageView<S>, HistoryEnabled>),
 }
 
 macro_rules! dispatch_batch_vm {
@@ -170,6 +215,7 @@ macro_rules! dispatch_batch_vm {
         match $self {
             Self::Legacy(vm) => vm.$function($($params)*),
             Self::Fast(vm) => vm.$function($($params)*),
+            Self::ZKOS(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -180,7 +226,22 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         system_env: SystemEnv,
         storage_ptr: StoragePtr<StorageView<S>>,
         mode: FastVmMode,
+        use_zkos: bool,
+        all_values: Option<InMemoryStorage>,
     ) -> Self {
+        if use_zkos {
+            return Self::ZKOS(ZKOsVM::new(
+                l1_batch_env,
+                system_env,
+                storage_ptr,
+                &all_values.unwrap(),
+                // FIXME
+                &anvil_zksync_config::types::ZKOSConfig {
+                    use_zkos: true,
+                    zkos_bin_path: None,
+                },
+            ));
+        }
         if !is_supported_by_fast_vm(system_env.version) {
             return Self::Legacy(LegacyVmInstance::new(l1_batch_env, system_env, storage_ptr));
         }
@@ -250,6 +311,18 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 tx,
                 with_compression,
             ),
+            Self::ZKOS(vm) => {
+                vm.push_transaction(tx);
+                let res = vm.inspect(
+                    // FIXME
+                    &mut Default::default(),
+                    //&mut legacy_tracer,
+                    InspectExecutionMode::OneTx,
+                );
+
+                (Ok((&[]).into()), res)
+            }
+
             Self::Fast(vm) => {
                 let mut tracer = (
                     legacy_tracer.into(),
@@ -267,12 +340,13 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         };
 
         let compressed_bytecodes = compression_result.map(drop);
-        let legacy_traces = Arc::try_unwrap(legacy_tracer_result)
+        /*let legacy_traces = Arc::try_unwrap(legacy_tracer_result)
             .expect("failed extracting call traces")
             .take()
             .unwrap_or_default();
         let call_traces = match self {
             Self::Legacy(_) => legacy_traces,
+            Self::ZKOS(_) => legacy_traces,
             Self::Fast(FastVmInstance::Fast(_)) => fast_traces,
             Self::Fast(FastVmInstance::Shadowed(vm)) => {
                 vm.get_custom_mut("call_traces", |r| match r {
@@ -281,12 +355,13 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 });
                 fast_traces
             }
-        };
+        };*/
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compression_result: compressed_bytecodes,
-            call_traces,
+            call_traces: vec![],
+            //call_traces,
         }
     }
 }
@@ -301,6 +376,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 struct CommandReceiver<S, Tr> {
     enforced_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
+    use_zkos: bool,
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
@@ -316,8 +392,12 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         pubdata_builder: Rc<dyn PubdataBuilder>,
+        all_values: Option<InMemoryStorage>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
+        if self.use_zkos {
+            tracing::info!("Using ZKOS VM");
+        }
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
         let mut vm = BatchVm::<S, Tr>::new(
@@ -325,6 +405,8 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             system_env,
             storage_view.clone(),
             self.fast_vm_mode,
+            self.use_zkos,
+            all_values,
         );
 
         if self.skip_signature_verification {

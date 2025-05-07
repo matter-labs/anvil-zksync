@@ -53,7 +53,11 @@ impl InMemoryNode {
             }
         }
 
-        tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        if self.system_contracts.use_zkos() {
+            tx.common_data.fee.gas_limit = 100_000_000.into();
+        } else {
+            tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        }
         let call_result = self
             .run_l2_call(tx.clone(), system_contracts)
             .await
@@ -316,6 +320,7 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockNumber>,
     ) -> Result<U256, Web3Error> {
+        println!("XXX Called estimate_gas_impl");
         let fee = self.inner.read().await.estimate_gas_impl(req).await?;
         Ok(fee.gas_limit)
     }

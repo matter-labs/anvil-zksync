@@ -82,7 +82,12 @@ impl InMemoryNode {
         // Match behavior of zksync_core:
         // Protection against infinite-loop eth_calls and alike:
         // limiting the amount of gas the call can use.
-        l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        //l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        if self.system_contracts.use_zkos() {
+            l2_tx.common_data.fee.gas_limit = 100_000_000.into();
+        } else {
+            l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        }
 
         let tx: Transaction = l2_tx.clone().into();
         vm.push_transaction(tx);
