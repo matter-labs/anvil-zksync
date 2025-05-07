@@ -343,13 +343,16 @@ fn fee_estimate_impersonating_contracts(
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
             load_builtin_contract(protocol_version, "fee_estimate_impersonating")
         }
-        // Account impersonating is not supported with the local contracts
-        SystemContractsOptions::Local => repo.read_sys_contract_bytecode(
-            "bootloader",
-            "fee_estimate",
-            Some("Bootloader"),
-            ContractLanguage::Yul,
-        ),
+        // TODO: hack to make local development with evm emulator work.
+        SystemContractsOptions::Local => {
+            load_builtin_contract(protocol_version, "fee_estimate_impersonating")
+        } // Account impersonating is not supported with the local contracts
+          // SystemContractsOptions::Local => repo.read_sys_contract_bytecode(
+          //     "bootloader",
+          //     "fee_estimate",
+          //     Some("Bootloader"),
+          //     ContractLanguage::Yul,
+          // ),
     };
 
     bsc_load_with_bootloader(
@@ -399,13 +402,17 @@ fn baseline_impersonating_contracts(
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
             load_builtin_contract(protocol_version, "proved_batch_impersonating")
         }
+        // TODO: hack to make local development with evm emulator work.
         // Account impersonating is not supported with the local contracts
-        SystemContractsOptions::Local => repo.read_sys_contract_bytecode(
-            "bootloader",
-            "proved_batch",
-            Some("Bootloader"),
-            ContractLanguage::Yul,
-        ),
+        // SystemContractsOptions::Local => repo.read_sys_contract_bytecode(
+        //     "bootloader",
+        //     "proved_batch",
+        //     Some("Bootloader"),
+        //     ContractLanguage::Yul,
+        // ),
+        SystemContractsOptions::Local => {
+            load_builtin_contract(protocol_version, "proved_batch_impersonating")
+        }
     };
     bsc_load_with_bootloader(
         bootloader_bytecode,
