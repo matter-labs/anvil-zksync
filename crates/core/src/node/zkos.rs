@@ -12,8 +12,9 @@ use forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
     StorageCommitment,
 };
+use rig::chain::evm_bytecode_into_account_properties;
 use ruint::aliases::B160;
-use system_hooks::addresses_constants::{BASE_TOKEN_ADDRESS, NONCE_HOLDER_HOOK_ADDRESS};
+use system_hooks::addresses_constants::{ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS, BASE_TOKEN_ADDRESS};
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zksync_multivm::{
     interface::{
@@ -26,7 +27,7 @@ use zksync_multivm::{
     HistoryMode,
 };
 use zksync_types::{
-    address_to_h256, u256_to_h256, web3::keccak256, AccountTreeId, Address,
+    address_to_h256, get_code_key, u256_to_h256, web3::keccak256, AccountTreeId, Address,
     ExecuteTransactionCommon, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction,
     H160, H256, U256,
 };
@@ -151,6 +152,7 @@ pub fn create_tree_from_full_state(
                 cc.try_into().unwrap(),
                 None,
                 Some(entry.1.to_low_u64_be()),
+                None,
             );
         }
 
@@ -161,6 +163,21 @@ pub fn create_tree_from_full_state(
                 cc.try_into().unwrap(),
                 Some(ruint::aliases::U256::from_be_slice(entry.1.as_bytes())),
                 None,
+                None,
+            );
+        }
+
+        if entry.0.address() == &b160_to_h160(ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS) {
+            println!("Setting bytecode for {:?}", entry.0.key());
+            let bytecode_hash = entry.1;
+            let bytecode = raw_storage.factory_deps.get(bytecode_hash).unwrap();
+            set_account_properties(
+                &mut tree,
+                &mut preimage_source,
+                cc.try_into().unwrap(),
+                None,
+                None,
+                Some(bytecode.clone()),
             );
         }
 
@@ -300,7 +317,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     let batch_context = basic_system::system_implementation::system::BasicBlockMetadataFromOracle {
         // TODO: get fee from batch_env.
         eip1559_basefee: ruint::aliases::U256::from(if simulate_only { 0u64 } else { 1000u64 }),
-        //ergs_price: ruint::aliases::U256::from(1u64),
         block_number: batch_env.number.0 as u64,
         timestamp: batch_env.timestamp,
         gas_per_pubdata: ruint::aliases::U256::from(1u64),
@@ -405,19 +421,19 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                 // also update a balance & nonce.
 
                 // find preimage in batch output.published_preimages
-                let hh = write.value;
                 let dst_address = &write.account_key.as_u8_ref()[12..];
                 let dst_address = zksync_types::Address::from_slice(dst_address);
                 let mut found = false;
 
                 for preimage in batch_output.published_preimages.iter() {
-                    if preimage.0 == hh {
+                    if preimage.0 == write.value {
                         found = true;
                         let account_properties =
                             AccountProperties::decode(preimage.1.clone().try_into().unwrap())
                                 .unwrap();
                         let balance = account_properties.nominal_token_balance;
                         let nonce = account_properties.nonce;
+                        let bytecode_hash = account_properties.bytecode_hash;
 
                         println!("For account :{:?} nonce is {:?}", dst_address, nonce);
 
@@ -432,6 +448,10 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                                     &dst_address,
                                 ),
                                 H256::from_slice(&balance.to_be_bytes_vec()),
+                            ),
+                            (
+                                get_code_key(&dst_address),
+                                H256::from(bytecode_hash.as_u8_array_ref()),
                             ),
                         ] {
                             let storage_log = StorageLog {
@@ -603,7 +623,6 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
         raw_storage: &InMemoryStorage,
         config: &ZKOSConfig,
     ) -> Self {
-        println!("++++++ new zkos created +++++");
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
         ZKOsVM {
             storage,
@@ -787,16 +806,16 @@ pub fn set_account_properties(
     address: B160,
     balance: Option<ruint::aliases::U256>,
     nonce: Option<u64>,
-    //bytecode: Option<Vec<u8>>,
+    bytecode: Option<Vec<u8>>,
 ) {
     let mut account_properties = get_account_properties(state_tree, preimage_source, &address);
-    /*if let Some(bytecode) = bytecode {
+    if let Some(bytecode) = bytecode {
         account_properties = evm_bytecode_into_account_properties(&bytecode);
         // Save bytecode preimage
-        self.preimage_source
+        preimage_source
             .inner
             .insert(account_properties.bytecode_hash, bytecode);
-    }*/
+    }
     if let Some(nominal_token_balance) = balance {
         account_properties.nominal_token_balance = nominal_token_balance;
     }
