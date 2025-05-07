@@ -16,7 +16,7 @@ async fn deploy_evm_counter(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| {
             node.args([
-                "--emulate-evm",
+                "--evm-interpreter",
                 "--protocol-version",
                 &protocol_version.to_string(),
             ])
@@ -46,11 +46,11 @@ async fn deploy_evm_counter(protocol_version: u16) -> anyhow::Result<()> {
 async fn no_evm_emulator_on_v26() -> anyhow::Result<()> {
     let child = CommandAsync::new(get_node_binary_path())
         .stderr(Stdio::piped())
-        .args(["--emulate-evm", "--protocol-version", "26"])
+        .args(["--evm-interpreter", "--protocol-version", "26"])
         .spawn()?;
     let output = tokio::time::timeout(Duration::from_secs(10), child.wait_with_output()).await??;
     let error = std::str::from_utf8(&output.stderr)?;
-    assert!(error.contains("EVM emulation requires protocol version 27 or higher"));
+    assert!(error.contains("EVM interpreter requires protocol version 27 or higher"));
 
     Ok(())
 }
@@ -62,7 +62,7 @@ async fn deploy_evm_counter_with_l1(protocol_version: u16) -> anyhow::Result<()>
         .with_l1()
         .with_node_fn(&|node| {
             node.args([
-                "--emulate-evm",
+                "--evm-interpreter",
                 "--protocol-version",
                 &protocol_version.to_string(),
             ])
