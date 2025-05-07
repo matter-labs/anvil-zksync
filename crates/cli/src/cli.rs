@@ -166,8 +166,8 @@ pub struct Cli {
     pub protocol_version: Option<ProtocolVersionId>,
 
     #[arg(long, help_heading = "System Configuration")]
-    /// Enables EVM emulation.
-    pub emulate_evm: bool,
+    /// Enables EVM interpreter.
+    pub evm_interpreter: bool,
 
     // Logging Configuration
     #[arg(long, help_heading = "Logging Configuration")]
@@ -691,7 +691,11 @@ impl Cli {
             .with_chain_id(self.chain_id)
             .set_config_out(self.config_out)
             .with_host(self.host)
-            .with_evm_emulator(if self.emulate_evm { Some(true) } else { None })
+            .with_evm_interpreter(if self.evm_interpreter {
+                Some(true)
+            } else {
+                None
+            })
             .with_health_check_endpoint(if self.health_check_endpoint {
                 Some(true)
             } else {
@@ -726,9 +730,9 @@ impl Cli {
                 }
             });
 
-        if self.emulate_evm && config.protocol_version() < ProtocolVersionId::Version27 {
+        if self.evm_interpreter && config.protocol_version() < ProtocolVersionId::Version27 {
             return Err(zksync_error::anvil_zksync::env::InvalidArguments {
-                details: "EVM emulation requires protocol version 27 or higher".into(),
+                details: "EVM interpreter requires protocol version 27 or higher".into(),
                 arguments: debug_self_repr,
             });
         }
@@ -809,7 +813,7 @@ impl Cli {
                 "protocol_version",
                 self.protocol_version.map(|v| v.to_string()),
             )
-            .insert_with("emulate_evm", self.emulate_evm, |v| v.then_some(v))
+            .insert_with("evm_interpreter", self.evm_interpreter, |v| v.then_some(v))
             .insert("log", self.log.map(|v| v.to_string()))
             .insert_with("log_file_path", self.log_file_path, |v| {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)

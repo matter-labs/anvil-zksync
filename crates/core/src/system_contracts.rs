@@ -17,8 +17,8 @@ pub struct SystemContractsBuilder {
     system_contracts_options: Option<SystemContractsOptions>,
     system_contracts_path: Option<PathBuf>,
     protocol_version: Option<ProtocolVersionId>,
-    use_evm_emulator: bool,
-    use_zkos: bool,
+    use_evm_interpreter: bool,
+    use_boojum: bool,
 }
 
 impl SystemContractsBuilder {
@@ -45,15 +45,15 @@ impl SystemContractsBuilder {
         self
     }
 
-    /// Enable or disable the EVM emulator
-    pub fn use_evm_emulator(mut self, flag: bool) -> Self {
-        self.use_evm_emulator = flag;
+    /// Enable or disable the EVM interpreter
+    pub fn with_evm_interpreter(mut self, flag: bool) -> Self {
+        self.use_evm_interpreter = flag;
         self
     }
 
-    /// Enable or disable ZKOS
-    pub fn use_zkos(mut self, flag: bool) -> Self {
-        self.use_zkos = flag;
+    /// Enable or disable Boojum
+    pub fn with_boojum(mut self, flag: bool) -> Self {
+        self.use_boojum = flag;
         self
     }
 
@@ -70,7 +70,7 @@ impl SystemContractsBuilder {
             .unwrap_or_else(ProtocolVersionId::latest);
 
         tracing::debug!(
-            %protocol_version, use_evm_emulator = self.use_evm_emulator, use_zkos = self.use_zkos,
+            %protocol_version, use_evm_interpreter = self.use_evm_interpreter, use_boojum = self.use_boojum,
             "Building SystemContracts"
         );
 
@@ -78,8 +78,8 @@ impl SystemContractsBuilder {
             options,
             self.system_contracts_path,
             protocol_version,
-            self.use_evm_emulator,
-            self.use_zkos,
+            self.use_evm_interpreter,
+            self.use_boojum,
         )
     }
 }

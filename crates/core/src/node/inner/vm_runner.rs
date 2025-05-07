@@ -673,8 +673,8 @@ mod test {
                 config.system_contracts_options,
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
-                config.use_evm_emulator,
-                config.use_zkos,
+                config.use_evm_interpreter,
+                config.use_boojum,
             );
             let vm_runner = VmRunner::new(
                 time,

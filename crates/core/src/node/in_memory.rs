@@ -614,10 +614,10 @@ impl InMemoryNode {
             config.system_contracts_options,
             config.system_contracts_path.clone(),
             ProtocolVersionId::latest(),
-            config.use_evm_emulator,
-            config.use_zkos,
+            config.use_evm_interpreter,
+            config.use_boojum,
         );
-        let storage_key_layout = if config.use_zkos {
+        let storage_key_layout = if config.use_boojum {
             StorageKeyLayout::ZkOs
         } else {
             StorageKeyLayout::ZkEra

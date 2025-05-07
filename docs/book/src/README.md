@@ -34,7 +34,7 @@ Once running, visit [`http://localhost:8011`](http://localhost:8011).
 * **New to zkSync?** Start with [Getting Started](./intro/getting-started.md) for a quick architectural primer.  
 * **Deep dive into flags?** Head over to the [CLI Reference](./cli/index.md).  
 * **Building an L1↔L2 bridge?** Check the [Guides](./guides/local_hardhat_testing.md) section.
-* **Looking for Rust documentation index?** Head over to the [Rust API](./rustdoc/anvil_zksync/index.html) for a complete list of public APIs.
+* **Looking for Rust book?** Head over to the [Anzil-ZKsync Rust book](https://matter-labs.github.io/anvil-zksync/latest/rustdoc/anvil_zksync/index.html).
 
 Thank you for using **anvil-zkSync** —happy building!  
 If you spot an issue or have an idea for improvement, open an issue or [pull request]() on GitHub.
