@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::deps::system_contracts::load_builtin_contract;
 use crate::node::ImpersonationManager;
-use anvil_zksync_config::types::{SystemContractsOptions, ZKOSConfig};
+use anvil_zksync_config::types::{BoojumConfig, SystemContractsOptions};
 use zksync_contracts::{
     read_sys_contract_bytecode, BaseSystemContracts, BaseSystemContractsHashes, ContractLanguage,
     SystemContractCode, SystemContractsRepo,
@@ -17,8 +17,8 @@ pub struct SystemContractsBuilder {
     system_contracts_options: Option<SystemContractsOptions>,
     system_contracts_path: Option<PathBuf>,
     protocol_version: Option<ProtocolVersionId>,
-    use_evm_emulator: bool,
-    zkos_config: ZKOSConfig,
+    use_evm_interpreter: bool,
+    boojum: BoojumConfig,
 }
 
 impl SystemContractsBuilder {
@@ -45,14 +45,15 @@ impl SystemContractsBuilder {
         self
     }
 
-    /// Enable or disable the EVM emulator
-    pub fn use_evm_emulator(mut self, flag: bool) -> Self {
-        self.use_evm_emulator = flag;
+    /// Enable or disable the EVM interpreter
+    pub fn with_evm_interpreter(mut self, flag: bool) -> Self {
+        self.use_evm_interpreter = flag;
         self
     }
 
-    pub fn use_zkos_config(mut self, zkos_config: &ZKOSConfig) -> Self {
-        self.zkos_config = zkos_config.clone();
+    /// Enable or disable Boojum
+    pub fn with_boojum(mut self, config: BoojumConfig) -> Self {
+        self.boojum = config;
         self
     }
 
@@ -69,7 +70,7 @@ impl SystemContractsBuilder {
             .unwrap_or_else(ProtocolVersionId::latest);
 
         tracing::debug!(
-            %protocol_version, use_evm_emulator = self.use_evm_emulator, use_zkos = self.zkos_config.use_zkos,
+            %protocol_version, use_evm_interpreter = self.use_evm_interpreter, use_boojum = self.boojum.use_boojum,
             "Building SystemContracts"
         );
 
@@ -77,8 +78,8 @@ impl SystemContractsBuilder {
             options,
             self.system_contracts_path,
             protocol_version,
-            self.use_evm_emulator,
-            self.zkos_config,
+            self.use_evm_interpreter,
+            self.boojum,
         )
     }
 }
@@ -93,10 +94,10 @@ pub struct SystemContracts {
     baseline_impersonating_contracts: BaseSystemContracts,
     fee_estimate_impersonating_contracts: BaseSystemContracts,
     use_evm_emulator: bool,
-    // For now, store the zkos switch flag here.
+    // For now, store the boojum switch flag here.
     // Long term, we should probably refactor this code, and add another struct ('System')
-    // that would hold separate things for ZKOS and for EraVM. (but that's too early for now).
-    pub zkos_config: ZKOSConfig,
+    // that would hold separate things for BoojumOS and for EraVM. (but that's too early for now).
+    pub boojum: BoojumConfig,
 }
 
 impl SystemContracts {
@@ -112,12 +113,12 @@ impl SystemContracts {
         system_contracts_path: Option<PathBuf>,
         protocol_version: ProtocolVersionId,
         use_evm_emulator: bool,
-        zkos_config: ZKOSConfig,
+        boojum: BoojumConfig,
     ) -> Self {
         tracing::info!(
             %protocol_version,
             use_evm_emulator,
-            zkos_config.use_zkos,
+            boojum.use_boojum,
             "initializing system contracts"
         );
         let path = system_contracts_path.unwrap_or_else(|| SystemContractsRepo::default().root);
@@ -149,18 +150,14 @@ impl SystemContracts {
                 &path,
             ),
             use_evm_emulator,
-            zkos_config,
+            boojum,
         }
     }
 
     /// Whether it accepts the transactions that have 'null' as target.
     /// This is used only when EVM emulator is enabled, or we're running in zkos mode.
     pub fn allow_no_target(&self) -> bool {
-        self.zkos_config.use_zkos || self.use_evm_emulator
-    }
-
-    pub fn use_zkos(&self) -> bool {
-        self.zkos_config.use_zkos
+        self.boojum.use_boojum || self.use_evm_emulator
     }
 
     pub fn contracts_for_l2_call(&self) -> &BaseSystemContracts {

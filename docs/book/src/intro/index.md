@@ -56,7 +56,7 @@ For protocol engineers:
 - **Experiment with new protocol versions** (`--protocol-version`)
 - **Validate compression, pubdata costs, and bytecode overrides**
 
-## Emulate EVM usage
+## EVM usage
 
 Starting in the v27 protocol upgrade, `anvil-zksync` supports running the EVM interpreter on top of
 EraVM. This is useful if you need to:
@@ -65,7 +65,7 @@ EraVM. This is useful if you need to:
 - Compare EraVM vs EVM interpreter behavior
 
 ```bash
-anvil-zksync --emulate-evm --protocol-version 27
+anvil-zksync --evm-interpreter
 ```
 
 ## Replay and trace historical transactions

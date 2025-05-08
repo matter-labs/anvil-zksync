@@ -1,8 +1,10 @@
 mod account_generator;
+mod boojum;
 mod genesis;
 mod zkos;
 
 pub use account_generator::AccountGenerator;
+pub use boojum::BoojumConfig;
 use clap::ValueEnum;
 pub use genesis::Genesis;
 use serde::Deserialize;

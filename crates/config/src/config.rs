@@ -22,7 +22,7 @@ pub const VERSION_MESSAGE: &str = concat!(env!("CARGO_PKG_VERSION"));
 
 /// Protocol version that is used in anvil-zksync by default. Should match what is currently
 /// deployed to mainnet.
-pub const DEFAULT_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version26;
+pub const DEFAULT_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version27;
 
 const BANNER: &str = r#"
                       _  _         _____ _  __
@@ -72,10 +72,10 @@ pub struct TestNodeConfig {
     pub override_bytecodes_dir: Option<String>,
     /// Enable bytecode compression
     pub bytecode_compression: bool,
-    /// Enables EVM emulation mode
-    pub use_evm_emulator: bool,
-    /// ZKOS configuration
-    pub zkos_config: ZKOSConfig,
+    /// Enables EVM interpreter mode
+    pub use_evm_interpreter: bool,
+    /// Enables BoojumOS mode (experimental)
+    pub boojum: BoojumConfig,
     /// Optional chain ID for the node
     pub chain_id: Option<u32>,
     /// L1 gas price (optional override)
@@ -197,8 +197,8 @@ impl Default for TestNodeConfig {
             protocol_version: None,
             override_bytecodes_dir: None,
             bytecode_compression: false,
-            use_evm_emulator: false,
-            zkos_config: Default::default(),
+            use_evm_interpreter: false,
+            boojum: Default::default(),
             chain_id: None,
 
             // Gas configuration defaults
@@ -431,13 +431,13 @@ Genesis Timestamp
 Node Configuration
 ========================
 Port:                  {}
-EVM Emulator:          {}
+EVM Interpreter:       {}
 Health Check Endpoint: {}
-ZK OS:                 {}
+BoojumOS:              {}
 L1:                    {}
 "#,
             self.port,
-            if self.use_evm_emulator {
+            if self.use_evm_interpreter {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -447,7 +447,7 @@ L1:                    {}
             } else {
                 "Disabled".red()
             },
-            if self.zkos_config.use_zkos {
+            if self.boojum.use_boojum {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -458,16 +458,6 @@ L1:                    {}
                 "Disabled".red()
             }
         );
-        if self.zkos_config.use_zkos {
-            sh_println!(
-                "ZK bin:             {}",
-                if let Some(path) = self.zkos_config.zkos_bin_path.as_ref() {
-                    path.green()
-                } else {
-                    "Not set".red()
-                }
-            );
-        }
 
         // L1 Configuration
         match self.l1_config.as_ref() {
@@ -657,23 +647,16 @@ Address: {address}
 
     /// Enable or disable EVM emulation
     #[must_use]
-    pub fn with_evm_emulator(mut self, enable: Option<bool>) -> Self {
+    pub fn with_evm_interpreter(mut self, enable: Option<bool>) -> Self {
         if let Some(enable) = enable {
-            self.use_evm_emulator = enable;
+            self.use_evm_interpreter = enable;
         }
         self
     }
 
-    /// ZKOS configuration
-    #[must_use]
-    pub fn with_zkos_config(mut self, config: ZKOSConfig) -> Self {
-        self.zkos_config = config;
-        self
-    }
-
-    /// Get the EVM emulation status
-    pub fn is_evm_emulator_enabled(&self) -> bool {
-        self.use_evm_emulator
+    /// Get the EVM interpreter status
+    pub fn is_evm_interpreter_enabled(&self) -> bool {
+        self.use_evm_interpreter
     }
 
     /// Set the L1 gas price

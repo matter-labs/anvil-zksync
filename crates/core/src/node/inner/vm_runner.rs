@@ -417,8 +417,8 @@ impl VmRunner {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
         };
-        let mut executor = if self.system_contracts.use_zkos() {
-            self.executor_factory.init_main_batch_for_zkos(
+        let mut executor = if self.system_contracts.boojum.use_boojum() {
+            self.executor_factory.init_main_batch_for_BoojumOS(
                 self.fork_storage.inner.read().unwrap().raw_storage.clone(),
                 batch_env.clone(),
                 system_env.clone(),
@@ -688,8 +688,8 @@ mod test {
                 config.system_contracts_options,
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
-                config.use_evm_emulator,
-                config.zkos_config.clone(),
+                config.use_evm_interpreter,
+                config.boojum.clone(),
             );
             let vm_runner = VmRunner::new(
                 time,

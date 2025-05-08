@@ -284,12 +284,12 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         .system_contracts_options(config.system_contracts_options)
         .system_contracts_path(config.system_contracts_path.clone())
         .protocol_version(config.protocol_version())
-        .use_evm_emulator(config.use_evm_emulator)
-        .use_zkos_config(&config.zkos_config)
+        .with_evm_interpreter(config.use_evm_interpreter)
+        .with_boojum(config.boojum.clone())
         .build();
 
-    let storage_key_layout = if config.zkos_config.use_zkos {
-        StorageKeyLayout::ZkOs
+    let storage_key_layout = if config.boojum.use_boojum {
+        StorageKeyLayout::BoojumOs
     } else {
         StorageKeyLayout::ZkEra
     };
@@ -384,8 +384,8 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         }
     });
 
-    if config.use_evm_emulator {
-        // We need to enable EVM emulator by setting `allowedBytecodeTypesToDeploy` in `ContractDeployer`
+    if config.use_evm_interpreter {
+        // We need to enable EVM interpreter by setting `allowedBytecodeTypesToDeploy` in `ContractDeployer`
         // to `1` (i.e. `AllowedBytecodeTypes::EraVmAndEVM`).
         node.impersonate_account(PSEUDO_CALLER).unwrap();
         node.set_rich_account(PSEUDO_CALLER, U256::from(1_000_000_000_000u64))

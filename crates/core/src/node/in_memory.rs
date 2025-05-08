@@ -397,8 +397,8 @@ impl InMemoryNode {
 
         let storage = StorageView::new(inner.read_storage()).to_rc_ptr();
 
-        let mut vm = if self.system_contracts.use_zkos() {
-            AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
+        let mut vm = if self.system_contracts.boojum.use_boojum {
+            AnvilVM::ZKOs(super::boojumos::BoojumOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
@@ -615,11 +615,11 @@ impl InMemoryNode {
             config.system_contracts_options,
             config.system_contracts_path.clone(),
             ProtocolVersionId::latest(),
-            config.use_evm_emulator,
-            config.zkos_config.clone(),
+            config.use_evm_interpreter,
+            config.boojum.clone(),
         );
-        let storage_key_layout = if config.zkos_config.use_zkos {
-            StorageKeyLayout::ZkOs
+        let storage_key_layout = if config.boojum.use_boojum {
+            StorageKeyLayout::BoojumOs
         } else {
             StorageKeyLayout::ZkEra
         };
@@ -687,7 +687,6 @@ impl InMemoryNode {
 
         let mut receipts = Vec::with_capacity(expected_tx_hashes.len());
         for tx_hash in expected_tx_hashes {
-            tokio::time::sleep(Duration::from_millis(100)).await;
             let receipt = (|| async {
                 self.blockchain
                     .get_tx_receipt(&tx_hash)
@@ -696,8 +695,8 @@ impl InMemoryNode {
             })
             .retry(
                 ConstantBuilder::default()
-                    .with_delay(Duration::from_millis(100))
-                    .with_max_times(3),
+                    .with_delay(Duration::from_millis(200))
+                    .with_max_times(5),
             )
             .await?;
             receipts.push(receipt);
