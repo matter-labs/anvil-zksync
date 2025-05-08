@@ -1,5 +1,6 @@
 use crate::error::RpcError;
 use anvil_zksync_api_decl::AnvilZksNamespaceServer;
+use anvil_zksync_core::node::boojumos_get_batch_witness;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::{L1BatchNumber, H256};
@@ -38,5 +39,9 @@ impl AnvilZksNamespaceServer for AnvilZksNamespace {
             .execute_batch(batch_number)
             .await
             .map_err(RpcError::from)?)
+    }
+
+    async fn get_boojum_witness(&self, batch: u32) -> RpcResult<Option<String>> {
+        Ok(boojumos_get_batch_witness(&batch).map(hex::encode))
     }
 }
