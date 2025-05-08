@@ -1,5 +1,4 @@
 use crate::bootloader_debug::BootloaderDebug;
-use crate::deps;
 use crate::formatter::{self, ExecutionErrorReport};
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
 use crate::node::diagnostics::account_has_code;
@@ -309,7 +308,15 @@ impl VmRunner {
             });
         }
 
-        let new_bytecodes = new_bytecodes(tx, &result);
+        let mut new_bytecodes = new_bytecodes(tx, &result);
+
+        if self.system_contracts.boojum.use_boojum {
+            // In boojum, we store account properties outside of state (so state has only hash).
+            // For now, we simply put the original preimages into the factory deps.
+            // The result type here is the 'era' crate - that is not modified to fit boojum os yet.
+            // once it is - we will not need this hack anymore.
+            new_bytecodes.extend(result.dynamic_factory_deps.clone());
+        }
 
         let logs = result
             .logs
@@ -423,6 +430,8 @@ impl VmRunner {
                 batch_env.clone(),
                 system_env.clone(),
                 pubdata_params,
+                // For boojum, we have to pass the iterator handle to the storage
+                // as boojum has different storage layout, so it has to scan over whole storage.
                 Some(self.fork_storage.inner.read().unwrap().raw_storage.clone()),
             )
         } else {
@@ -599,25 +608,18 @@ fn new_bytecodes(
     // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
     // are added into the lookup map as well.
     tx_factory_deps.extend(result.dynamic_factory_deps.clone());
-
-    // FIXME - for now, simply record all the factory deps.
-    tx_factory_deps
-        .iter()
-        .map(|x| (x.0.clone(), x.1.clone()))
+    saved_factory_deps
+        .map(|bytecode_hash| {
+            let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
+                panic!(
+                    "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
+                    bytecode_hash,
+                    tx.hash()
+                )
+            });
+            (bytecode_hash, bytecode.clone())
+        })
         .collect::<Vec<_>>()
-
-    /*saved_factory_deps
-    .map(|bytecode_hash| {
-        let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
-            panic!(
-                "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
-                bytecode_hash,
-                tx.hash()
-            )
-        });
-        (bytecode_hash, bytecode.clone())
-    })
-    .collect::<Vec<_>>()*/
 }
 
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
@@ -779,7 +781,7 @@ mod test {
             let mut log_index = 0;
             let mut results = vec![];
             for (i, tx) in txs.into_iter().enumerate() {
-                /*results.push(
+                results.push(
                     self.vm_runner
                         .run_tx(
                             &tx,
@@ -792,7 +794,7 @@ mod test {
                             &TestNodeFeeInputProvider::default(),
                         )
                         .await?,
-                );*/
+                );
             }
             Ok(results)
         }

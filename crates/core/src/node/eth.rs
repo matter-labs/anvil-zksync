@@ -31,6 +31,8 @@ use crate::{
     utils::TransparentError,
 };
 
+use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
+
 impl InMemoryNode {
     pub async fn call_impl(
         &self,
@@ -54,7 +56,7 @@ impl InMemoryNode {
         }
 
         if self.system_contracts.boojum.use_boojum {
-            tx.common_data.fee.gas_limit = 100_000_000.into();
+            tx.common_data.fee.gas_limit = BOOJUM_CALL_GAS_LIMIT.into();
         } else {
             tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         }

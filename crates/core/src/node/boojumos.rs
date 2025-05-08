@@ -39,6 +39,8 @@ use crate::deps::InMemoryStorage;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
+pub const BOOJUM_CALL_GAS_LIMIT: u64 = 100_000_000;
+
 static BATCH_WITNESS: Lazy<Mutex<HashMap<u32, Vec<u8>>>> = Lazy::new(|| {
     let m = HashMap::new();
     Mutex::new(m)

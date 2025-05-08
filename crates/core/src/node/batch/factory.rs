@@ -7,7 +7,6 @@ use crate::node::traces::call_error::CallErrorTracer;
 use anvil_zksync_config::types::BoojumConfig;
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
-use std::collections::HashMap;
 use std::sync::RwLock;
 use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc};
 use tokio::sync::mpsc;
@@ -30,7 +29,6 @@ use zksync_multivm::{
     FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
 use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
-use zksync_types::{StorageKey, StorageValue};
 
 #[doc(hidden)]
 pub trait CallTracingTracer: vm_fast::interface::Tracer + Default {

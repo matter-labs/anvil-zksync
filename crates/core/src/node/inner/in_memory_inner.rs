@@ -52,7 +52,7 @@ use zksync_multivm::utils::{
     get_max_gas_per_pubdata_byte,
 };
 use zksync_multivm::vm_latest::constants::{
-    BATCH_COMPUTATIONAL_GAS_LIMIT, BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH,
+    BATCH_COMPUTATIONAL_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH,
 };
 use zksync_multivm::vm_latest::{HistoryDisabled, Vm};
 use zksync_multivm::{MultiVmTracer, VmVersion};
@@ -848,17 +848,16 @@ impl InMemoryNodeInner {
 
         let tx_result = match &mut vm {
             AnvilVM::BoojumOs(vm) => {
-                vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx)
+                vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
             }
             AnvilVM::ZKSync(vm) => {
                 vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
             }
         };
-        /*let call_traces = Arc::try_unwrap(call_tracer_result)
-        .expect("failed extracting call traces")
-        .take()
-        .unwrap_or_default();*/
-        let call_traces = vec![];
+        let call_traces = Arc::try_unwrap(call_tracer_result)
+            .expect("failed extracting call traces")
+            .take()
+            .unwrap_or_default();
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compression_result: Ok(()),
