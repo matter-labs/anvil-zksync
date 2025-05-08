@@ -1,9 +1,9 @@
-# ZKOS (experimental)
+# BoojumOS (experimental)
 
-ZKOS is the new backend for proving. The features below are still experimental and might break without warning.
+BoojumOS is the new backend for proving. The features below are still experimental and might break without warning.
 
 
-Currently the code resides in `zkos-dev` branch (due to dependencies on private crates).
+Currently the code resides in `boojumos-dev` branch (due to dependencies on private crates).
 
 
 ## Usage

@@ -159,7 +159,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for BoojumOsVM<S
     fn make_snapshot(&mut self) {}
 
     fn rollback_to_the_latest_snapshot(&mut self) {
-        panic!("Not implemented for zkos");
+        panic!("Not implemented for boojumos");
     }
 
     fn pop_snapshot_no_rollback(&mut self) {}
