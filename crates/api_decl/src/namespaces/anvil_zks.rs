@@ -41,4 +41,11 @@ pub trait AnvilZksNamespace {
     /// Finalized L1 transaction's hash that successfully executed the batch.
     #[method(name = "executeBatch")]
     async fn execute_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256>;
+
+    /// Returns the witness for a given batch.
+    ///
+    /// # Returns
+    /// Bytes with the witness that can be passed to proving system.
+    #[method(name = "getBoojumWitness")]
+    async fn get_boojum_witness(&self, batch: u32) -> RpcResult<Option<String>>;
 }

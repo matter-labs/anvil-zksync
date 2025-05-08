@@ -21,11 +21,11 @@ mod vm;
 mod zks;
 
 pub use self::{
-    fee_model::TestNodeFeeInputProvider, impersonate::ImpersonationManager, keys::StorageKeyLayout,
-    node_executor::NodeExecutor, pool::TxBatch, pool::TxPool, sealer::BlockSealer,
-    sealer::BlockSealerMode, state::VersionedState,
+    boojumos::boojumos_get_batch_witness, fee_model::TestNodeFeeInputProvider,
+    impersonate::ImpersonationManager, keys::StorageKeyLayout, node_executor::NodeExecutor,
+    pool::TxBatch, pool::TxPool, sealer::BlockSealer, sealer::BlockSealerMode,
+    state::VersionedState,
 };
 pub use in_memory::*;
 pub use inner::InMemoryNodeInner;
 pub use inner::{blockchain, fork, node_executor, time};
-pub use zkos::boojumos_get_batch_witness;
