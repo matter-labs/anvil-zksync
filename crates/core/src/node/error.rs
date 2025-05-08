@@ -5,22 +5,6 @@ use zksync_error::anvil_zksync::halt::HaltError;
 use zksync_error::anvil_zksync::revert::RevertError;
 use zksync_multivm::interface::{Halt, VmRevertReason};
 
-#[derive(thiserror::Error, Debug)]
-pub enum LoadStateError {
-    #[error("loading state into a node with existing state is not allowed (please create an issue if you have a valid use case)")]
-    HasExistingState,
-    #[error("loading empty state (no blocks) is not allowed")]
-    EmptyState,
-    #[error("failed to decompress state: {0}")]
-    FailedDecompress(std::io::Error),
-    #[error("failed to deserialize state: {0}")]
-    FailedDeserialize(serde_json::Error),
-    #[error("unknown state version `{0}`")]
-    UnknownStateVersion(u8),
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
-}
-
 async fn handle_vm_revert_reason(reason: &VmRevertReason) -> (String, &[u8]) {
     match reason {
         VmRevertReason::General { msg, data } => (msg.to_string(), data),

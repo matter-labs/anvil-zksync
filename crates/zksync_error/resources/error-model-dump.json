@@ -225,6 +225,20 @@
           }
         }
       },
+      "Rpc": {
+        "name": "Rpc",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<Rpc>"
+          },
+          "typescript": {
+            "expression": "Box<Rpc>"
+          }
+        }
+      },
       "Sequencer": {
         "name": "Sequencer",
         "meta": {
@@ -267,6 +281,20 @@
           }
         }
       },
+      "StateLoader": {
+        "name": "StateLoader",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<StateLoader>"
+          },
+          "typescript": {
+            "expression": "Box<StateLoader>"
+          }
+        }
+      },
       "TransactionValidation": {
         "name": "TransactionValidation",
         "meta": {
@@ -289,6 +317,20 @@
         "bindings": {
           "rust": {
             "expression": "Box<zksync_basic_types::U256>"
+          }
+        }
+      },
+      "Web3": {
+        "name": "Web3",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<Web3>"
+          },
+          "typescript": {
+            "expression": "Box<Web3>"
           }
         }
       },
@@ -408,6 +450,8 @@
           "AnvilNode",
           "Halt",
           "Revert",
+          "Rpc",
+          "StateLoader",
           "TransactionValidation"
         ],
         "bindings": {
@@ -449,7 +493,8 @@
           "API",
           "EraVM",
           "ExecutionPlatform",
-          "Sequencer"
+          "Sequencer",
+          "Web3"
         ],
         "bindings": {
           "rust": "Core",
@@ -458,7 +503,8 @@
         "identifier": "core",
         "description": "Errors in core ZKsync components such as sequencer or mempool.",
         "origins": [
-          "<default zksync-root.json>"
+          "<default zksync-root.json>",
+          "../../etc/errors/core.json"
         ]
       },
       "Foundry": {
@@ -693,6 +739,20 @@
           "../../etc/errors/anvil.json"
         ]
       },
+      "Rpc": {
+        "name": "Rpc",
+        "code": 20,
+        "domain_name": "AnvilZKsync",
+        "bindings": {
+          "rust": "Rpc",
+          "typescript": "Rpc"
+        },
+        "identifier": "rpc",
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
       "Sequencer": {
         "name": "Sequencer",
         "code": 1,
@@ -735,6 +795,20 @@
           "<default zksync-root.json>"
         ]
       },
+      "StateLoader": {
+        "name": "StateLoader",
+        "code": 11,
+        "domain_name": "AnvilZKsync",
+        "bindings": {
+          "rust": "StateLoader",
+          "typescript": "StateLoader"
+        },
+        "identifier": "state",
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
       "TransactionValidation": {
         "name": "TransactionValidation",
         "code": 4,
@@ -747,6 +821,20 @@
         "description": "",
         "origins": [
           "../../etc/errors/anvil.json"
+        ]
+      },
+      "Web3": {
+        "name": "Web3",
+        "code": 10,
+        "domain_name": "Core",
+        "bindings": {
+          "rust": "Web3",
+          "typescript": "Web3"
+        },
+        "identifier": "web3",
+        "description": "",
+        "origins": [
+          "../../etc/errors/core.json"
         ]
       },
       "Zksolc": {
@@ -2340,6 +2428,407 @@
           "../../etc/errors/anvil.json"
         ]
       },
+      "[anvil_zksync-rpc-0]": {
+        "domain": "AnvilZKsync",
+        "component": "Rpc",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zksync-rpc-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "GenericError"
+          },
+          "typescript": {
+            "expression": "GenericError"
+          }
+        },
+        "origins": []
+      },
+      "[anvil_zksync-rpc-1]": {
+        "domain": "AnvilZKsync",
+        "component": "Rpc",
+        "name": "LoadStateError",
+        "code": 1,
+        "identifier": "[anvil_zksync-rpc-1]",
+        "message": "Error loading state: {inner}.",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "StateLoader"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "LoadStateError"
+          },
+          "typescript": {
+            "expression": "LoadStateError"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-rpc-2]": {
+        "domain": "AnvilZKsync",
+        "component": "Rpc",
+        "name": "UnsupportedMethod",
+        "code": 2,
+        "identifier": "[anvil_zksync-rpc-2]",
+        "message": "Unsupported method {method_name}.",
+        "fields": [
+          {
+            "name": "method_name",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "UnsupportedMethod"
+          },
+          "typescript": {
+            "expression": "UnsupportedMethod"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-rpc-3]": {
+        "domain": "AnvilZKsync",
+        "component": "Rpc",
+        "name": "Web3Error",
+        "code": 3,
+        "identifier": "[anvil_zksync-rpc-3]",
+        "message": "Web3 error: {inner}",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "Web3"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "Web3Error"
+          },
+          "typescript": {
+            "expression": "Web3Error"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-rpc-4]": {
+        "domain": "AnvilZKsync",
+        "component": "Rpc",
+        "name": "NodeError",
+        "code": 4,
+        "identifier": "[anvil_zksync-rpc-4]",
+        "message": "Anvil-zksync node error: {inner}.",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "AnvilNode"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "NodeError"
+          },
+          "typescript": {
+            "expression": "NodeError"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-0]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zksync-state-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "GenericError"
+          },
+          "typescript": {
+            "expression": "GenericError"
+          }
+        },
+        "origins": []
+      },
+      "[anvil_zksync-state-1]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "LoadingStateOverExistingState",
+        "code": 1,
+        "identifier": "[anvil_zksync-state-1]",
+        "message": "Loading state into a node with existing state is not allowed.",
+        "fields": [],
+        "documentation": {
+          "description": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue.",
+          "summary": "It is not allowed to load a state overriding the existing node state.",
+          "likely_causes": []
+        },
+        "bindings": {
+          "rust": {
+            "expression": "LoadingStateOverExistingState"
+          },
+          "typescript": {
+            "expression": "LoadingStateOverExistingState"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-2]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "LoadEmptyState",
+        "code": 2,
+        "identifier": "[anvil_zksync-state-2]",
+        "message": "Loading a state without blocks is not allowed.",
+        "fields": [],
+        "documentation": {
+          "description": "It is not allowed to load a state without any blocks in it.",
+          "summary": "Attempt to load a state with no blocks",
+          "likely_causes": [
+            {
+              "cause": "Skip loading state or provide a non-empty state file.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "LoadEmptyState"
+          },
+          "typescript": {
+            "expression": "LoadEmptyState"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-3]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "StateDecompression",
+        "code": 3,
+        "identifier": "[anvil_zksync-state-3]",
+        "message": "Failed to decompress state: {details}.",
+        "fields": [
+          {
+            "name": "details",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "Failed to decompress the state.",
+          "summary": "",
+          "likely_causes": [
+            {
+              "cause": "Uncompressed state file is provided, but a compressed one is expected.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Wrong state file provided.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Provided state file is corrupted.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "StateDecompression"
+          },
+          "typescript": {
+            "expression": "StateDecompression"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-4]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "StateDeserialization",
+        "code": 4,
+        "identifier": "[anvil_zksync-state-4]",
+        "message": "Failed to deserialize state: {details}",
+        "fields": [
+          {
+            "name": "details",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "Failed to deserialize the state file.",
+          "summary": "",
+          "likely_causes": [
+            {
+              "cause": "Wrong state file provided.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Provided state file is corrupted.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "StateDeserialization"
+          },
+          "typescript": {
+            "expression": "StateDeserialization"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-5]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "UnknownStateVersion",
+        "code": 5,
+        "identifier": "[anvil_zksync-state-5]",
+        "message": "Unknown version of the state: {version}.",
+        "fields": [
+          {
+            "name": "version",
+            "type": "uint"
+          }
+        ],
+        "documentation": {
+          "description": "The version of the state file is not recognized.",
+          "summary": "",
+          "likely_causes": [
+            {
+              "cause": "Wrong state file provided.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "The state file was produced by an older version of anvil-zksync.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "UnknownStateVersion"
+          },
+          "typescript": {
+            "expression": "UnknownStateVersion"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-state-6]": {
+        "domain": "AnvilZKsync",
+        "component": "StateLoader",
+        "name": "StateFileAccess",
+        "code": 6,
+        "identifier": "[anvil_zksync-state-6]",
+        "message": "Error while accessing the state located at `{path}`. Reason: {reason}.",
+        "fields": [
+          {
+            "name": "path",
+            "type": "string"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "Failed to access the state file.",
+          "summary": "",
+          "likely_causes": [
+            {
+              "cause": "State file is missing.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "The file permissions for the state file are insufficient.",
+              "fixes": [],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "StateFileAccess"
+          },
+          "typescript": {
+            "expression": "StateFileAccess"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
       "[anvil_zksync-tx_invalid-0]": {
         "domain": "AnvilZKsync",
         "component": "TransactionValidation",
@@ -2853,6 +3342,345 @@
         },
         "origins": [
           "<default zksync-root.json>"
+        ]
+      },
+      "[core-web3-0]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[core-web3-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "GenericError"
+          },
+          "typescript": {
+            "expression": "GenericError"
+          }
+        },
+        "origins": []
+      },
+      "[core-web3-10]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "InvalidFilterBlockHash",
+        "code": 10,
+        "identifier": "[core-web3-10]",
+        "message": "Invalid filter: if blockHash is supplied fromBlock and toBlock must not be",
+        "fields": [],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "InvalidFilterBlockHash"
+          },
+          "typescript": {
+            "expression": "InvalidFilterBlockHash"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-11]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "MethodNotImplemented",
+        "code": 11,
+        "identifier": "[core-web3-11]",
+        "message": "Method not implemented",
+        "fields": [],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "MethodNotImplemented"
+          },
+          "typescript": {
+            "expression": "MethodNotImplemented"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-12]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "TreeApiUnavailable",
+        "code": 12,
+        "identifier": "[core-web3-12]",
+        "message": "Tree API is temporarily unavailable",
+        "fields": [],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "TreeApiUnavailable"
+          },
+          "typescript": {
+            "expression": "TreeApiUnavailable"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-14]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "ServerShuttingDown",
+        "code": 14,
+        "identifier": "[core-web3-14]",
+        "message": "Server is shutting down",
+        "fields": [],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "ServerShuttingDown"
+          },
+          "typescript": {
+            "expression": "ServerShuttingDown"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-1]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "NoBlock",
+        "code": 1,
+        "identifier": "[core-web3-1]",
+        "message": "Block with such an ID doesn't exist yet",
+        "fields": [],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "NoBlock"
+          },
+          "typescript": {
+            "expression": "NoBlock"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-2]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "PrunedBlock",
+        "code": 2,
+        "identifier": "[core-web3-2]",
+        "message": "Block with such an ID is pruned; the first retained block is {first_retained_block}",
+        "fields": [
+          {
+            "name": "first_retained_block",
+            "type": "uint"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "PrunedBlock"
+          },
+          "typescript": {
+            "expression": "PrunedBlock"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-3]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "PrunedL1Batch",
+        "code": 3,
+        "identifier": "[core-web3-3]",
+        "message": "L1 batch with such an ID is pruned; the first retained L1 batch is {first_retained_batch}",
+        "fields": [
+          {
+            "name": "first_retained_batch",
+            "type": "uint"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "PrunedL1Batch"
+          },
+          "typescript": {
+            "expression": "PrunedL1Batch"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-4]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "ProxyError",
+        "code": 4,
+        "identifier": "[core-web3-4]",
+        "message": "{details}",
+        "fields": [
+          {
+            "name": "details",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "ProxyError"
+          },
+          "typescript": {
+            "expression": "ProxyError"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-5]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "SubmitTransactionError",
+        "code": 5,
+        "identifier": "[core-web3-5]",
+        "message": "{error}",
+        "fields": [
+          {
+            "name": "error",
+            "type": "string"
+          },
+          {
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "SubmitTransactionError"
+          },
+          "typescript": {
+            "expression": "SubmitTransactionError"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-6]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "SerializationError",
+        "code": 6,
+        "identifier": "[core-web3-6]",
+        "message": "Failed to serialize transaction: {details}",
+        "fields": [
+          {
+            "name": "details",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "SerializationError"
+          },
+          "typescript": {
+            "expression": "SerializationError"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-7]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "TooManyTopics",
+        "code": 7,
+        "identifier": "[core-web3-7]",
+        "message": "More than four topics in filter",
+        "fields": [],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "TooManyTopics"
+          },
+          "typescript": {
+            "expression": "TooManyTopics"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-8]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "FilterNotFound",
+        "code": 8,
+        "identifier": "[core-web3-8]",
+        "message": "Filter not found",
+        "fields": [],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "FilterNotFound"
+          },
+          "typescript": {
+            "expression": "FilterNotFound"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
+        ]
+      },
+      "[core-web3-9]": {
+        "domain": "Core",
+        "component": "Web3",
+        "name": "LogsLimitExceeded",
+        "code": 9,
+        "identifier": "[core-web3-9]",
+        "message": "Query returned more than {limit} results. Try with this block range [{from_block:#x}, {to_block:#x}].",
+        "fields": [
+          {
+            "name": "limit",
+            "type": "uint"
+          },
+          {
+            "name": "from_block",
+            "type": "uint"
+          },
+          {
+            "name": "to_block",
+            "type": "uint"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "LogsLimitExceeded"
+          },
+          "typescript": {
+            "expression": "LogsLimitExceeded"
+          }
+        },
+        "origins": [
+          "../../etc/errors/core.json"
         ]
       },
       "[foundry-upstream-0]": {

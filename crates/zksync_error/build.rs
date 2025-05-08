@@ -8,9 +8,11 @@ const ROOT_ERROR_DEFINITIONS_FROM_ZKSYNC_ERROR: &str = "zksync-error://zksync-ro
 
 fn main() -> ExitCode {
     let local_anvil_path = format!("{REPOSITORY_ROOT}/etc/errors/anvil.json");
+    let local_core_path = format!("{REPOSITORY_ROOT}/etc/errors/core.json");
     // If we have modified anvil errors, forces rerunning the build script and
     // regenerating the crate `zksync-error`.
     println!("cargo::rerun-if-changed={local_anvil_path}");
+    println!("cargo::rerun-if-changed={local_core_path}");
 
     // This is the root JSON file
     // It will contain the links to other JSON files in the `takeFrom`
@@ -27,7 +29,8 @@ fn main() -> ExitCode {
 
     let arguments = GenerationArguments {
         verbose: true,
-        input_links: vec![root_link.into()],
+        input_links: vec![root_link.into(),
+                          local_core_path],
         override_links: vec![
             ( "https://raw.githubusercontent.com/matter-labs/anvil-zksync/refs/heads/main/etc/errors/anvil.json".to_owned(),
                local_anvil_path)

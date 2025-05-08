@@ -66,7 +66,7 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The string "0x0".
-    pub async fn mine_block(&self) -> Result<L2BlockNumber> {
+    pub async fn mine_block(&self) -> AnvilNodeResult<L2BlockNumber> {
         // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
         let max_transactions = self.inner.read().await.config.max_transactions;
         let tx_batch = self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {

@@ -148,14 +148,9 @@ pub fn render_trace_arena_inner(arena: &CallTraceArena, with_bytecodes: bool) ->
 /// Decode a collection of call traces.
 ///
 /// The traces will be decoded if possible using openchain.
-pub async fn decode_trace_arena(
-    arena: &mut CallTraceArena,
-    decoder: &CallTraceDecoder,
-) -> Result<(), anyhow::Error> {
+pub async fn decode_trace_arena(arena: &mut CallTraceArena, decoder: &CallTraceDecoder) {
     decoder.prefetch_signatures(&arena.arena).await;
-    decoder.populate_traces(&mut arena.arena).await?;
-
-    Ok(())
+    decoder.populate_traces(&mut arena.arena).await;
 }
 
 /// Filter a call trace arena based on verbosity level.
