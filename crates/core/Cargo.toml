@@ -51,7 +51,6 @@ async-trait.workspace = true
 url.workspace = true
 indicatif.workspace = true
 tabled.workspace = true
-#ruint = { version = "1.12.3", default-features = false, features = ["alloc"]}
 
 [dev-dependencies]
 maplit.workspace = true
