@@ -1,12 +1,12 @@
-use crate::impls::ZKOSNamespace;
+use crate::impls::BoojumOSNamespace;
 use crate::{
     AnvilNamespace, AnvilZksNamespace, ConfigNamespace, DebugNamespace, EthNamespace,
     EthTestNamespace, EvmNamespace, NetNamespace, Web3Namespace, ZksNamespace,
 };
 use anvil_zksync_api_decl::{
-    AnvilNamespaceServer, AnvilZksNamespaceServer, ConfigNamespaceServer, DebugNamespaceServer,
-    EthNamespaceServer, EthTestNamespaceServer, EvmNamespaceServer, NetNamespaceServer,
-    Web3NamespaceServer, ZKOSNamespaceServer, ZksNamespaceServer,
+    AnvilNamespaceServer, AnvilZksNamespaceServer, BoojumOSNamespaceServer, ConfigNamespaceServer,
+    DebugNamespaceServer, EthNamespaceServer, EthTestNamespaceServer, EvmNamespaceServer,
+    NetNamespaceServer, Web3NamespaceServer, ZksNamespaceServer,
 };
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_l1_sidecar::L1Sidecar;
@@ -70,7 +70,7 @@ impl NodeServerBuilder {
             .unwrap();
         rpc.merge(ZksNamespace::new(node, l1_sidecar).into_rpc())
             .unwrap();
-        rpc.merge(ZKOSNamespace::new().into_rpc()).unwrap();
+        rpc.merge(BoojumOSNamespace::new().into_rpc()).unwrap();
         rpc.merge(Web3Namespace.into_rpc()).unwrap();
         rpc
     }

@@ -3,7 +3,7 @@ use jsonrpsee::proc_macros::rpc;
 
 /// API bindings for the `zkos` experimental namespace.
 #[rpc(server, namespace = "zkos")]
-pub trait ZKOSNamespace {
+pub trait BoojumOSNamespace {
     /// Returns the witness for a given batch.
     ///
     /// # Returns

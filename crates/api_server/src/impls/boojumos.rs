@@ -1,18 +1,18 @@
 use anvil_zksync_core::node::zkos_get_batch_witness;
 use jsonrpsee::core::{async_trait, RpcResult};
 
-use anvil_zksync_api_decl::ZKOSNamespaceServer;
+use anvil_zksync_api_decl::BoojumOSNamespaceServer;
 
-pub struct ZKOSNamespace {}
+pub struct BoojumOSNamespace {}
 
-impl ZKOSNamespace {
+impl BoojumOSNamespace {
     pub fn new() -> Self {
         Self {}
     }
 }
 
 #[async_trait]
-impl ZKOSNamespaceServer for ZKOSNamespace {
+impl BoojumOSNamespaceServer for BoojumOSNamespace {
     async fn get_witness(&self, batch: u32) -> RpcResult<Option<String>> {
         Ok(zkos_get_batch_witness(&batch).map(hex::encode))
     }
