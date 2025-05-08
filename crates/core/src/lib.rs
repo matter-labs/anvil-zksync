@@ -1,6 +1,3 @@
-#![feature(allocator_api)]
-#![allow(incomplete_features)]
-#![feature(generic_const_exprs)]
 //! anvil-zksync
 //!
 //! The `anvil-zksync` crate provides an in-memory node designed primarily for local testing.
