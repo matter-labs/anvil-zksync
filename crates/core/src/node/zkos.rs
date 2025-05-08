@@ -168,9 +168,24 @@ pub fn create_tree_from_full_state(
         }
 
         if entry.0.address() == &b160_to_h160(ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS) {
-            println!("Setting bytecode for {:?}", entry.0.key());
+            if entry.0.key() == &H256::zero() {
+                // Empty (default) account
+                continue;
+            }
+            if entry.1 == &H256::zero() {
+                // Empty (default) account
+                continue;
+            }
+            println!(
+                "Setting bytecode for {:?} with hash {:?}",
+                entry.0.key(),
+                entry.1
+            );
             let bytecode_hash = entry.1;
-            let bytecode = raw_storage.factory_deps.get(bytecode_hash).unwrap();
+            let bytecode = raw_storage.factory_deps.get(bytecode_hash).expect(&format!(
+                "Failed to find bytecode hash for {:?}",
+                bytecode_hash
+            ));
             set_account_properties(
                 &mut tree,
                 &mut preimage_source,
@@ -434,8 +449,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                         let balance = account_properties.nominal_token_balance;
                         let nonce = account_properties.nonce;
                         let bytecode_hash = account_properties.bytecode_hash;
-
-                        println!("For account :{:?} nonce is {:?}", dst_address, nonce);
 
                         for (key, value) in [
                             (
