@@ -9,7 +9,7 @@ Currently the code resides in `zkos-dev` branch (due to dependencies on private 
 ## Usage
 
 ```
-cargo run  -- --use-zkos 
+cargo run  -- --use-boojum
 ```
 
 Afterwards, any regular forge script should work:
@@ -28,7 +28,7 @@ It can be computed with the https://github.com/matter-labs/zk_ee/blob/main/zk_os
 Then you can run the anvil-zksync:
 
 ```
-cargo run  -- --use-zkos --zkos-bin-path=../zk_ee/zk_os/app.bin 
+cargo run -- --use-boojum --boojum-bin-path ../zk_ee/zk_os/app.bin 
 ```
 
 And after sending some transactions, you can get the witness for the batch, by calling a new method:
@@ -36,7 +36,7 @@ And after sending some transactions, you can get the witness for the batch, by c
 ```
 http POST http://127.0.0.1:8011 \
     Content-Type:application/json \
-    id:=1 jsonrpc="2.0" method="zkos_getWitness" params:='[1]'
+    id:=1 jsonrpc="2.0" method="anvil_zks_getBoojumWitness" params:='[1]'
 ```
 
 The resulting data can be passed to tools like the prover cli: https://github.com/matter-labs/air_compiler/tree/main/tools/cli to generate the proof.
