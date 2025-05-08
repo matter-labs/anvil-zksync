@@ -1,4 +1,4 @@
-//! Interfaces that use zkos for VM execution.
+//! Interfaces that use boojumos for VM execution.
 //! This is still experimental code.
 use std::{alloc::Global, collections::HashMap, vec};
 
@@ -23,9 +23,12 @@ use zksync_multivm::{
         SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
         VmInterfaceHistoryEnabled, VmRevertReason,
     },
+    tracers::TracerDispatcher,
     vm_latest::TracerPointer,
     HistoryMode,
 };
+
+use zksync_multivm::MultiVmTracerPointer;
 use zksync_types::{
     address_to_h256, get_code_key, u256_to_h256, web3::keccak256, AccountTreeId, Address,
     ExecuteTransactionCommon, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction,
@@ -169,8 +172,18 @@ pub fn create_tree_from_full_state(
 
         if entry.0.address() == &b160_to_h160(ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS) {
             println!("Setting bytecode for {:?}", entry.0.key());
+            if entry.0.key().is_zero() {
+                continue;
+            }
+            if entry.1.is_zero() {
+                continue;
+            }
+
             let bytecode_hash = entry.1;
-            let bytecode = raw_storage.factory_deps.get(bytecode_hash).unwrap();
+            let bytecode = raw_storage
+                .factory_deps
+                .get(bytecode_hash)
+                .expect(&format!("Cannot find bytecode for {:?}", bytecode_hash));
             set_account_properties(
                 &mut tree,
                 &mut preimage_source,
@@ -664,6 +677,26 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
     for ZkOsTracerDispatcher<S, H>
 {
     fn from(_value: Vec<TracerPointer<S, H>>) -> Self {
+        Self {
+            _tracers: Default::default(),
+            _marker: Default::default(),
+        }
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> From<Vec<MultiVmTracerPointer<S, H>>>
+    for ZkOsTracerDispatcher<S, H>
+{
+    fn from(_value: Vec<MultiVmTracerPointer<S, H>>) -> Self {
+        Self {
+            _tracers: Default::default(),
+            _marker: Default::default(),
+        }
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>> for ZkOsTracerDispatcher<S, H> {
+    fn from(_value: TracerDispatcher<S, H>) -> Self {
         Self {
             _tracers: Default::default(),
             _marker: Default::default(),

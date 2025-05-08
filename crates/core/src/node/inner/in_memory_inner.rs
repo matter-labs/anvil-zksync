@@ -830,7 +830,7 @@ impl InMemoryNodeInner {
             // Temporary hack - as we update the 'storage' just above, but zkos loads its full
             // state from fork_storage (that is not updated).
             vm.update_inconsistent_keys(&[&nonce_key, &balance_key]);
-            AnvilVM::ZKOs(vm)
+            AnvilVM::BoojumOs(vm)
         } else {
             AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
         };
@@ -847,7 +847,9 @@ impl InMemoryNodeInner {
         };
 
         let tx_result = match &mut vm {
-            AnvilVM::ZKOs(vm) => vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx),
+            AnvilVM::BoojumOs(vm) => {
+                vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx)
+            }
             AnvilVM::ZKSync(vm) => {
                 vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
             }

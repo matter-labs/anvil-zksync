@@ -155,7 +155,7 @@ impl SystemContracts {
     }
 
     /// Whether it accepts the transactions that have 'null' as target.
-    /// This is used only when EVM emulator is enabled, or we're running in zkos mode.
+    /// This is used only when EVM emulator is enabled, or we're running in boojumos mode.
     pub fn allow_no_target(&self) -> bool {
         self.boojum.use_boojum || self.use_evm_emulator
     }

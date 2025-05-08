@@ -174,7 +174,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
     Fast(FastVmInstance<S, Tr::Fast>),
-    ZKOS(BoojumOsVM<StorageView<S>, HistoryEnabled>),
+    BoojumOS(BoojumOsVM<StorageView<S>, HistoryEnabled>),
 }
 
 macro_rules! dispatch_batch_vm {
@@ -182,7 +182,7 @@ macro_rules! dispatch_batch_vm {
         match $self {
             Self::Legacy(vm) => vm.$function($($params)*),
             Self::Fast(vm) => vm.$function($($params)*),
-            Self::ZKOS(vm) => vm.$function($($params)*),
+            Self::BoojumOS(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -197,7 +197,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         all_values: Option<InMemoryStorage>,
     ) -> Self {
         if boojum.use_boojum {
-            return Self::ZKOS(BoojumOsVM::new(
+            return Self::BoojumOS(BoojumOsVM::new(
                 l1_batch_env,
                 system_env,
                 storage_ptr,
@@ -274,14 +274,9 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 tx,
                 with_compression,
             ),
-            Self::ZKOS(vm) => {
+            Self::BoojumOS(vm) => {
                 vm.push_transaction(tx);
-                let res = vm.inspect(
-                    // FIXME
-                    &mut Default::default(),
-                    //&mut legacy_tracer,
-                    InspectExecutionMode::OneTx,
-                );
+                let res = vm.inspect(&mut legacy_tracer.into(), InspectExecutionMode::OneTx);
 
                 (Ok((&[]).into()), res)
             }
@@ -303,13 +298,13 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         };
 
         let compressed_bytecodes = compression_result.map(drop);
-        /*let legacy_traces = Arc::try_unwrap(legacy_tracer_result)
+        let legacy_traces = Arc::try_unwrap(legacy_tracer_result)
             .expect("failed extracting call traces")
             .take()
             .unwrap_or_default();
         let call_traces = match self {
             Self::Legacy(_) => legacy_traces,
-            Self::ZKOS(_) => legacy_traces,
+            Self::BoojumOS(_) => legacy_traces,
             Self::Fast(FastVmInstance::Fast(_)) => fast_traces,
             Self::Fast(FastVmInstance::Shadowed(vm)) => {
                 vm.get_custom_mut("call_traces", |r| match r {
@@ -318,13 +313,12 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 });
                 fast_traces
             }
-        };*/
+        };
 
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compression_result: compressed_bytecodes,
-            call_traces: vec![],
-            //call_traces,
+            call_traces,
         }
     }
 }
@@ -359,7 +353,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
         if self.boojum.use_boojum {
-            tracing::info!("Using ZKOS VM");
+            tracing::info!("Using BoojumOS VM");
         }
 
         let storage_view = StorageView::new(storage).to_rc_ptr();

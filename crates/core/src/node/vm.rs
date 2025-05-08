@@ -3,7 +3,7 @@ use zksync_multivm::{interface::storage::WriteStorage, vm_latest::Vm, HistoryMod
 use super::boojumos::BoojumOsVM;
 
 pub enum AnvilVM<W: WriteStorage, H: HistoryMode> {
-    ZKOs(BoojumOsVM<W, H>),
+    BoojumOs(BoojumOsVM<W, H>),
     ZKSync(Vm<W, H>),
 }
 
@@ -11,7 +11,7 @@ pub enum AnvilVM<W: WriteStorage, H: HistoryMode> {
 macro_rules! delegate_vm {
     ($variable:expr, $function:ident($($params:tt)*)) => {
         match &mut $variable {
-            AnvilVM::ZKOs(vm) => vm.$function($($params)*),
+            AnvilVM::BoojumOs(vm) => vm.$function($($params)*),
             AnvilVM::ZKSync(vm) => vm.$function($($params)*),
         }
     };
