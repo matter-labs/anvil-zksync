@@ -163,7 +163,7 @@ impl VmRunner {
     async fn run_tx_pretty(
         &mut self,
         tx: &Transaction,
-        executor: &mut dyn BatchExecutor<deps::InMemoryStorage>,
+        executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
@@ -273,7 +273,7 @@ impl VmRunner {
         next_log_index: &mut usize,
         block_ctx: &BlockContext,
         batch_env: &L1BatchEnv,
-        executor: &mut dyn BatchExecutor<deps::InMemoryStorage>,
+        executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<TransactionResult> {
@@ -418,20 +418,21 @@ impl VmRunner {
             pubdata_type: PubdataType::Rollup,
         };
         let mut executor = if self.system_contracts.boojum.use_boojum {
-            self.executor_factory.init_main_batch_for_boojumos(
-                self.fork_storage.inner.read().unwrap().raw_storage.clone(),
-                batch_env.clone(),
-                system_env.clone(),
-                pubdata_params,
-            )
-        } else {
-            /*self.executor_factory.init_main_batch(
+            self.executor_factory.init_main_batch(
                 self.fork_storage.clone(),
                 batch_env.clone(),
                 system_env.clone(),
                 pubdata_params,
-            )*/
-            todo!();
+                Some(self.fork_storage.inner.read().unwrap().raw_storage.clone()),
+            )
+        } else {
+            self.executor_factory.init_main_batch(
+                self.fork_storage.clone(),
+                batch_env.clone(),
+                system_env.clone(),
+                pubdata_params,
+                None,
+            )
         };
 
         // Compute block hash. Note that the computed block hash here will be different than that in production.

@@ -126,6 +126,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
+        iterable_storage: Option<InMemoryStorage>,
     ) -> MainBatchExecutor<S> {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
@@ -148,42 +149,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
                 l1_batch_params,
                 system_env,
                 pubdata_params_to_builder(pubdata_params),
-                None,
-            )
-        });
-        MainBatchExecutor::new(handle, commands_sender)
-    }
-
-    pub(crate) fn init_main_batch_for_boojumos(
-        &mut self,
-        storage: InMemoryStorage,
-        l1_batch_params: L1BatchEnv,
-        system_env: SystemEnv,
-        pubdata_params: PubdataParams,
-    ) -> MainBatchExecutor<InMemoryStorage> {
-        // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
-        // until a previous command is processed), capacity 1 is enough for the commands channel.
-        let (commands_sender, commands_receiver) = mpsc::channel(1);
-        let executor = CommandReceiver {
-            enforced_bytecode_compression: self.enforced_bytecode_compression,
-            fast_vm_mode: self.fast_vm_mode,
-            boojum: self.boojum.clone(),
-            skip_signature_verification: self.skip_signature_verification,
-            divergence_handler: self.divergence_handler.clone(),
-            commands: commands_receiver,
-            legacy_bootloader_debug_result: self.legacy_bootloader_debug_result.clone(),
-            _storage: PhantomData,
-            _tracer: PhantomData::<Tr>,
-        };
-
-        let handle = tokio::task::spawn_blocking(move || {
-            let all_values = storage.clone();
-            executor.run(
-                storage,
-                l1_batch_params,
-                system_env,
-                pubdata_params_to_builder(pubdata_params),
-                Some(all_values),
+                iterable_storage,
             )
         });
         MainBatchExecutor::new(handle, commands_sender)
@@ -200,7 +166,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<S>> {
-        Box::new(self.init_main_batch(storage, l1_batch_params, system_env, pubdata_params))
+        Box::new(self.init_main_batch(storage, l1_batch_params, system_env, pubdata_params, None))
     }
 }
 
