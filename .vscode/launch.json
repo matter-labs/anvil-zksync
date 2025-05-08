@@ -20,7 +20,8 @@
                 }
             },
             "args": [
-                "run"
+                "--use-zkos",
+                "run",
             ],
             "env": {
                 "CARGO_PROFILE_DEV": "true"
