@@ -85,7 +85,7 @@ impl VmRunner {
             executor_factory: MainBatchExecutorFactory::<TraceCalls>::new(
                 enforced_bytecode_compression,
                 bootloader_debug_result.clone(),
-                system_contracts.zkos_config.use_zkos,
+                system_contracts.zkos_config.clone(),
             ),
             bootloader_debug_result,
 

@@ -320,7 +320,6 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockNumber>,
     ) -> Result<U256, Web3Error> {
-        println!("XXX Called estimate_gas_impl");
         let fee = self.inner.read().await.estimate_gas_impl(req).await?;
         Ok(fee.gas_limit)
     }

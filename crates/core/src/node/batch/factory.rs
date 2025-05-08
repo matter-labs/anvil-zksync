@@ -4,6 +4,7 @@ use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::deps::InMemoryStorage;
 use crate::node::traces::call_error::CallErrorTracer;
 use crate::node::zkos::ZKOsVM;
+use anvil_zksync_config::types::ZKOSConfig;
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
@@ -94,7 +95,7 @@ pub struct MainBatchExecutorFactory<Tr> {
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
-    use_zkos: bool,
+    zkos_config: ZKOSConfig,
     _tracer: PhantomData<Tr>,
 }
 
@@ -102,7 +103,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
     pub fn new(
         enforced_bytecode_compression: bool,
         legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
-        use_zkos: bool,
+        zkos_config: ZKOSConfig,
     ) -> Self {
         Self {
             enforced_bytecode_compression,
@@ -110,7 +111,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
             skip_signature_verification: false,
             divergence_handler: None,
             legacy_bootloader_debug_result,
-            use_zkos,
+            zkos_config,
             _tracer: PhantomData,
         }
     }
@@ -132,7 +133,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         let executor = CommandReceiver {
             enforced_bytecode_compression: self.enforced_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
-            use_zkos: self.use_zkos,
+            zkos_config: self.zkos_config.clone(),
             skip_signature_verification: self.skip_signature_verification,
             divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
@@ -166,7 +167,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         let executor = CommandReceiver {
             enforced_bytecode_compression: self.enforced_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
-            use_zkos: self.use_zkos,
+            zkos_config: self.zkos_config.clone(),
             skip_signature_verification: self.skip_signature_verification,
             divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
@@ -226,20 +227,16 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         system_env: SystemEnv,
         storage_ptr: StoragePtr<StorageView<S>>,
         mode: FastVmMode,
-        use_zkos: bool,
+        zkos_config: &ZKOSConfig,
         all_values: Option<InMemoryStorage>,
     ) -> Self {
-        if use_zkos {
+        if zkos_config.use_zkos {
             return Self::ZKOS(ZKOsVM::new(
                 l1_batch_env,
                 system_env,
                 storage_ptr,
                 &all_values.unwrap(),
-                // FIXME
-                &anvil_zksync_config::types::ZKOSConfig {
-                    use_zkos: true,
-                    zkos_bin_path: None,
-                },
+                zkos_config,
             ));
         }
         if !is_supported_by_fast_vm(system_env.version) {
@@ -376,7 +373,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 struct CommandReceiver<S, Tr> {
     enforced_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    use_zkos: bool,
+    zkos_config: ZKOSConfig,
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
@@ -395,7 +392,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         all_values: Option<InMemoryStorage>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
-        if self.use_zkos {
+        if self.zkos_config.use_zkos {
             tracing::info!("Using ZKOS VM");
         }
 
@@ -405,7 +402,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             system_env,
             storage_view.clone(),
             self.fast_vm_mode,
-            self.use_zkos,
+            &self.zkos_config,
             all_values,
         );
 
