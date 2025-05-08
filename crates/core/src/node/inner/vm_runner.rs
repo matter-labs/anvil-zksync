@@ -85,7 +85,7 @@ impl VmRunner {
             executor_factory: MainBatchExecutorFactory::<TraceCalls>::new(
                 enforced_bytecode_compression,
                 bootloader_debug_result.clone(),
-                system_contracts.zkos_config.clone(),
+                system_contracts.boojum.clone(),
             ),
             bootloader_debug_result,
 
@@ -417,8 +417,8 @@ impl VmRunner {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
         };
-        let mut executor = if self.system_contracts.boojum.use_boojum() {
-            self.executor_factory.init_main_batch_for_BoojumOS(
+        let mut executor = if self.system_contracts.boojum.use_boojum {
+            self.executor_factory.init_main_batch_for_boojumos(
                 self.fork_storage.inner.read().unwrap().raw_storage.clone(),
                 batch_env.clone(),
                 system_env.clone(),

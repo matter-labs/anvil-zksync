@@ -7,8 +7,11 @@ use anvil_zksync_common::{
     sh_err, sh_warn,
     utils::io::write_json_file,
 };
-use anvil_zksync_config::constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID};
-use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions, ZKOSConfig};
+use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
+use anvil_zksync_config::{
+    constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID},
+    types::BoojumConfig,
+};
 use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::node::{InMemoryNode, VersionedState};
@@ -170,8 +173,8 @@ pub struct Cli {
     pub evm_interpreter: bool,
 
     #[clap(flatten)]
-    /// ZKOS detailed config.
-    pub zkos_config: ZKOSConfig,
+    /// BoojumOS detailed config.
+    pub boojum: BoojumConfig,
 
     // Logging Configuration
     #[arg(long, help_heading = "Logging Configuration")]
@@ -700,6 +703,7 @@ impl Cli {
             } else {
                 None
             })
+            .with_boojum(self.boojum)
             .with_health_check_endpoint(if self.health_check_endpoint {
                 Some(true)
             } else {

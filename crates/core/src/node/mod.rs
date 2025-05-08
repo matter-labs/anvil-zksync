@@ -25,7 +25,7 @@ pub use self::{
     node_executor::NodeExecutor, pool::TxBatch, pool::TxPool, sealer::BlockSealer,
     sealer::BlockSealerMode, state::VersionedState,
 };
+pub use boojumos::boojumos_get_batch_witness;
 pub use in_memory::*;
 pub use inner::InMemoryNodeInner;
 pub use inner::{blockchain, fork, node_executor, time};
-pub use zkos::zkos_get_batch_witness;

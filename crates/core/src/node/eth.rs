@@ -53,7 +53,7 @@ impl InMemoryNode {
             }
         }
 
-        if self.system_contracts.use_zkos() {
+        if self.system_contracts.boojum.use_boojum {
             tx.common_data.fee.gas_limit = 100_000_000.into();
         } else {
             tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();

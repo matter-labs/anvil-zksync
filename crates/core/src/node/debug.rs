@@ -83,7 +83,7 @@ impl InMemoryNode {
         // Protection against infinite-loop eth_calls and alike:
         // limiting the amount of gas the call can use.
         //l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
-        if self.system_contracts.use_zkos() {
+        if self.system_contracts.boojum.use_boojum {
             l2_tx.common_data.fee.gas_limit = 100_000_000.into();
         } else {
             l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();

@@ -654,6 +654,13 @@ Address: {address}
         self
     }
 
+    /// Enable or disable Boojum
+    #[must_use]
+    pub fn with_boojum(mut self, boojum: BoojumConfig) -> Self {
+        self.boojum = boojum;
+        self
+    }
+
     /// Get the EVM interpreter status
     pub fn is_evm_interpreter_enabled(&self) -> bool {
         self.use_evm_interpreter

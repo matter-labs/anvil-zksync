@@ -825,7 +825,7 @@ impl InMemoryNodeInner {
                 storage,
                 // TODO: this might be causing a deadlock.. check..
                 &fork_storage.inner.read().unwrap().raw_storage,
-                zkos_config,
+                boojum,
             );
             // Temporary hack - as we update the 'storage' just above, but zkos loads its full
             // state from fork_storage (that is not updated).

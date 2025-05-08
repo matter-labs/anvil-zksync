@@ -331,6 +331,24 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ffb906284a1e1f63c4607da2068c8197458a352d0b3e9796e67353d72a9be85"
+dependencies = [
+ "alloy-eip2930",
+ "alloy-eip7702 0.1.1",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-serde 0.4.2",
+ "c-kzg",
+ "derive_more 1.0.0",
+ "once_cell",
+ "serde",
+ "sha2 0.10.8",
+]
+
+[[package]]
+name = "alloy-eips"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52dd5869ed09e399003e0e0ec6903d981b2a92e74c5d37e6b40890bad2517526"
@@ -503,6 +521,19 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.12",
+]
+
+[[package]]
+name = "alloy-network-primitives"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "801492711d4392b2ccf5fc0bc69e299fa1aab15167d74dcaa9aab96a54f684bd"
+dependencies = [
+ "alloy-consensus 0.4.2",
+ "alloy-eips 0.4.2",
+ "alloy-primitives",
+ "alloy-serde 0.4.2",
+ "serde",
 ]
 
 [[package]]
@@ -909,6 +940,17 @@ dependencies = [
 
 [[package]]
 name = "alloy-serde"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dff0ab1cdd43ca001e324dc27ee0e8606bd2161d6623c63e0e0b8c4dfc13600"
+dependencies = [
+ "alloy-primitives",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "alloy-serde"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae0465c71d4dced7525f408d84873aeebb71faf807d22d74c4a426430ccd9b55"
@@ -990,6 +1032,24 @@ dependencies = [
  "aws-sdk-kms",
  "k256 0.13.4",
  "spki 0.7.3",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
+name = "alloy-signer-aws"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e73835ed6689740b76cab0f59afbdce374a03d3f856ea33ba1fc054630a1b28"
+dependencies = [
+ "alloy-consensus 0.12.6",
+ "alloy-network 0.12.6",
+ "alloy-primitives",
+ "alloy-signer 0.12.6",
+ "async-trait",
+ "aws-sdk-kms",
+ "k256 0.13.4",
+ "spki 0.7.3",
  "thiserror 2.0.12",
  "tracing",
 ]
@@ -1006,6 +1066,24 @@ dependencies = [
  "alloy-signer 0.4.2",
  "async-trait",
  "gcloud-sdk 0.25.8",
+ "k256 0.13.4",
+ "spki 0.7.3",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
+name = "alloy-signer-gcp"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a16b468ae86bb876d9c7a3b49b1e8d614a581a1a9673e4e0d2393b411080fe64"
+dependencies = [
+ "alloy-consensus 0.12.6",
+ "alloy-network 0.12.6",
+ "alloy-primitives",
+ "alloy-signer 0.12.6",
+ "async-trait",
+ "gcloud-sdk 0.26.4",
  "k256 0.13.4",
  "spki 0.7.3",
  "thiserror 2.0.12",
@@ -1028,6 +1106,26 @@ dependencies = [
  "coins-ledger",
  "futures-util",
  "semver 1.0.26",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
+name = "alloy-signer-ledger"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44cf8a7f45edcc43566218e44b70ed3c278b7556926158cfeb63c8d41fefef70"
+dependencies = [
+ "alloy-consensus 0.12.6",
+ "alloy-dyn-abi",
+ "alloy-network 0.12.6",
+ "alloy-primitives",
+ "alloy-signer 0.12.6",
+ "alloy-sol-types",
+ "async-trait",
+ "coins-ledger",
+ "futures-util",
+ "semver 1.0.26",
  "thiserror 2.0.12",
  "tracing",
 ]
@@ -1043,6 +1141,24 @@ dependencies = [
  "alloy-primitives",
  "alloy-signer 0.4.2",
  "async-trait",
+ "k256 0.13.4",
+ "rand 0.8.5",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "alloy-signer-local"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc6e72002cc1801d8b41e9892165e3a6551b7bd382bd9d0414b21e90c0c62551"
+dependencies = [
+ "alloy-consensus 0.12.6",
+ "alloy-network 0.12.6",
+ "alloy-primitives",
+ "alloy-signer 0.12.6",
+ "async-trait",
+ "coins-bip32 0.12.0",
+ "coins-bip39 0.12.0",
  "k256 0.13.4",
  "rand 0.8.5",
  "thiserror 2.0.12",
@@ -1132,6 +1248,27 @@ dependencies = [
  "base64 0.22.1",
  "futures-util",
  "futures-utils-wasm",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tower 0.5.2",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "alloy-transport"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9aec325c2af8562ef355c02aeb527c755a07e9d8cf6a1e65dda8d0bf23e29b2c"
+dependencies = [
+ "alloy-json-rpc 0.12.6",
+ "base64 0.22.1",
+ "derive_more 2.0.1",
+ "futures 0.3.31",
+ "futures-utils-wasm",
+ "parking_lot",
  "serde",
  "serde_json",
  "thiserror 2.0.12",
@@ -11087,6 +11224,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_os_runner"
+version = "0.1.0"
+dependencies = [
+ "cycle_marker",
+ "execution_utils",
+ "prover_examples",
+ "risc_v_simulator",
+ "trace_and_split",
+]
+
+[[package]]
 name = "zkevm_opcode_defs"
 version = "0.131.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11164,6 +11312,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkos_api"
+version = "0.1.0"
+dependencies = [
+ "forward_system",
+ "oracle_provider",
+ "risc_v_simulator",
+ "zk_os_runner",
+]
+
+[[package]]
 name = "zksync-error-codegen"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/zksync-error?rev=54e0671189a5bc2ce88e72c36334f98fbbdd228d#54e0671189a5bc2ce88e72c36334f98fbbdd228d"
@@ -11205,6 +11363,27 @@ dependencies = [
  "derive_more 2.0.1",
  "serde",
  "thiserror 2.0.12",
+]
+
+[[package]]
+name = "zksync-web3-rs"
+version = "0.2.1"
+source = "git+https://github.com/lambdaclass/zksync-web3-rs.git#56653345d14331e0865a6785c77cdda63c94eeba"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap",
+ "env_logger 0.10.2",
+ "ethers",
+ "ethers-contract",
+ "hex",
+ "lazy_static",
+ "log",
+ "serde",
+ "serde_json",
+ "sha2 0.9.9",
+ "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
@@ -11278,7 +11457,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
- "sha2",
+ "sha2 0.10.8",
  "thiserror 2.0.12",
  "zksync_basic_types",
 ]
@@ -11399,7 +11578,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.12",
- "uuid",
+ "uuid 1.16.0",
 ]
 
 [[package]]
