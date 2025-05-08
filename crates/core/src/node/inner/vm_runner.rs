@@ -415,8 +415,8 @@ impl VmRunner {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
         };
-        let mut executor = if self.system_contracts.use_zkos {
-            todo!("BatchExecutor support for zkos is yet to be implemented")
+        let mut executor = if self.system_contracts.boojum.use_boojum {
+            todo!("BatchExecutor support for BoojumOS is yet to be implemented")
         } else {
             self.executor_factory.init_main_batch(
                 self.fork_storage.clone(),
@@ -674,7 +674,7 @@ mod test {
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
                 config.use_evm_interpreter,
-                config.use_boojum,
+                config.boojum.clone(),
             );
             let vm_runner = VmRunner::new(
                 time,

@@ -397,8 +397,8 @@ impl InMemoryNode {
 
         let storage = StorageView::new(inner.read_storage()).to_rc_ptr();
 
-        let mut vm = if self.system_contracts.use_zkos {
-            AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
+        let mut vm = if self.system_contracts.boojum.use_boojum {
+            AnvilVM::ZKOs(super::boojumos::BoojumOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
@@ -615,10 +615,10 @@ impl InMemoryNode {
             config.system_contracts_path.clone(),
             ProtocolVersionId::latest(),
             config.use_evm_interpreter,
-            config.use_boojum,
+            config.boojum.clone(),
         );
-        let storage_key_layout = if config.use_boojum {
-            StorageKeyLayout::ZkOs
+        let storage_key_layout = if config.boojum.use_boojum {
+            StorageKeyLayout::BoojumOs
         } else {
             StorageKeyLayout::ZkEra
         };

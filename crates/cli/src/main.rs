@@ -285,11 +285,11 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         .system_contracts_path(config.system_contracts_path.clone())
         .protocol_version(config.protocol_version())
         .with_evm_interpreter(config.use_evm_interpreter)
-        .with_boojum(config.use_boojum)
+        .with_boojum(config.boojum.clone())
         .build();
 
-    let storage_key_layout = if config.use_boojum {
-        StorageKeyLayout::ZkOs
+    let storage_key_layout = if config.boojum.use_boojum {
+        StorageKeyLayout::BoojumOs
     } else {
         StorageKeyLayout::ZkEra
     };
