@@ -28,3 +28,4 @@ pub use self::{
 pub use in_memory::*;
 pub use inner::InMemoryNodeInner;
 pub use inner::{blockchain, fork, node_executor, time};
+pub use zkos::zkos_get_batch_witness;
