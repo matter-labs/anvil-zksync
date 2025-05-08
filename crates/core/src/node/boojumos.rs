@@ -15,21 +15,21 @@ use zksync_types::{Address, StorageKey, Transaction};
 
 use crate::deps::InMemoryStorage;
 
-pub fn zkos_get_nonce_key(account: &Address) -> StorageKey {
+pub fn boojumos_get_nonce_key(account: &Address) -> StorageKey {
     todo!()
 }
 
-pub fn zkos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
+pub fn boojumos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
     todo!();
 }
 
-pub struct ZKOsVM<S: WriteStorage, H: HistoryMode> {
+pub struct BoojumOsVM<S: WriteStorage, H: HistoryMode> {
     pub storage: StoragePtr<S>,
 
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
+impl<S: WriteStorage, H: HistoryMode> BoojumOsVM<S, H> {
     pub fn new(
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -45,12 +45,12 @@ impl<S: WriteStorage, H: HistoryMode> ZKOsVM<S, H> {
     }
 }
 
-pub struct ZkOsTracerDispatcher<S: WriteStorage, H: HistoryMode> {
+pub struct BoojumOsTracerDispatcher<S: WriteStorage, H: HistoryMode> {
     _tracers: Vec<S>,
     _marker: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> Default for ZkOsTracerDispatcher<S, H> {
+impl<S: WriteStorage, H: HistoryMode> Default for BoojumOsTracerDispatcher<S, H> {
     fn default() -> Self {
         Self {
             _tracers: Default::default(),
@@ -60,7 +60,7 @@ impl<S: WriteStorage, H: HistoryMode> Default for ZkOsTracerDispatcher<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
-    for ZkOsTracerDispatcher<S, H>
+    for BoojumOsTracerDispatcher<S, H>
 {
     fn from(_value: Vec<TracerPointer<S, H>>) -> Self {
         Self {
@@ -70,8 +70,8 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
-    type TracerDispatcher = ZkOsTracerDispatcher<S, H>;
+impl<S: WriteStorage, H: HistoryMode> VmInterface for BoojumOsVM<S, H> {
+    type TracerDispatcher = BoojumOsTracerDispatcher<S, H>;
 
     fn push_transaction(
         &mut self,
@@ -112,7 +112,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKOsVM<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for ZKOsVM<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for BoojumOsVM<S, H> {
     fn make_snapshot(&mut self) {}
 
     fn rollback_to_the_latest_snapshot(&mut self) {

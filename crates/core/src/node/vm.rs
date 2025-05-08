@@ -1,9 +1,9 @@
 use zksync_multivm::{interface::storage::WriteStorage, vm_latest::Vm, HistoryMode};
 
-use super::zkos::ZKOsVM;
+use super::boojumos::BoojumOsVM;
 
 pub enum AnvilVM<W: WriteStorage, H: HistoryMode> {
-    ZKOs(ZKOsVM<W, H>),
+    ZKOs(BoojumOsVM<W, H>),
     ZKSync(Vm<W, H>),
 }
 

@@ -75,7 +75,7 @@ pub struct TestNodeConfig {
     /// Enables EVM interpreter mode
     pub use_evm_interpreter: bool,
     /// Enables BoojumOS mode (experimental)
-    pub use_boojum: bool,
+    pub boojum: BoojumConfig,
     /// Optional chain ID for the node
     pub chain_id: Option<u32>,
     /// L1 gas price (optional override)
@@ -198,7 +198,7 @@ impl Default for TestNodeConfig {
             override_bytecodes_dir: None,
             bytecode_compression: false,
             use_evm_interpreter: false,
-            use_boojum: false,
+            boojum: Default::default(),
             chain_id: None,
 
             // Gas configuration defaults
@@ -447,7 +447,7 @@ L1:                    {}
             } else {
                 "Disabled".red()
             },
-            if self.use_boojum {
+            if self.boojum.use_boojum {
                 "Enabled".green()
             } else {
                 "Disabled".red()

@@ -1,7 +1,9 @@
 mod account_generator;
+mod boojum;
 mod genesis;
 
 pub use account_generator::AccountGenerator;
+pub use boojum::BoojumConfig;
 use clap::ValueEnum;
 pub use genesis::Genesis;
 use serde::Deserialize;
