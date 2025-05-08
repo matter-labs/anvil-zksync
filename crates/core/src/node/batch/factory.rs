@@ -95,7 +95,7 @@ pub struct MainBatchExecutorFactory<Tr> {
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
-    zkos_config: BoojumConfig,
+    boojum: BoojumConfig,
     _tracer: PhantomData<Tr>,
 }
 
@@ -103,7 +103,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
     pub fn new(
         enforced_bytecode_compression: bool,
         legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
-        zkos_config: BoojumConfig,
+        boojum: BoojumConfig,
     ) -> Self {
         Self {
             enforced_bytecode_compression,
@@ -111,7 +111,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
             skip_signature_verification: false,
             divergence_handler: None,
             legacy_bootloader_debug_result,
-            zkos_config,
+            boojum,
             _tracer: PhantomData,
         }
     }
@@ -133,7 +133,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         let executor = CommandReceiver {
             enforced_bytecode_compression: self.enforced_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
-            zkos_config: self.zkos_config.clone(),
+            boojum: self.boojum.clone(),
             skip_signature_verification: self.skip_signature_verification,
             divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
@@ -167,7 +167,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         let executor = CommandReceiver {
             enforced_bytecode_compression: self.enforced_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
-            zkos_config: self.zkos_config.clone(),
+            boojum: self.boojum.clone(),
             skip_signature_verification: self.skip_signature_verification,
             divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
@@ -227,16 +227,16 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         system_env: SystemEnv,
         storage_ptr: StoragePtr<StorageView<S>>,
         mode: FastVmMode,
-        zkos_config: &BoojumConfig,
+        boojum: &BoojumConfig,
         all_values: Option<InMemoryStorage>,
     ) -> Self {
-        if zkos_config.use_boojum {
+        if boojum.use_boojum {
             return Self::ZKOS(BoojumOsVM::new(
                 l1_batch_env,
                 system_env,
                 storage_ptr,
                 &all_values.unwrap(),
-                zkos_config,
+                boojum,
             ));
         }
         if !is_supported_by_fast_vm(system_env.version) {
@@ -373,7 +373,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 struct CommandReceiver<S, Tr> {
     enforced_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    zkos_config: BoojumConfig,
+    boojum: BoojumConfig,
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
@@ -392,7 +392,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         all_values: Option<InMemoryStorage>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
-        if self.zkos_config.use_boojum {
+        if self.boojum.use_boojum {
             tracing::info!("Using ZKOS VM");
         }
 
@@ -402,7 +402,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             system_env,
             storage_view.clone(),
             self.fast_vm_mode,
-            &self.zkos_config,
+            &self.boojum,
             all_values,
         );
 
