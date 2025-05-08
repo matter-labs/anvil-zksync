@@ -1,4 +1,4 @@
-use anvil_zksync_core::node::zkos_get_batch_witness;
+use anvil_zksync_core::node::boojumos_get_batch_witness;
 use jsonrpsee::core::{async_trait, RpcResult};
 
 use anvil_zksync_api_decl::BoojumOSNamespaceServer;
@@ -14,6 +14,6 @@ impl BoojumOSNamespace {
 #[async_trait]
 impl BoojumOSNamespaceServer for BoojumOSNamespace {
     async fn get_witness(&self, batch: u32) -> RpcResult<Option<String>> {
-        Ok(zkos_get_batch_witness(&batch).map(hex::encode))
+        Ok(boojumos_get_batch_witness(&batch).map(hex::encode))
     }
 }

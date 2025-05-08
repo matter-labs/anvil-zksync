@@ -122,6 +122,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for ZKOsVM<S, H>
     fn pop_snapshot_no_rollback(&mut self) {}
 }
 
-pub fn zkos_get_batch_witness(key: &u32) -> Option<Vec<u8>> {
+pub fn boojumos_get_batch_witness(key: &u32) -> Option<Vec<u8>> {
     None
 }
