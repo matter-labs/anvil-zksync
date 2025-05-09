@@ -827,7 +827,7 @@ impl InMemoryNodeInner {
                 &fork_storage.inner.read().unwrap().raw_storage,
                 boojum,
             );
-            // Temporary hack - as we update the 'storage' just above, but zkos loads its full
+            // Temporary hack - as we update the 'storage' just above, but boojumos loads its full
             // state from fork_storage (that is not updated).
             vm.update_inconsistent_keys(&[&nonce_key, &balance_key]);
             AnvilVM::BoojumOs(vm)

@@ -661,12 +661,12 @@ impl<S: WriteStorage, H: HistoryMode> BoojumOsVM<S, H> {
     }
 }
 
-pub struct ZkOsTracerDispatcher<S: WriteStorage, H: HistoryMode> {
+pub struct BoojumOsTracerDispatcher<S: WriteStorage, H: HistoryMode> {
     _tracers: Vec<S>,
     _marker: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> Default for ZkOsTracerDispatcher<S, H> {
+impl<S: WriteStorage, H: HistoryMode> Default for BoojumOsTracerDispatcher<S, H> {
     fn default() -> Self {
         Self {
             _tracers: Default::default(),
@@ -676,7 +676,7 @@ impl<S: WriteStorage, H: HistoryMode> Default for ZkOsTracerDispatcher<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
-    for ZkOsTracerDispatcher<S, H>
+    for BoojumOsTracerDispatcher<S, H>
 {
     fn from(_value: Vec<TracerPointer<S, H>>) -> Self {
         Self {
@@ -687,7 +687,7 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<Vec<MultiVmTracerPointer<S, H>>>
-    for ZkOsTracerDispatcher<S, H>
+    for BoojumOsTracerDispatcher<S, H>
 {
     fn from(_value: Vec<MultiVmTracerPointer<S, H>>) -> Self {
         Self {
@@ -697,7 +697,9 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<MultiVmTracerPointer<S, H>>>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>> for ZkOsTracerDispatcher<S, H> {
+impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
+    for BoojumOsTracerDispatcher<S, H>
+{
     fn from(_value: TracerDispatcher<S, H>) -> Self {
         Self {
             _tracers: Default::default(),
@@ -707,7 +709,7 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>> for ZkOsTrace
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface for BoojumOsVM<S, H> {
-    type TracerDispatcher = ZkOsTracerDispatcher<S, H>;
+    type TracerDispatcher = BoojumOsTracerDispatcher<S, H>;
 
     fn push_transaction(
         &mut self,
@@ -800,7 +802,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for BoojumOsVM<S
     fn make_snapshot(&mut self) {}
 
     fn rollback_to_the_latest_snapshot(&mut self) {
-        panic!("Not implemented for zkos");
+        panic!("Not implemented for boojumos");
     }
 
     fn pop_snapshot_no_rollback(&mut self) {}

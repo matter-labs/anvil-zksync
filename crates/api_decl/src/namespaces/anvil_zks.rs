@@ -1,5 +1,6 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
+use zksync_types::web3::Bytes;
 use zksync_types::{L1BatchNumber, H256};
 
 /// Custom namespace that contains anvil-zksync specific methods.
@@ -44,8 +45,12 @@ pub trait AnvilZksNamespace {
 
     /// Returns the witness for a given batch.
     ///
+    /// # Arguments
+    ///
+    /// * `batch_number` - Number of the batch to return witness for
+    ///
     /// # Returns
     /// Bytes with the witness that can be passed to proving system.
     #[method(name = "getBoojumWitness")]
-    async fn get_boojum_witness(&self, batch: u32) -> RpcResult<Option<String>>;
+    async fn get_boojum_witness(&self, batch_number: L1BatchNumber) -> RpcResult<Bytes>;
 }

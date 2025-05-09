@@ -1,8 +1,9 @@
-use crate::error::RpcError;
+use crate::error::{invalid_params, RpcError};
 use anvil_zksync_api_decl::AnvilZksNamespaceServer;
 use anvil_zksync_core::node::boojumos_get_batch_witness;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use jsonrpsee::core::{async_trait, RpcResult};
+use zksync_types::web3::Bytes;
 use zksync_types::{L1BatchNumber, H256};
 
 pub struct AnvilZksNamespace {
@@ -41,7 +42,11 @@ impl AnvilZksNamespaceServer for AnvilZksNamespace {
             .map_err(RpcError::from)?)
     }
 
-    async fn get_boojum_witness(&self, batch: u32) -> RpcResult<Option<String>> {
-        Ok(boojumos_get_batch_witness(&batch).map(hex::encode))
+    async fn get_boojum_witness(&self, batch_number: L1BatchNumber) -> RpcResult<Bytes> {
+        Ok(boojumos_get_batch_witness(&batch_number)
+            .ok_or(invalid_params(
+                "Batch with this number doesn't exist yet".to_string(),
+            ))?
+            .into())
     }
 }

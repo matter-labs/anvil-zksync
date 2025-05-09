@@ -41,7 +41,7 @@ fn internal(msg: String) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(ErrorCode::InternalError.code(), msg, None::<()>)
 }
 
-fn invalid_params(msg: String) -> ErrorObjectOwned {
+pub(crate) fn invalid_params(msg: String) -> ErrorObjectOwned {
     ErrorObjectOwned::owned(ErrorCode::InvalidParams.code(), msg, None::<()>)
 }
 
