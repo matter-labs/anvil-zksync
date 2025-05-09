@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/matter-labs/anvil-zksync/compare/v0.6.1...v0.6.2) (2025-05-09)
+
+
+### Features
+
+* **boojum-os:** Updated boojum os support ([#702](https://github.com/matter-labs/anvil-zksync/issues/702)) ([eca0fec](https://github.com/matter-labs/anvil-zksync/commit/eca0fececf69a9d1bdb30440245807ec2b8c7860))
+
 ## [0.6.1](https://github.com/matter-labs/anvil-zksync/compare/v0.6.0...v0.6.1) (2025-05-05)
 
 
