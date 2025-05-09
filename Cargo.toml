@@ -15,7 +15,7 @@ members = [
 resolver = "2"
 
 [profile.dev]
-debug = 0
+debug = 2
 
 [profile.release]
 strip = "debuginfo" # Automatically strip symbols from the binary.
