@@ -84,7 +84,6 @@ impl InMemoryNode {
         // Match behavior of zksync_core:
         // Protection against infinite-loop eth_calls and alike:
         // limiting the amount of gas the call can use.
-        //l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         if self.system_contracts.boojum.use_boojum {
             l2_tx.common_data.fee.gas_limit = BOOJUM_CALL_GAS_LIMIT.into();
         } else {
