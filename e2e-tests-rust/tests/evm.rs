@@ -15,7 +15,7 @@ const EVM_SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {
 async fn deploy_evm_counter(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_node_fn(&|node| {
-            node.args([
+            node.timeout(60_000).args([
                 "--evm-interpreter",
                 "--protocol-version",
                 &protocol_version.to_string(),
@@ -61,7 +61,7 @@ async fn deploy_evm_counter_with_l1(protocol_version: u16) -> anyhow::Result<()>
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
         .with_node_fn(&|node| {
-            node.args([
+            node.timeout(60_000).args([
                 "--evm-interpreter",
                 "--protocol-version",
                 &protocol_version.to_string(),

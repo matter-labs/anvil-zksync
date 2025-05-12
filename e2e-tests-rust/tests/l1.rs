@@ -328,7 +328,10 @@ async fn l1_priority_tx(protocol_version: u16) -> anyhow::Result<()> {
 async fn deposit(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--protocol-version", &protocol_version.to_string()])
+        })
         .build()
         .await?;
 
@@ -366,7 +369,10 @@ async fn deposit(protocol_version: u16) -> anyhow::Result<()> {
 async fn withdraw(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--protocol-version", &protocol_version.to_string()])
+        })
         .build()
         .await?;
 
