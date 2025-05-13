@@ -97,7 +97,7 @@ impl InMemoryNode {
         let balances = {
             let mut balances = HashMap::new();
             for token in tokens {
-                // TODO: Use StorageKeyLayout once zkos can lookup other tokens
+                // TODO: Use StorageKeyLayout once boojumos can lookup other tokens
                 let balance_key = storage_key_for_standard_token_balance(
                     AccountTreeId::new(token.l2_address),
                     &address,

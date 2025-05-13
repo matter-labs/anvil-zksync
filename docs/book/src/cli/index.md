@@ -112,7 +112,7 @@ anvil-zksync -vv replay_tx --fork-url abstract \
 | `--dev-system-contracts <mode>`         | Built‑in / local / no-security  | `built-in`       |
 | `--system-contracts-path <PATH>`        | Custom system contract build    | -                |
 | `--protocol-version <N>`                | Protocol version for new blocks | `26`             |
-| `--emulate-evm`                         | Enable EVM emulation            | false            |
+| `--evm-interpreter`                     | Enable EVM interpreter          | false            |
 
 ### Logging
 

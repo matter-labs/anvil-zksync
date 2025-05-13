@@ -84,6 +84,7 @@ impl VmRunner {
             executor_factory: MainBatchExecutorFactory::<TraceCalls>::new(
                 enforced_bytecode_compression,
                 bootloader_debug_result.clone(),
+                system_contracts.boojum.clone(),
             ),
             bootloader_debug_result,
 
@@ -307,7 +308,15 @@ impl VmRunner {
             });
         }
 
-        let new_bytecodes = new_bytecodes(tx, &result);
+        let mut new_bytecodes = new_bytecodes(tx, &result);
+
+        if self.system_contracts.boojum.use_boojum {
+            // In boojum, we store account properties outside of state (so state has only hash).
+            // For now, we simply put the original preimages into the factory deps.
+            // The result type here is the 'era' crate - that is not modified to fit boojum os yet.
+            // once it is - we will not need this hack anymore.
+            new_bytecodes.extend(result.dynamic_factory_deps.clone());
+        }
 
         let logs = result
             .logs
@@ -415,14 +424,23 @@ impl VmRunner {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
         };
-        let mut executor = if self.system_contracts.use_zkos {
-            todo!("BatchExecutor support for zkos is yet to be implemented")
+        let mut executor = if self.system_contracts.boojum.use_boojum {
+            self.executor_factory.init_main_batch(
+                self.fork_storage.clone(),
+                batch_env.clone(),
+                system_env.clone(),
+                pubdata_params,
+                // For boojum, we have to pass the iterator handle to the storage
+                // as boojum has different storage layout, so it has to scan over whole storage.
+                Some(self.fork_storage.inner.read().unwrap().raw_storage.clone()),
+            )
         } else {
             self.executor_factory.init_main_batch(
                 self.fork_storage.clone(),
                 batch_env.clone(),
                 system_env.clone(),
                 pubdata_params,
+                None,
             )
         };
 
@@ -673,8 +691,8 @@ mod test {
                 config.system_contracts_options,
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
-                config.use_evm_emulator,
-                config.use_zkos,
+                config.use_evm_interpreter,
+                config.boojum.clone(),
             );
             let vm_runner = VmRunner::new(
                 time,

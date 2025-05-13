@@ -1,5 +1,6 @@
 use crate::filters::EthFilters;
 use crate::formatter::ExecutionErrorReport;
+use crate::node::boojumos::BoojumOsVM;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
 use crate::node::diagnostics::vm::traces::extract_addresses;
 use crate::node::error::{ToHaltError, ToRevertReason};
@@ -12,7 +13,6 @@ use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::vm::AnvilVM;
-use crate::node::zkos::ZKOsVM;
 use crate::node::{
     create_block, ImpersonationManager, Snapshot, TestNodeFeeInputProvider, TransactionResult,
     VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION, MAX_PREVIOUS_STATES, MAX_TX_SIZE,
@@ -24,6 +24,7 @@ use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
+use anvil_zksync_config::types::BoojumConfig;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use anvil_zksync_traces::{
@@ -52,7 +53,7 @@ use zksync_multivm::utils::{
     get_max_gas_per_pubdata_byte,
 };
 use zksync_multivm::vm_latest::constants::{
-    BATCH_COMPUTATIONAL_GAS_LIMIT, BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH,
+    BATCH_COMPUTATIONAL_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH,
 };
 use zksync_multivm::vm_latest::{HistoryDisabled, Vm};
 use zksync_multivm::{MultiVmTracer, VmVersion};
@@ -624,7 +625,7 @@ impl InMemoryNodeInner {
                     batch_env.clone(),
                     system_env.clone(),
                     &self.fork_storage,
-                    self.system_contracts.use_zkos,
+                    &self.system_contracts.boojum,
                     false,
                 )
                 .tx_result;
@@ -659,7 +660,7 @@ impl InMemoryNodeInner {
                 batch_env,
                 system_env,
                 &self.fork_storage,
-                self.system_contracts.use_zkos,
+                &self.system_contracts.boojum,
                 false,
             )
             .tx_result;
@@ -750,7 +751,7 @@ impl InMemoryNodeInner {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
-        is_zkos: bool,
+        boojum: &BoojumConfig,
         trace_calls: bool,
     ) -> BatchTransactionExecutionResult {
         // Set gas_limit for transaction
@@ -818,18 +819,19 @@ impl InMemoryNodeInner {
             ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
         }
 
-        let mut vm = if is_zkos {
-            let mut vm = ZKOsVM::<_, HistoryDisabled>::new(
+        let mut vm = if boojum.use_boojum {
+            let mut vm = BoojumOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
                 // TODO: this might be causing a deadlock.. check..
                 &fork_storage.inner.read().unwrap().raw_storage,
+                boojum,
             );
-            // Temporary hack - as we update the 'storage' just above, but zkos loads its full
+            // Temporary hack - as we update the 'storage' just above, but boojumos loads its full
             // state from fork_storage (that is not updated).
             vm.update_inconsistent_keys(&[&nonce_key, &balance_key]);
-            AnvilVM::ZKOs(vm)
+            AnvilVM::BoojumOs(vm)
         } else {
             AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
         };
@@ -846,7 +848,9 @@ impl InMemoryNodeInner {
         };
 
         let tx_result = match &mut vm {
-            AnvilVM::ZKOs(vm) => vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx),
+            AnvilVM::BoojumOs(vm) => {
+                vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
+            }
             AnvilVM::ZKSync(vm) => {
                 vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
             }
@@ -878,11 +882,12 @@ impl InMemoryNodeInner {
         } = self.estimate_gas_step(
             tx.clone(),
             gas_per_pubdata_byte,
-            BATCH_GAS_LIMIT,
+            // TODO: check what the max value should be here.
+            MAX_L2_TX_GAS_LIMIT,
             batch_env,
             system_env,
             &self.fork_storage,
-            self.system_contracts.use_zkos,
+            &self.system_contracts.boojum,
             true,
         );
 
@@ -1277,11 +1282,11 @@ pub mod testing {
                 config.system_contracts_options,
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
-                config.use_evm_emulator,
-                config.use_zkos,
+                config.use_evm_interpreter,
+                config.boojum.clone(),
             );
-            let storage_key_layout = if config.use_zkos {
-                StorageKeyLayout::ZkOs
+            let storage_key_layout = if config.boojum.use_boojum {
+                StorageKeyLayout::BoojumOs
             } else {
                 StorageKeyLayout::ZkEra
             };

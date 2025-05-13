@@ -1,6 +1,7 @@
 //! anvil-zksync, that supports forking other networks.
 
 mod batch;
+mod boojumos;
 mod debug;
 pub mod diagnostics;
 pub mod error;
@@ -17,7 +18,6 @@ mod state;
 mod storage_logs;
 mod traces;
 mod vm;
-mod zkos;
 mod zks;
 
 pub use self::{
@@ -25,6 +25,7 @@ pub use self::{
     node_executor::NodeExecutor, pool::TxBatch, pool::TxPool, sealer::BlockSealer,
     sealer::BlockSealerMode, state::VersionedState,
 };
+pub use boojumos::boojumos_get_batch_witness;
 pub use in_memory::*;
 pub use inner::InMemoryNodeInner;
 pub use inner::{blockchain, fork, node_executor, time};

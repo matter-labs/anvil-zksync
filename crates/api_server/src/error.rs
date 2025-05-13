@@ -21,7 +21,6 @@ fn to_rpc<I: Serialize + ICustomError<ZksyncError, ZksyncError>>(
     )
 }
 
-
 pub trait RpcErrorAdapter {
     fn into(error: Self) -> ErrorObjectOwned;
 }
@@ -73,15 +72,19 @@ impl RpcErrorAdapter for anyhow::Error {
         ErrorObjectOwned::owned(
             ErrorCode::InternalError.code(),
             error.to_string(),
-            None::<String>,
+            None::<()>,
         )
     }
 }
 
-pub fn rpc_unsupported<T>(method_name: &str) -> jsonrpsee::core::RpcResult<T> {
+pub(crate) fn rpc_invalid_params(msg: String) -> ErrorObjectOwned {
+    ErrorObjectOwned::owned(ErrorCode::InvalidParams.code(), msg, None::<()>)
+}
+
+pub(crate) fn rpc_unsupported<T>(method_name: &str) -> jsonrpsee::core::RpcResult<T> {
     Err(ErrorObject::owned(
         ErrorCode::MethodNotFound.code(),
         format!("Method not found: {}", method_name),
-        None::<String>,
+        None::<()>,
     ))
 }
