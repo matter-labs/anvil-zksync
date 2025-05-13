@@ -5,7 +5,7 @@ use zksync_types::api::{BlockNumber, CallTracerBlockResult, CallTracerResult, Tr
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::{api, H256};
 
-use crate::error::JsonRpcAdapter;
+use crate::error::RpcErrorAdapter;
 
 pub struct DebugNamespace {
     node: InMemoryNode,
@@ -24,11 +24,10 @@ impl DebugNamespaceServer for DebugNamespace {
         block: BlockNumber,
         options: Option<TracerConfig>,
     ) -> RpcResult<CallTracerBlockResult> {
-        Ok(self
-            .node
+        self.node
             .trace_block_impl(api::BlockId::Number(block), options)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn trace_block_by_hash(
@@ -36,11 +35,10 @@ impl DebugNamespaceServer for DebugNamespace {
         hash: H256,
         options: Option<TracerConfig>,
     ) -> RpcResult<CallTracerBlockResult> {
-        Ok(self
-            .node
+        self.node
             .trace_block_impl(api::BlockId::Hash(hash), options)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn trace_call(
@@ -49,11 +47,10 @@ impl DebugNamespaceServer for DebugNamespace {
         block: Option<api::BlockId>,
         options: Option<TracerConfig>,
     ) -> RpcResult<CallTracerResult> {
-        Ok(self
-            .node
+        self.node
             .trace_call_impl(request, block, options)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn trace_transaction(
@@ -61,10 +58,9 @@ impl DebugNamespaceServer for DebugNamespace {
         tx_hash: H256,
         options: Option<TracerConfig>,
     ) -> RpcResult<Option<CallTracerResult>> {
-        Ok(self
-            .node
+        self.node
             .trace_transaction_impl(tx_hash, options)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 }

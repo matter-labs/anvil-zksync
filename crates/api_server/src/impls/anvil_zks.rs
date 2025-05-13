@@ -3,7 +3,7 @@ use anvil_zksync_l1_sidecar::L1Sidecar;
 use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::{L1BatchNumber, H256};
 
-use crate::error::JsonRpcAdapter;
+use crate::error::RpcErrorAdapter;
 
 pub struct AnvilZksNamespace {
     l1_sidecar: L1Sidecar,
@@ -18,26 +18,23 @@ impl AnvilZksNamespace {
 #[async_trait]
 impl AnvilZksNamespaceServer for AnvilZksNamespace {
     async fn commit_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256> {
-        Ok(self
-            .l1_sidecar
+        self.l1_sidecar
             .commit_batch(batch_number)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn prove_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256> {
-        Ok(self
-            .l1_sidecar
+        self.l1_sidecar
             .prove_batch(batch_number)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn execute_batch(&self, batch_number: L1BatchNumber) -> RpcResult<H256> {
-        Ok(self
-            .l1_sidecar
+        self.l1_sidecar
             .execute_batch(batch_number)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 }

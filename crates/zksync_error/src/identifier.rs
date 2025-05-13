@@ -82,7 +82,6 @@ impl Identifying for Kind {
             Kind::AnvilZksync(AnvilZksyncCode::AnvilNode) => "anvil_zksync-node",
             Kind::AnvilZksync(AnvilZksyncCode::Halt) => "anvil_zksync-halt",
             Kind::AnvilZksync(AnvilZksyncCode::Revert) => "anvil_zksync-revert",
-            Kind::AnvilZksync(AnvilZksyncCode::Rpc) => "anvil_zksync-rpc",
             Kind::AnvilZksync(AnvilZksyncCode::StateLoader) => "anvil_zksync-state",
             Kind::AnvilZksync(AnvilZksyncCode::TransactionValidation) => "anvil_zksync-tx_invalid",
             Kind::Compiler(CompilerCode::LLVM_EVM) => "compiler-llvm+evm",
@@ -95,7 +94,6 @@ impl Identifying for Kind {
             Kind::Core(CoreCode::EraVM) => "core-eravm",
             Kind::Core(CoreCode::ExecutionPlatform) => "core-exec",
             Kind::Core(CoreCode::Sequencer) => "core-seq",
-            Kind::Core(CoreCode::Web3) => "core-web3",
             Kind::Foundry(FoundryCode::FoundryUpstream) => "foundry-upstream",
             Kind::Foundry(FoundryCode::FoundryZksync) => "foundry-zksync",
             Kind::Hardhat(HardhatCode::HardhatUpstream) => "hardhat-upstream",
@@ -129,11 +127,6 @@ impl NamedError for Identifier {
             }
             Kind::AnvilZksync(AnvilZksyncCode::Revert) => {
                 crate::error::definitions::RevertCode::from_repr(self.code)
-                    .expect("Internal error")
-                    .get_error_name()
-            }
-            Kind::AnvilZksync(AnvilZksyncCode::Rpc) => {
-                crate::error::definitions::RpcCode::from_repr(self.code)
                     .expect("Internal error")
                     .get_error_name()
             }
@@ -195,9 +188,6 @@ impl NamedError for Identifier {
                     .expect("Internal error")
                     .get_error_name()
             }
-            Kind::Core(CoreCode::Web3) => crate::error::definitions::Web3Code::from_repr(self.code)
-                .expect("Internal error")
-                .get_error_name(),
             Kind::Foundry(FoundryCode::FoundryUpstream) => {
                 crate::error::definitions::FoundryUpstreamCode::from_repr(self.code)
                     .expect("Internal error")

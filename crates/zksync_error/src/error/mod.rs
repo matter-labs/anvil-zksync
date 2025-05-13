@@ -52,7 +52,6 @@ impl IError<ZksyncError> for ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => error.get_message(),
-            ZksyncError::AnvilZksync(AnvilZksync::Rpc(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::StateLoader(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::TransactionValidation(error)) => {
                 error.get_message()
@@ -67,7 +66,6 @@ impl IError<ZksyncError> for ZksyncError {
             ZksyncError::Core(Core::EraVM(error)) => error.get_message(),
             ZksyncError::Core(Core::ExecutionPlatform(error)) => error.get_message(),
             ZksyncError::Core(Core::Sequencer(error)) => error.get_message(),
-            ZksyncError::Core(Core::Web3(error)) => error.get_message(),
             ZksyncError::Foundry(Foundry::FoundryUpstream(error)) => error.get_message(),
             ZksyncError::Foundry(Foundry::FoundryZksync(error)) => error.get_message(),
             ZksyncError::Hardhat(Hardhat::HardhatUpstream(error)) => error.get_message(),

@@ -4,7 +4,7 @@ use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::H256;
 
-use crate::error::JsonRpcAdapter;
+use crate::error::RpcErrorAdapter;
 
 pub struct EthTestNamespace {
     node: InMemoryNode,
@@ -19,10 +19,9 @@ impl EthTestNamespace {
 #[async_trait]
 impl EthTestNamespaceServer for EthTestNamespace {
     async fn send_transaction(&self, tx: CallRequest) -> RpcResult<H256> {
-        Ok(self
-            .node
+        self.node
             .send_transaction_impl(tx)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 }

@@ -16,7 +16,7 @@ use zksync_types::web3::Bytes;
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, Transaction, H256, U256, U64};
 use zksync_web3_decl::types::Token;
 
-use crate::error::{rpc_unsupported, JsonRpcAdapter};
+use crate::error::{rpc_unsupported, RpcErrorAdapter};
 
 pub struct ZksNamespace {
     node: InMemoryNode,
@@ -37,11 +37,10 @@ impl ZksNamespaceServer for ZksNamespace {
         // TODO: Support
         _state_override: Option<StateOverride>,
     ) -> RpcResult<Fee> {
-        Ok(self
-            .node
+        self.node
             .estimate_fee_impl(req)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn estimate_gas_l1_to_l2(
@@ -50,18 +49,17 @@ impl ZksNamespaceServer for ZksNamespace {
         // TODO: Support
         _state_override: Option<StateOverride>,
     ) -> RpcResult<U256> {
-        Ok(self
-            .node
+        self.node
             .estimate_gas_l1_to_l2(req)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>> {
         Ok(Some(
             self.l1_sidecar
                 .contracts_config()
-                .map_err(JsonRpcAdapter::from)?
+                .map_err(RpcErrorAdapter::into)?
                 .ecosystem_contracts
                 .bridgehub_proxy_addr,
         ))
@@ -90,48 +88,44 @@ impl ZksNamespaceServer for ZksNamespace {
             });
         }
 
-        Ok(self
-            .node
+        self.node
             .get_bridge_contracts_impl()
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
-        Ok(self
-            .node
+        self.node
             .get_base_token_l1_address_impl()
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn l1_chain_id(&self) -> RpcResult<U64> {
         Ok(U64::from(
             self.l1_sidecar
                 .genesis_config()
-                .map_err(JsonRpcAdapter::from)?
+                .map_err(RpcErrorAdapter::into)?
                 .l1_chain_id
                 .0,
         ))
     }
 
     async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
-        Ok(self
-            .node
+        self.node
             .get_confirmed_tokens_impl(from, limit)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn get_all_account_balances(
         &self,
         address: Address,
     ) -> RpcResult<HashMap<Address, U256>> {
-        Ok(self
-            .node
+        self.node
             .get_all_account_balances_impl(address)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     #[named]
@@ -150,11 +144,10 @@ impl ZksNamespaceServer for ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
-        Ok(self
-            .node
+        self.node
             .get_l2_to_l1_log_proof_impl(tx_hash, index)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     #[named]
@@ -171,30 +164,27 @@ impl ZksNamespaceServer for ZksNamespace {
         &self,
         block_number: L2BlockNumber,
     ) -> RpcResult<Option<BlockDetails>> {
-        Ok(self
-            .node
+        self.node
             .get_block_details_impl(block_number)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn get_transaction_details(&self, hash: H256) -> RpcResult<Option<TransactionDetails>> {
-        Ok(self
-            .node
+        self.node
             .get_transaction_details_impl(hash)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     async fn get_raw_block_transactions(
         &self,
         block_number: L2BlockNumber,
     ) -> RpcResult<Vec<Transaction>> {
-        Ok(self
-            .node
+        self.node
             .get_raw_block_transactions_impl(block_number)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     #[named]
@@ -206,11 +196,10 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>> {
-        Ok(self
-            .node
+        self.node
             .get_bytecode_by_hash_impl(hash)
             .await
-            .map_err(JsonRpcAdapter::from)?)
+            .map_err(RpcErrorAdapter::into)
     }
 
     #[named]

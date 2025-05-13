@@ -1222,58 +1222,7 @@
               }
             }
           ]
-        },
-        {
-          "component_name": "Rpc",
-          "component_code": 20,
-          "identifier_encoding": "rpc",
-          "errors" : [
-            {
-              "name": "LoadStateError",
-              "code": 1,
-              "message": "Error loading state: {inner}.",
-              "fields": [
-                {
-                  "name" : "inner",
-                  "type": "StateLoader"
-                }
-              ]
-            },
-            {
-              "name": "UnsupportedMethod",
-              "code": 2,
-              "message": "Unsupported method {method_name}.",
-              "fields": [
-                {
-                  "name" : "method_name",
-                  "type": "string"
-                }
-              ]
-            },
-            {
-              "name": "Web3Error",
-              "code": 3,
-              "message": "Web3 error: {inner}",
-              "fields": [
-                {
-                  "name" : "inner",
-                  "type": "Web3"
-                }
-              ]
-            },
-            {
-              "name": "NodeError",
-              "code": 4,
-              "message": "Anvil-zksync node error: {inner}.",
-              "fields": [
-                {
-                  "name" : "inner",
-                  "type": "AnvilNode"
-                }
-              ]
-            }
-          ]
-          }
+        }
       ]
     }
   ]

@@ -4,7 +4,7 @@ use anvil_zksync_core::utils::block_on;
 use jsonrpsee::core::RpcResult;
 use zksync_types::U256;
 
-use crate::error::JsonRpcAdapter;
+use crate::error::RpcErrorAdapter;
 
 pub struct NetNamespace {
     node: InMemoryNode,
@@ -21,7 +21,7 @@ impl NetNamespaceServer for NetNamespace {
     fn version(&self) -> RpcResult<String> {
         let node = self.node.clone();
         let chain_id =
-            block_on(async move { node.get_chain_id().await.map_err(JsonRpcAdapter::from) })?;
+            block_on(async move { node.get_chain_id().await.map_err(RpcErrorAdapter::into) })?;
         Ok(chain_id.to_string())
     }
 

@@ -150,29 +150,6 @@ pub mod anvil_zksync {
             })
         }
     }
-    pub mod rpc {
-        pub use crate::error::definitions::Rpc as RpcError;
-        pub type RpcResult<T> = core::result::Result<T, RpcError>;
-        pub use crate::error::definitions::Rpc::GenericError;
-        pub use crate::error::definitions::Rpc::LoadStateError;
-        pub use crate::error::definitions::Rpc::NodeError;
-        pub use crate::error::definitions::Rpc::UnsupportedMethod;
-        pub use crate::error::definitions::Rpc::Web3Error;
-        pub use crate::error::definitions::RpcCode as ErrorCode;
-        #[macro_export]
-        macro_rules ! anvil_zksync_rpc_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: rpc :: RpcError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
-        pub use crate::anvil_zksync_rpc_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> RpcError {
-            GenericError {
-                message: err.to_string(),
-            }
-        }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
-            super::AnvilZksyncError::Rpc(GenericError {
-                message: err.to_string(),
-            })
-        }
-    }
     pub mod state {
         pub use crate::error::definitions::StateLoader as StateLoaderError;
         pub type StateLoaderResult<T> = core::result::Result<T, StateLoaderError>;
@@ -417,38 +394,6 @@ pub mod core {
         }
         pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CoreError {
             super::CoreError::Sequencer(GenericError {
-                message: err.to_string(),
-            })
-        }
-    }
-    pub mod web3 {
-        pub use crate::error::definitions::Web3 as Web3Error;
-        pub type Web3Result<T> = core::result::Result<T, Web3Error>;
-        pub use crate::error::definitions::Web3::FilterNotFound;
-        pub use crate::error::definitions::Web3::GenericError;
-        pub use crate::error::definitions::Web3::InvalidFilterBlockHash;
-        pub use crate::error::definitions::Web3::LogsLimitExceeded;
-        pub use crate::error::definitions::Web3::MethodNotImplemented;
-        pub use crate::error::definitions::Web3::NoBlock;
-        pub use crate::error::definitions::Web3::ProxyError;
-        pub use crate::error::definitions::Web3::PrunedBlock;
-        pub use crate::error::definitions::Web3::PrunedL1Batch;
-        pub use crate::error::definitions::Web3::SerializationError;
-        pub use crate::error::definitions::Web3::ServerShuttingDown;
-        pub use crate::error::definitions::Web3::SubmitTransactionError;
-        pub use crate::error::definitions::Web3::TooManyTopics;
-        pub use crate::error::definitions::Web3::TreeApiUnavailable;
-        pub use crate::error::definitions::Web3Code as ErrorCode;
-        #[macro_export]
-        macro_rules ! core_web3_generic_error { ($ ($ arg : tt) *) => { zksync_error :: core :: web3 :: Web3Error :: GenericError { message : format ! ($ ($ arg) *) } } ; }
-        pub use crate::core_web3_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> Web3Error {
-            GenericError {
-                message: err.to_string(),
-            }
-        }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CoreError {
-            super::CoreError::Web3(GenericError {
                 message: err.to_string(),
             })
         }
