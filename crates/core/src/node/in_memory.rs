@@ -13,6 +13,7 @@ use crate::node::inner::storage::ReadStorageDyn;
 use crate::node::inner::time::ReadTime;
 use crate::node::sealer::BlockSealerState;
 use crate::node::state::VersionedState;
+use crate::node::state_override::apply_state_override;
 use crate::node::traces::call_error::CallErrorTracer;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{BlockSealer, BlockSealerMode, NodeExecutor, TxBatch, TxPool};
@@ -45,7 +46,9 @@ use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
-use zksync_multivm::interface::storage::{ReadStorage, StoragePtr, StorageView};
+use zksync_multivm::interface::storage::{
+    ReadStorage, StoragePtr, StorageView, StorageWithOverrides,
+};
 use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
     ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmInterface,
@@ -53,6 +56,7 @@ use zksync_multivm::interface::{
 use zksync_multivm::tracers::CallTracer;
 use zksync_multivm::utils::{get_batch_base_fee, get_max_batch_gas_limit};
 use zksync_multivm::vm_latest::Vm;
+use zksync_types::api::state_override::StateOverride;
 
 use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
@@ -385,6 +389,7 @@ impl InMemoryNode {
         &self,
         mut l2_tx: L2Tx,
         base_contracts: BaseSystemContracts,
+        state_override: Option<StateOverride>,
     ) -> anyhow::Result<ExecutionResult> {
         let execution_mode = TxExecutionMode::EthCall;
 
@@ -395,7 +400,14 @@ impl InMemoryNode {
         let (batch_env, _) = inner.create_l1_batch_env().await;
         let system_env = inner.create_system_env(base_contracts, execution_mode);
 
-        let storage = StorageView::new(inner.read_storage()).to_rc_ptr();
+        let storage_override = if let Some(state_override) = state_override {
+            apply_state_override(inner.read_storage(), state_override)
+        } else {
+            // Do not spawn a new thread in the most frequent case.
+            StorageWithOverrides::new(inner.read_storage())
+        };
+
+        let storage = StorageView::new(storage_override).to_rc_ptr();
 
         let mut vm = if self.system_contracts.use_zkos {
             AnvilVM::ZKOs(super::zkos::ZKOsVM::<_, HistoryDisabled>::new(
@@ -637,6 +649,7 @@ impl InMemoryNode {
         let pool = TxPool::new(
             impersonation.clone(),
             anvil_zksync_types::TransactionOrder::Fifo,
+            Some(storage.clone()),
         );
         let tx_listener = pool.add_tx_listener();
         let (block_sealer, block_sealer_state) = BlockSealer::new(

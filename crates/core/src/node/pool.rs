@@ -1,10 +1,16 @@
 use crate::node::impersonate::ImpersonationManager;
+use crate::node::StorageKeyLayout;
+use alloy::serde::storage;
+use anvil_zksync_common::utils::numbers::h256_to_u64;
 use anvil_zksync_types::{TransactionOrder, TransactionPriority};
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard};
-use zksync_types::{Transaction, H256};
+use zksync_multivm::zk_evm_latest::opcodes::execution::add;
+use zksync_types::{Address, Transaction, H256, U256};
+
+use super::inner::storage::ReadStorageDyn;
 
 #[derive(Debug, Clone)]
 pub struct TxPool {
@@ -16,16 +22,24 @@ pub struct TxPool {
     /// Listeners for new transactions' hashes
     tx_listeners: Arc<Mutex<Vec<Sender<H256>>>>,
     pub(crate) impersonation: ImpersonationManager,
+
+    // TODO: shouldn't be an option, made this way only for speed of drafting.
+    storage: Option<Box<dyn ReadStorageDyn>>,
 }
 
 impl TxPool {
-    pub fn new(impersonation: ImpersonationManager, transaction_order: TransactionOrder) -> Self {
+    pub fn new(
+        impersonation: ImpersonationManager,
+        transaction_order: TransactionOrder,
+        storage: Option<Box<dyn ReadStorageDyn>>,
+    ) -> Self {
         Self {
             inner: Arc::new(RwLock::new(BTreeSet::new())),
             submission_number: Arc::new(Mutex::new(0)),
             tx_listeners: Arc::new(Mutex::new(Vec::new())),
             impersonation,
             transaction_order: Arc::new(RwLock::new(transaction_order)),
+            storage,
         }
     }
 
@@ -98,10 +112,37 @@ impl TxPool {
         guard.clear();
     }
 
+    pub fn highest_nonce_for(&self, address: Address) -> Option<u64> {
+        let guard = self.inner.read().expect("TxPool lock is poisoned");
+        guard
+            .iter()
+            .filter(|tx| tx.transaction.initiator_account() == address)
+            .flat_map(|tx| tx.transaction.nonce())
+            .max()
+            .map(|nonce| nonce.0 as u64)
+    }
+
     /// Take up to `n` continuous transactions from the pool that are all uniform in impersonation
     /// type (either all are impersonating or all non-impersonating).
     // TODO: We should distinguish ready transactions from non-ready ones. Only ready txs should be takeable.
     pub fn take_uniform(&self, n: usize) -> Option<TxBatch> {
+        async fn nonce(address: Address, storage: &dyn ReadStorageDyn) -> u64 {
+            let layout = StorageKeyLayout::ZkEra; // TODO: should be passed
+            let nonce_key = layout.get_nonce_key(&address);
+
+            let slot = storage.read_value_alt(&nonce_key).await.unwrap(); // TODO: should be handled
+
+            // The storage slot contains the full nonce.
+            // Full nonce is a composite one: it includes both account nonce
+            // (number of transactions initiated by the account) and
+            // deployer nonce (number of smart contracts deployed by the
+            // account).
+            // We need to cut the lowest 64 bits to get an account nonce.
+            // See functions: `decompose_full_nonce`, `nonces_to_full_nonce`
+            // https://github.com/matter-labs/zksync-era/blob/8063281579e4e02482823f09997244de153db87e/core/lib/types/src/utils.rs#L42-L52
+            h256_to_u64(slot)
+        }
+
         if n == 0 {
             return None;
         }
@@ -118,10 +159,31 @@ impl TxPool {
             taken_txs.insert(0, head_tx.transaction);
             let mut taken_txs_number = 1;
 
+            let mut skipped_txs = Vec::default();
             while taken_txs_number < n {
                 let Some(next_tx) = guard.last() else {
                     break;
                 };
+                // Skip transaction with non-actual nonce
+                if let Some(storage) = self.storage.clone() {
+                    // TODO: hack to not make this function async
+                    let handle = tokio::runtime::Handle::current();
+                    let from = next_tx.transaction.initiator_account();
+                    let nonce =
+                        std::thread::spawn(move || handle.block_on(nonce(from, storage.as_ref())))
+                            .join()
+                            .unwrap();
+                    if next_tx
+                        .transaction
+                        .nonce()
+                        .map(|tx_nonce| tx_nonce.0 as u64 != nonce)
+                        .unwrap_or(false)
+                    {
+                        skipped_txs.push(guard.pop_last().unwrap());
+                        continue;
+                    }
+                }
+
                 if impersonating != state.is_impersonating(&next_tx.transaction.initiator_account())
                 {
                     break;
@@ -129,6 +191,10 @@ impl TxPool {
                 taken_txs.insert(taken_txs_number, guard.pop_last().unwrap().transaction);
                 taken_txs_number += 1;
             }
+            // Insert skipped transactions back to the pool
+            // TODO: is it fine that txs will get to the back of the queue?
+            guard.extend(skipped_txs);
+
             impersonating
         });
 
@@ -261,7 +327,7 @@ mod tests {
     #[test]
     fn take_from_empty() {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
         assert_eq!(pool.take_uniform(1), None);
     }
 
@@ -269,7 +335,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_zero(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         pool.populate_impersonate([imp]);
         assert_eq!(pool.take_uniform(0), None);
@@ -279,7 +345,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_exactly_one(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         let [tx0, ..] = pool.populate_impersonate([imp, false]);
         assert_eq!(
@@ -295,7 +361,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_exactly_two(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         let [tx0, tx1, ..] = pool.populate_impersonate([imp, imp, false]);
         assert_eq!(
@@ -311,7 +377,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_one_eligible(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         let [tx0, ..] = pool.populate_impersonate([imp, !imp, !imp, !imp]);
         assert_eq!(
@@ -329,7 +395,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_two_when_third_is_not_uniform(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         let [tx0, tx1, ..] = pool.populate_impersonate([imp, imp, !imp]);
         assert_eq!(
@@ -347,7 +413,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_interrupted_by_non_uniformness(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         let [tx0, tx1, ..] = pool.populate_impersonate([imp, imp, !imp, imp]);
         assert_eq!(
@@ -363,7 +429,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_multiple(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         let [tx0, tx1, tx2, tx3] = pool.populate_impersonate([imp, !imp, !imp, imp]);
         assert_eq!(
@@ -393,7 +459,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn pool_clones_share_state(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         let txs = {
             let pool_clone = pool.clone();
@@ -412,7 +478,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_multiple_from_clones(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         let [tx0, tx1, tx2, tx3] = {
             let pool_clone = pool.clone();
@@ -448,7 +514,7 @@ mod tests {
     #[test_case(true  ; "is impersonated")]
     fn take_respects_impersonation_change(imp: bool) {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation, TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation, TransactionOrder::Fifo, None);
 
         let [tx0, tx1, tx2, tx3] = pool.populate_impersonate([imp, imp, !imp, imp]);
         assert_eq!(
@@ -479,7 +545,7 @@ mod tests {
     #[tokio::test]
     async fn take_uses_consistent_impersonation() {
         let impersonation = ImpersonationManager::default();
-        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
+        let pool = TxPool::new(impersonation.clone(), TransactionOrder::Fifo, None);
 
         for _ in 0..4096 {
             let tx: Transaction = testing::TransactionBuilder::new().build().into();
@@ -508,8 +574,8 @@ mod tests {
     #[tokio::test]
     async fn take_uses_transaction_order() {
         let impersonation = ImpersonationManager::default();
-        let pool_fifo = TxPool::new(impersonation.clone(), TransactionOrder::Fifo);
-        let pool_fees = TxPool::new(impersonation.clone(), TransactionOrder::Fees);
+        let pool_fifo = TxPool::new(impersonation.clone(), TransactionOrder::Fifo, None);
+        let pool_fees = TxPool::new(impersonation.clone(), TransactionOrder::Fees, None);
 
         let txs: Vec<Transaction> = [1, 2, 3]
             .iter()

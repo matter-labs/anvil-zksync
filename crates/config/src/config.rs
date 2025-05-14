@@ -431,7 +431,7 @@ Genesis Timestamp
 Node Configuration
 ========================
 Port:                  {}
-EVM Emulator:          {}
+EVM Interpreter:       {}
 Health Check Endpoint: {}
 ZK OS:                 {}
 L1:                    {}

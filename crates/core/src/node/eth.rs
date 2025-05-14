@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
+use zksync_types::api::state_override::StateOverride;
 use zksync_types::{
     api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
@@ -35,6 +36,7 @@ impl InMemoryNode {
     pub async fn call_impl(
         &self,
         req: zksync_types::transaction_request::CallRequest,
+        state_override: Option<StateOverride>,
     ) -> Result<Bytes, Web3Error> {
         let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
         let mut tx = L2Tx::from_request(
@@ -55,7 +57,7 @@ impl InMemoryNode {
 
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         let call_result = self
-            .run_l2_call(tx.clone(), system_contracts)
+            .run_l2_call(tx.clone(), system_contracts, state_override)
             .await
             .context("Invalid data due to invalid name")?;
 
@@ -270,6 +272,11 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
+        // TODO: handle different block variants
+        if let Some(mempool_nonce) = self.pool.highest_nonce_for(address) {
+            return Ok((mempool_nonce + 1).into());
+        }
+
         let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         match self.storage.read_value_alt(&nonce_key).await {
             Ok(result) => {

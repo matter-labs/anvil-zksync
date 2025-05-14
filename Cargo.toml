@@ -43,21 +43,13 @@ categories = ["cryptography"]
 # zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
 # zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
 
-# zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "96cd45fe31445046c7286b4d768f74c1e8b8fb16" }
-# zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "96cd45fe31445046c7286b4d768f74c1e8b8fb16" }
-# zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "96cd45fe31445046c7286b4d768f74c1e8b8fb16" }
-# zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "96cd45fe31445046c7286b4d768f74c1e8b8fb16" }
-# zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "96cd45fe31445046c7286b4d768f74c1e8b8fb16" }
-# zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "96cd45fe31445046c7286b4d768f74c1e8b8fb16" }
-# zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "96cd45fe31445046c7286b4d768f74c1e8b8fb16" }
-
-zksync_mini_merkle_tree = { path = "/home/popzxc/workspace/zksync-era/core/lib/mini_merkle_tree" }
-zksync_multivm = { path = "/home/popzxc/workspace/zksync-era/core/lib/multivm" }
-zksync_contracts = { path = "/home/popzxc/workspace/zksync-era/core/lib/contracts" }
-zksync_basic_types = { path = "/home/popzxc/workspace/zksync-era/core/lib/basic_types" }
-zksync_types = { path = "/home/popzxc/workspace/zksync-era/core/lib/types" }
-zksync_vm_interface = { path = "/home/popzxc/workspace/zksync-era/core/lib/vm_interface" }
-zksync_web3_decl = { path = "/home/popzxc/workspace/zksync-era/core/lib/web3_decl" }
+zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8" }
+zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8" }
+zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8" }
 
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "54e0671189a5bc2ce88e72c36334f98fbbdd228d", default-features = false }

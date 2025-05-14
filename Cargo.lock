@@ -8373,6 +8373,7 @@ dependencies = [
 [[package]]
 name = "zksync_basic_types"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8417,6 +8418,7 @@ dependencies = [
 [[package]]
 name = "zksync_contracts"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "envy",
  "hex",
@@ -8430,6 +8432,7 @@ dependencies = [
 [[package]]
 name = "zksync_crypto_primitives"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "anyhow",
  "blake2",
@@ -8488,6 +8491,7 @@ dependencies = [
 [[package]]
 name = "zksync_mini_merkle_tree"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8497,6 +8501,7 @@ dependencies = [
 [[package]]
 name = "zksync_multivm"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
@@ -8537,6 +8542,7 @@ dependencies = [
 [[package]]
 name = "zksync_system_constants"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8562,6 +8568,7 @@ dependencies = [
 [[package]]
 name = "zksync_types"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8587,6 +8594,7 @@ dependencies = [
 [[package]]
 name = "zksync_utils"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8619,6 +8627,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm_interface"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8635,6 +8644,7 @@ dependencies = [
 [[package]]
 name = "zksync_web3_decl"
 version = "28.0.0-non-semver-compat"
+source = "git+https://github.com/matter-labs/zksync-era?rev=fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8#fc48389e8370df76f2b8e7f4acb5c55ff01bb2a8"
 dependencies = [
  "anyhow",
  "async-trait",

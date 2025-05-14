@@ -46,10 +46,13 @@ impl EthNamespaceServer for EthNamespace {
         req: CallRequest,
         // TODO: Support
         _block: Option<BlockIdVariant>,
-        // TODO: Support
-        _state_override: Option<StateOverride>,
+        state_override: Option<StateOverride>,
     ) -> RpcResult<Bytes> {
-        Ok(self.node.call_impl(req).await.map_err(RpcError::from)?)
+        Ok(self
+            .node
+            .call_impl(req, state_override)
+            .await
+            .map_err(RpcError::from)?)
     }
 
     async fn estimate_gas(
