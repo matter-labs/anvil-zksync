@@ -63,7 +63,12 @@ impl RpcErrorAdapter for Web3Error {
             _ => None,
         };
 
-        ErrorObject::owned(code.code(), error.to_string(), data)
+        let message = match web3_error {
+            Web3Error::InternalError(e) => e.to_string(),
+            _ => web3_error.to_string(),
+        };
+
+        ErrorObject::owned(code.code(), message, data)
     }
 }
 
