@@ -129,7 +129,7 @@ describe("hardhat_setCode", function () {
       await provider.send("hardhat_setCode", [address, shortCode]);
     };
 
-    await expectThrowsAsync(action, "Invalid bytecode");
+    await expectThrowsAsync(action, "EVM bytecode detected");
   });
 
   it("Should update code with a different smart contract", async function () {
