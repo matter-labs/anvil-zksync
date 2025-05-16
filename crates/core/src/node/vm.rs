@@ -2,6 +2,7 @@ use zksync_multivm::{interface::storage::WriteStorage, vm_latest::Vm, HistoryMod
 
 use super::boojumos::BoojumOsVM;
 
+#[allow(clippy::large_enum_variant)]
 pub enum AnvilVM<W: WriteStorage, H: HistoryMode> {
     BoojumOs(BoojumOsVM<W, H>),
     ZKSync(Vm<W, H>),

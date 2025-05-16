@@ -8,7 +8,7 @@ use std::time::Duration;
 use url::Url;
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_types::api::{Block, TransactionVariant};
-use zksync_types::bytecode::BytecodeHash;
+use zksync_types::bytecode::{BytecodeHash, BytecodeMarker};
 use zksync_types::u256_to_h256;
 use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H256, U256, U64};
 
@@ -283,11 +283,25 @@ impl InMemoryNode {
         let code_slice = code
             .strip_prefix("0x")
             .ok_or_else(|| anyhow!("code must be 0x-prefixed"))?;
+
         let bytecode = hex::decode(code_slice)?;
-        zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
+        let marker = BytecodeMarker::detect(&bytecode);
+        let bytecode_hash = match marker {
+            BytecodeMarker::EraVm => {
+                zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
+                BytecodeHash::for_bytecode(&bytecode)
+            }
+            BytecodeMarker::Evm => {
+                let evm_interpreter_enabled = self.inner.read().await.config.use_evm_interpreter;
+                if !evm_interpreter_enabled {
+                    anyhow::bail!("EVM bytecode detected in 'set_code', but EVM interpreter is disabled in config");
+                }
+                BytecodeHash::for_raw_evm_bytecode(&bytecode)
+            }
+        };
         tracing::info!(
             ?address,
-            bytecode_hash = ?BytecodeHash::for_bytecode(&bytecode).value(),
+            bytecode_hash = ?bytecode_hash.value(),
             "set code"
         );
         self.node_handle.set_code_sync(address, bytecode).await?;
@@ -611,7 +625,6 @@ mod tests {
     async fn test_set_code() {
         let address = Address::repeat_byte(0x1);
         let node = InMemoryNode::test(None);
-        let new_code = vec![0x1u8; 32];
 
         let code_before = node
             .get_code_impl(address, None)
@@ -620,16 +633,40 @@ mod tests {
             .0;
         assert_eq!(Vec::<u8>::default(), code_before);
 
-        node.set_code(address, format!("0x{}", hex::encode(new_code.clone())))
+        // EVM bytecodes don't start with `0` byte, while EraVM bytecodes do.
+        let evm_bytecode = vec![0x1u8; 32];
+
+        node.set_code(address, format!("0x{}", hex::encode(&evm_bytecode)))
             .await
-            .expect("failed setting code");
+            .expect_err("was able to set EVM bytecode with interpreter disabled");
+
+        // EraVM bytecodes start with `0` byte.
+        let mut era_bytecode = vec![0x2u8; 32];
+        era_bytecode[0] = 0x00;
+
+        node.set_code(address, format!("0x{}", hex::encode(&era_bytecode)))
+            .await
+            .expect("wasn't able to set EraVM bytecode");
 
         let code_after = node
             .get_code_impl(address, None)
             .await
             .expect("failed getting code")
             .0;
-        assert_eq!(new_code, code_after);
+        assert_eq!(era_bytecode, code_after);
+
+        // Enable EVM interpreter and try setting EVM bytecode again.
+        node.inner.write().await.config.use_evm_interpreter = true;
+
+        node.set_code(address, format!("0x{}", hex::encode(&evm_bytecode)))
+            .await
+            .expect("wasn't able to set EVM bytecode");
+        let code_after = node
+            .get_code_impl(address, None)
+            .await
+            .expect("failed getting code")
+            .0;
+        assert_eq!(evm_bytecode, code_after);
     }
 
     #[tokio::test]

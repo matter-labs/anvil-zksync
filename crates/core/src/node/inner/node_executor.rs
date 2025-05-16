@@ -10,7 +10,7 @@ use tokio::sync::{mpsc, oneshot, RwLock};
 use url::Url;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
-use zksync_types::bytecode::BytecodeHash;
+use zksync_types::bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker};
 use zksync_types::utils::nonces_to_full_nonce;
 use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
 
@@ -178,9 +178,23 @@ impl NodeExecutor {
         }
     }
 
-    async fn set_code(&mut self, address: Address, bytecode: Vec<u8>, reply: oneshot::Sender<()>) {
+    async fn set_code(
+        &mut self,
+        address: Address,
+        mut bytecode: Vec<u8>,
+        reply: oneshot::Sender<()>,
+    ) {
         let code_key = get_code_key(&address);
-        let bytecode_hash = BytecodeHash::for_bytecode(&bytecode).value();
+        let marker = BytecodeMarker::detect(&bytecode);
+        let bytecode_hash = match marker {
+            BytecodeMarker::EraVm => BytecodeHash::for_bytecode(&bytecode),
+            BytecodeMarker::Evm => BytecodeHash::for_raw_evm_bytecode(&bytecode),
+        }
+        .value();
+        if marker == BytecodeMarker::Evm {
+            bytecode = pad_evm_bytecode(&bytecode);
+        }
+
         // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
         let node_inner = self.node_inner.read().await;
         node_inner

@@ -46,11 +46,10 @@ impl EthNamespaceServer for EthNamespace {
         req: CallRequest,
         // TODO: Support
         _block: Option<BlockIdVariant>,
-        // TODO: Support
-        _state_override: Option<StateOverride>,
+        state_override: Option<StateOverride>,
     ) -> RpcResult<Bytes> {
         self.node
-            .call_impl(req)
+            .call_impl(req, state_override)
             .await
             .map_err(RpcErrorAdapter::into)
     }
