@@ -66,6 +66,7 @@ use zksync_types::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::{decompose_full_nonce, nonces_to_full_nonce};
 use zksync_types::web3::{keccak256, Index};
+use zksync_types::Nonce;
 use zksync_types::{
     api, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
     ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageValue,
@@ -784,10 +785,15 @@ impl InMemoryNodeInner {
         let nonce_key = self
             .storage_key_layout
             .get_nonce_key(&tx.initiator_account());
-        if let Some(nonce) = tx.nonce() {
-            let full_nonce = storage.borrow_mut().read_value(&nonce_key);
-            let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-            let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
+
+        let full_nonce = h256_to_u256(storage.borrow_mut().read_value(&nonce_key));
+        let (account_nonce, deployment_nonce) = decompose_full_nonce(full_nonce);
+        let supplied = tx.nonce().map(|n| U256::from(n.0));
+        let final_nonce = supplied
+            .filter(|n| *n >= account_nonce)
+            .unwrap_or(account_nonce);
+        let enforced_full_nonce = nonces_to_full_nonce(final_nonce, deployment_nonce);
+        if enforced_full_nonce != full_nonce {
             storage
                 .borrow_mut()
                 .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
@@ -814,6 +820,7 @@ impl InMemoryNodeInner {
                 storage
                     .borrow_mut()
                     .set_value(balance_key, u256_to_h256(current_balance));
+                l2_common_data.nonce = Nonce(final_nonce.as_u32());
             }
             ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
         }
