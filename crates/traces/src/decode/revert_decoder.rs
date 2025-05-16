@@ -130,7 +130,7 @@ impl RevertDecoder {
                 if let Ok(decoded) = error.abi_decode_input(data, false) {
                     return Some(DecodedError::CustomError {
                         name: error.name.to_owned(),
-                        fields: decoded.into_iter().flat_map(decode_value).collect(),
+                        fields: decoded.into_iter().map(decode_value).collect(),
                     });
                 }
             }

@@ -826,6 +826,147 @@ impl CustomErrorMessage for Revert {
     serde :: Serialize,
     serde :: Deserialize,
 )]
+#[strum_discriminants(name(StateLoaderCode))]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(derive(AsRefStr, FromRepr))]
+#[non_exhaustive]
+pub enum StateLoader {
+    #[doc = "# Summary "]
+    #[doc = "It is not allowed to load a state overriding the existing node state."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue."]
+    LoadingStateOverExistingState = 1u32,
+    #[doc = "# Summary "]
+    #[doc = "Attempt to load a state with no blocks"]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "It is not allowed to load a state without any blocks in it."]
+    LoadEmptyState = 2u32,
+    #[doc = "# Summary "]
+    #[doc = ""]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Failed to decompress the state."]
+    StateDecompression {
+        details: String,
+    } = 3u32,
+    #[doc = "# Summary "]
+    #[doc = ""]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Failed to deserialize the state file."]
+    StateDeserialization {
+        details: String,
+    } = 4u32,
+    #[doc = "# Summary "]
+    #[doc = ""]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "The version of the state file is not recognized."]
+    UnknownStateVersion {
+        version: u32,
+    } = 5u32,
+    #[doc = "# Summary "]
+    #[doc = ""]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Failed to access the state file."]
+    StateFileAccess {
+        path: String,
+        reason: String,
+    } = 6u32,
+    GenericError {
+        message: String,
+    } = 0u32,
+}
+impl std::error::Error for StateLoader {}
+impl NamedError for StateLoader {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl NamedError for StateLoaderCode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl From<StateLoader> for crate::ZksyncError {
+    fn from(val: StateLoader) -> Self {
+        val.to_unified()
+    }
+}
+impl std::fmt::Display for StateLoader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.get_message())
+    }
+}
+impl Documented for StateLoader {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        self.to_unified().get_identifier().get_documentation()
+    }
+}
+impl From<anyhow::Error> for StateLoader {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        StateLoader::GenericError { message }
+    }
+}
+impl From<StateLoader> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: StateLoader) -> Self {
+        crate::packed::pack(value)
+    }
+}
+impl From<StateLoader> for crate::serialized::SerializedError {
+    fn from(value: StateLoader) -> Self {
+        let packed = crate::packed::pack(value);
+        crate::serialized::serialize(packed).expect("Internal serialization error.")
+    }
+}
+impl CustomErrorMessage for StateLoader {
+    fn get_message(&self) -> String {
+        match self {
+            StateLoader::LoadingStateOverExistingState => {
+                format ! ("[anvil_zksync-state-1] Loading state into a node with existing state is not allowed.")
+            }
+            StateLoader::LoadEmptyState => {
+                format!("[anvil_zksync-state-2] Loading a state without blocks is not allowed.")
+            }
+            StateLoader::StateDecompression { details } => {
+                format!("[anvil_zksync-state-3] Failed to decompress state: {details}.")
+            }
+            StateLoader::StateDeserialization { details } => {
+                format!("[anvil_zksync-state-4] Failed to deserialize state: {details}")
+            }
+            StateLoader::UnknownStateVersion { version } => {
+                format!("[anvil_zksync-state-5] Unknown version of the state: {version}.")
+            }
+            StateLoader::StateFileAccess { path, reason } => {
+                format ! ("[anvil_zksync-state-6] Error while accessing the state located at `{path}`. Reason: {reason}.")
+            }
+            StateLoader::GenericError { message } => {
+                format!("[anvil_zksync-state-0] Generic error: {message}")
+            }
+        }
+    }
+}
+#[doc = ""]
+#[doc = ""]
+#[doc = "Domain: AnvilZKsync"]
+#[repr(u32)]
+#[derive(
+    AsRefStr,
+    Clone,
+    Debug,
+    Eq,
+    EnumDiscriminants,
+    PartialEq,
+    serde :: Serialize,
+    serde :: Deserialize,
+)]
 #[strum_discriminants(name(TransactionValidationCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]

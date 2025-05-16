@@ -79,7 +79,7 @@ pub fn abi_decode_calldata(
     if res.is_empty() {
         eyre::bail!("no data was decoded")
     } else {
-        Ok(res.into_iter().flat_map(decode_value).collect())
+        Ok(res.into_iter().map(decode_value).collect())
     }
 }
 

@@ -5,7 +5,6 @@ use super::vm::AnvilVM;
 use crate::delegate_vm;
 use crate::deps::InMemoryStorage;
 use crate::filters::EthFilters;
-use crate::node::error::LoadStateError;
 use crate::node::fee_model::TestNodeFeeInputProvider;
 use crate::node::impersonate::{ImpersonationManager, ImpersonationState};
 use crate::node::inner::blockchain::ReadBlockchain;
@@ -32,7 +31,6 @@ use anvil_zksync_traces::{
 use anvil_zksync_types::{
     traces::CallTraceArena, LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
 };
-use anyhow::{anyhow, Context};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -44,8 +42,10 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_error::anvil_zksync;
-use zksync_error::anvil_zksync::node::AnvilNodeResult;
+use zksync_error::anvil_zksync::node::{
+    generic_error, to_generic, AnvilNodeError, AnvilNodeResult,
+};
+use zksync_error::anvil_zksync::state::{StateLoaderError, StateLoaderResult};
 use zksync_multivm::interface::storage::{
     ReadStorage, StoragePtr, StorageView, StorageWithOverrides,
 };
@@ -371,7 +371,7 @@ impl InMemoryNode {
             .difference(&actual_tx_hashes)
             .collect::<Vec<_>>();
         if !diff_tx_hashes.is_empty() {
-            return Err(anvil_zksync::node::generic_error!(
+            return Err(generic_error!(
                 "Failed to replay transactions: {diff_tx_hashes:?}. Please report this."
             ));
         }
@@ -390,7 +390,7 @@ impl InMemoryNode {
         mut l2_tx: L2Tx,
         base_contracts: BaseSystemContracts,
         state_override: Option<StateOverride>,
-    ) -> anyhow::Result<ExecutionResult> {
+    ) -> AnvilNodeResult<ExecutionResult> {
         let execution_mode = TxExecutionMode::EthCall;
 
         let inner = self.inner.read().await;
@@ -456,7 +456,9 @@ impl InMemoryNode {
                     Some(inner.config.get_cache_dir().into()),
                     inner.config.offline,
                 )
-                .map_err(|err| anyhow!("Failed to create SignaturesIdentifier: {:#}", err))?,
+                .map_err(|err| {
+                    generic_error!("Failed to create SignaturesIdentifier: {:#}", err)
+                })?,
             );
 
             let decoder = builder.build();
@@ -465,15 +467,13 @@ impl InMemoryNode {
                     let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
                     let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
                     rt.block_on(async {
-                        decode_trace_arena(&mut arena, &decoder)
-                            .await
-                            .context("Failed to decode trace arena")?;
-                        Ok::<CallTraceArena, anyhow::Error>(arena)
+                        decode_trace_arena(&mut arena, &decoder).await;
+                        Ok(arena)
                     })
                 })
                 .await;
 
-                let inner_result: Result<CallTraceArena, anyhow::Error> =
+                let inner_result: Result<CallTraceArena, AnvilNodeError> =
                     blocking_result.expect("spawn_blocking failed");
                 inner_result
             })?;
@@ -495,7 +495,7 @@ impl InMemoryNode {
         self.node_handle.set_code_sync(address, bytecode).await
     }
 
-    pub async fn dump_state(&self, preserve_historical_states: bool) -> anyhow::Result<Bytes> {
+    pub async fn dump_state(&self, preserve_historical_states: bool) -> AnvilNodeResult<Bytes> {
         let state = self
             .inner
             .read()
@@ -503,11 +503,13 @@ impl InMemoryNode {
             .dump_state(preserve_historical_states)
             .await?;
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(&serde_json::to_vec(&state)?)?;
-        Ok(encoder.finish()?.into())
+        encoder
+            .write_all(&serde_json::to_vec(&state).map_err(to_generic)?)
+            .map_err(to_generic)?;
+        Ok(encoder.finish().map_err(to_generic)?.into())
     }
 
-    pub async fn load_state(&self, buf: Bytes) -> Result<bool, LoadStateError> {
+    pub async fn load_state(&self, buf: Bytes) -> StateLoaderResult<bool> {
         let orig_buf = &buf.0[..];
         let mut decoder = GzDecoder::new(orig_buf);
         let mut decoded_data = Vec::new();
@@ -515,21 +517,26 @@ impl InMemoryNode {
         // Support both compressed and non-compressed state format
         let decoded = if decoder.header().is_some() {
             tracing::trace!(bytes = buf.0.len(), "decompressing state");
-            decoder
-                .read_to_end(decoded_data.as_mut())
-                .map_err(LoadStateError::FailedDecompress)?;
+            decoder.read_to_end(decoded_data.as_mut()).map_err(|e| {
+                StateLoaderError::StateDecompression {
+                    details: e.to_string(),
+                }
+            })?;
             &decoded_data
         } else {
             &buf.0
         };
         tracing::trace!(bytes = decoded.len(), "deserializing state");
-        let state: VersionedState =
-            serde_json::from_slice(decoded).map_err(LoadStateError::FailedDeserialize)?;
+        let state: VersionedState = serde_json::from_slice(decoded).map_err(|e| {
+            StateLoaderError::StateDeserialization {
+                details: e.to_string(),
+            }
+        })?;
 
         self.inner.write().await.load_state(state).await
     }
 
-    pub async fn get_chain_id(&self) -> anyhow::Result<u32> {
+    pub async fn get_chain_id(&self) -> AnvilNodeResult<u32> {
         Ok(self
             .inner
             .read()
@@ -539,14 +546,14 @@ impl InMemoryNode {
             .unwrap_or(TEST_NODE_NETWORK_ID))
     }
 
-    pub fn get_current_timestamp(&self) -> anyhow::Result<u64> {
+    pub fn get_current_timestamp(&self) -> AnvilNodeResult<u64> {
         Ok(self.time.current_timestamp())
     }
 
     pub async fn set_show_storage_logs(
         &self,
         show_storage_logs: ShowStorageLogs,
-    ) -> anyhow::Result<String> {
+    ) -> AnvilNodeResult<String> {
         self.inner.write().await.config.show_storage_logs = show_storage_logs;
         Ok(show_storage_logs.to_string())
     }
@@ -554,7 +561,7 @@ impl InMemoryNode {
     pub async fn set_show_vm_details(
         &self,
         show_vm_details: ShowVMDetails,
-    ) -> anyhow::Result<String> {
+    ) -> AnvilNodeResult<String> {
         self.inner.write().await.config.show_vm_details = show_vm_details;
         Ok(show_vm_details.to_string())
     }
@@ -562,28 +569,28 @@ impl InMemoryNode {
     pub async fn set_show_gas_details(
         &self,
         show_gas_details: ShowGasDetails,
-    ) -> anyhow::Result<String> {
+    ) -> AnvilNodeResult<String> {
         self.inner.write().await.config.show_gas_details = show_gas_details;
         Ok(show_gas_details.to_string())
     }
 
-    pub async fn set_show_node_config(&self, value: bool) -> anyhow::Result<bool> {
+    pub async fn set_show_node_config(&self, value: bool) -> AnvilNodeResult<bool> {
         self.inner.write().await.config.show_node_config = value;
         Ok(value)
     }
 
-    pub fn set_log_level(&self, level: LogLevel) -> anyhow::Result<bool> {
+    pub fn set_log_level(&self, level: LogLevel) -> AnvilNodeResult<bool> {
         let Some(observability) = &self.observability else {
-            anyhow::bail!("Node's logging is not set up.")
+            return Err(generic_error!("Node's logging is not set up."));
         };
         tracing::debug!("setting log level to '{}'", level);
         observability.set_log_level(level)?;
         Ok(true)
     }
 
-    pub fn set_logging(&self, directive: String) -> anyhow::Result<bool> {
+    pub fn set_logging(&self, directive: String) -> AnvilNodeResult<bool> {
         let Some(observability) = &self.observability else {
-            anyhow::bail!("Node's logging is not set up.")
+            return Err(generic_error!("Node's logging is not set up."));
         };
         tracing::debug!("setting logging to '{}'", directive);
         observability.set_logging(directive)?;
@@ -689,7 +696,7 @@ impl InMemoryNode {
     pub async fn apply_txs(
         &self,
         txs: impl IntoIterator<Item = Transaction>,
-    ) -> anyhow::Result<Vec<TransactionReceipt>> {
+    ) -> AnvilNodeResult<Vec<TransactionReceipt>> {
         use backon::{ConstantBuilder, Retryable};
         use std::time::Duration;
 
@@ -703,7 +710,7 @@ impl InMemoryNode {
                 self.blockchain
                     .get_tx_receipt(&tx_hash)
                     .await
-                    .ok_or(anyhow::anyhow!("missing tx receipt"))
+                    .ok_or(generic_error!("missing tx receipt"))
             })
             .retry(
                 ConstantBuilder::default()

@@ -1218,7 +1218,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
- "zksync-error-codegen",
  "zksync-error-description",
  "zksync_contracts",
  "zksync_error",
@@ -8339,6 +8338,7 @@ dependencies = [
  "serde_json",
  "strum 0.26.3",
  "strum_macros 0.26.4",
+ "zksync-error-codegen",
  "zksync-error-description",
  "zksync_basic_types",
 ]
