@@ -27,7 +27,20 @@ pub trait RpcErrorAdapter {
 
 impl RpcErrorAdapter for StateLoaderError {
     fn into(error: Self) -> ErrorObjectOwned {
-        to_rpc(None, error)
+        let error_code = match error {
+            StateLoaderError::LoadingStateOverExistingState
+            | StateLoaderError::LoadEmptyState
+            | StateLoaderError::StateDecompression { .. }
+            | StateLoaderError::StateDeserialization { .. }
+            | StateLoaderError::UnknownStateVersion { .. }
+            | StateLoaderError::StateFileAccess { .. } => ErrorCode::InvalidParams,
+            StateLoaderError::GenericError { .. } => ErrorCode::InternalError,
+            _ => ErrorCode::InternalError,
+        };
+        to_rpc(
+            Some(error_code.code()),
+            error,
+        )
     }
 }
 
