@@ -63,12 +63,14 @@ describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", functi
   it("Should allow transfers of funds without knowing the Private Key", async function () {
     // Arrange
     const userWallet = new Wallet(Wallet.createRandom().privateKey).connect(provider);
-    const beforeBalance = await provider.getBalance(RichAccounts[5].Account);
+    const richAccount = RichAccounts[5].Account;
+    const beforeBalance = await provider.getBalance(richAccount);
+    const nonceBefore = await provider.getTransactionCount(richAccount);
 
     // Act
-    await provider.send("hardhat_impersonateAccount", [RichAccounts[5].Account]);
+    await provider.send("hardhat_impersonateAccount", [richAccount]);
 
-    const signer = await ethers.getSigner(RichAccounts[5].Account);
+    const signer = await ethers.getSigner(richAccount);
     const tx = {
       to: userWallet.address,
       value: ethers.parseEther("0.42"),
@@ -77,11 +79,12 @@ describe("hardhat_impersonateAccount & hardhat_stopImpersonatingAccount", functi
     const recieptTx = await signer.sendTransaction(tx);
     await recieptTx.wait();
 
-    await provider.send("hardhat_stopImpersonatingAccount", [RichAccounts[5].Account]);
+    await provider.send("hardhat_stopImpersonatingAccount", [richAccount]);
 
     // Assert
     expect(await userWallet.getBalance()).to.eq(ethers.parseEther("0.42"));
-    expect(await provider.getBalance(RichAccounts[5].Account)).to.eq(beforeBalance - ethers.parseEther("0.42"));
+    expect(await provider.getBalance(richAccount)).to.eq(beforeBalance - ethers.parseEther("0.42"));
+    expect(await provider.getTransactionCount(richAccount)).to.eq(nonceBefore + 1);
   });
 });
 

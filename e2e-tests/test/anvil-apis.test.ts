@@ -320,6 +320,7 @@ describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function (
     const userWallet = new Wallet(Wallet.createRandom().privateKey).connect(provider);
     const richAccount = RichAccounts[5].Account;
     const beforeBalance = await provider.getBalance(richAccount);
+    const nonceBefore = await provider.getTransactionCount(userWallet);
 
     // Act
     await provider.send("anvil_impersonateAccount", [richAccount]);
@@ -338,6 +339,7 @@ describe("anvil_impersonateAccount & anvil_stopImpersonatingAccount", function (
     // Assert
     expect(await userWallet.getBalance()).to.eq(ethers.parseEther("0.42"));
     expect(await provider.getBalance(richAccount)).to.eq(beforeBalance - ethers.parseEther("0.42"));
+    expect(await provider.getTransactionCount(richAccount)).to.eq(nonceBefore + 1);
   });
 });
 

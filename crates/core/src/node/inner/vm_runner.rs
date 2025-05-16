@@ -12,8 +12,8 @@ use crate::node::storage_logs::print_storage_logs_details;
 use crate::node::time::Time;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{
-    compute_hash, InMemoryNodeInner, TestNodeFeeInputProvider, TransactionResult, TxBatch,
-    TxExecutionInfo,
+    compute_hash, InMemoryNodeInner, StorageKeyLayout, TestNodeFeeInputProvider, TransactionResult,
+    TxBatch, TxExecutionInfo,
 };
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
@@ -32,7 +32,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
 use zksync_multivm::interface::executor::BatchExecutor;
-use zksync_multivm::interface::storage::WriteStorage;
+use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     TxExecutionMode, VmEvent, VmExecutionResultAndLogs,
@@ -43,8 +43,8 @@ use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData, StorageKey,
-    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    api, h256_to_address, h256_to_u256, u256_to_h256, ExecuteTransactionCommon, L2BlockNumber,
+    L2TxCommonData, StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
 };
 
 pub struct VmRunner {
@@ -58,6 +58,7 @@ pub struct VmRunner {
     generate_system_logs: bool,
     /// Optional field for reporting progress while replaying transactions.
     progress_report: Option<ProgressBar>,
+    storage_layout: StorageKeyLayout,
 }
 
 pub(super) struct TxBatchExecutionResult {
@@ -76,6 +77,7 @@ impl VmRunner {
         system_contracts: SystemContracts,
         generate_system_logs: bool,
         enforced_bytecode_compression: bool,
+        storage_layout: StorageKeyLayout,
     ) -> Self {
         let bootloader_debug_result = Arc::new(std::sync::RwLock::new(Err(
             "Tracer has not been run yet".to_string(),
@@ -93,6 +95,7 @@ impl VmRunner {
             system_contracts,
             generate_system_logs,
             progress_report: None,
+            storage_layout,
         }
     }
 }
@@ -275,6 +278,7 @@ impl VmRunner {
         executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
+        impersonating: bool,
     ) -> AnvilNodeResult<TransactionResult> {
         let tx_hash = tx.hash();
         let transaction_type = tx.tx_format();
@@ -306,6 +310,15 @@ impl VmRunner {
                 inner: Box::new(reason.to_halt_error().await),
                 transaction_hash: Box::new(tx_hash),
             });
+        }
+
+        if impersonating {
+            // During impersonation, we skip account validation (which is responsible for updating nonce)
+            // so we do it manually for each transaction that didn't result in a halt.
+            let nonce_key = self.storage_layout.get_nonce_key(&tx.initiator_account());
+            let nonce = h256_to_u256(self.fork_storage.read_value(&nonce_key));
+            let nonce = u256_to_h256(nonce + 1);
+            self.fork_storage.set_value(nonce_key, nonce);
         }
 
         let mut new_bytecodes = new_bytecodes(tx, &result);
@@ -480,6 +493,7 @@ impl VmRunner {
                     &mut executor,
                     &node_inner.config,
                     &node_inner.fee_input_provider,
+                    impersonating,
                 )
                 .await;
 
@@ -679,6 +693,12 @@ mod test {
 
     impl VmRunnerTester {
         fn new_custom(fork_client: Option<ForkClient>, config: TestNodeConfig) -> Self {
+            let storage_layout = if config.boojum.use_boojum {
+                StorageKeyLayout::BoojumOs
+            } else {
+                StorageKeyLayout::ZkEra
+            };
+
             let time = Time::new(0);
             let fork_storage = ForkStorage::new(
                 Fork::new(fork_client, CacheConfig::None),
@@ -700,6 +720,7 @@ mod test {
                 system_contracts.clone(),
                 false,
                 config.is_bytecode_compression_enforced(),
+                storage_layout,
             );
             VmRunnerTester {
                 vm_runner,
@@ -792,6 +813,7 @@ mod test {
                             executor.as_mut(),
                             &self.config,
                             &TestNodeFeeInputProvider::default(),
+                            false,
                         )
                         .await?,
                 );

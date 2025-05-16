@@ -88,6 +88,7 @@ impl InMemoryNodeInner {
             system_contracts.clone(),
             generate_system_logs,
             config.is_bytecode_compression_enforced(),
+            storage_key_layout,
         );
 
         let node_inner = InMemoryNodeInner::new(
