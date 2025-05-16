@@ -66,6 +66,7 @@ use zksync_types::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::{decompose_full_nonce, nonces_to_full_nonce};
 use zksync_types::web3::{keccak256, Index};
+use zksync_types::Nonce;
 use zksync_types::{
     api, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
     ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageValue,
@@ -780,17 +781,26 @@ impl InMemoryNodeInner {
 
         let storage = StorageView::new(fork_storage).to_rc_ptr();
 
-        // The nonce needs to be updated
         let nonce_key = self
             .storage_key_layout
             .get_nonce_key(&tx.initiator_account());
-        if let Some(nonce) = tx.nonce() {
-            let full_nonce = storage.borrow_mut().read_value(&nonce_key);
-            let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-            let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
+        let stored_full = h256_to_u256(storage.borrow_mut().read_value(&nonce_key));
+        let (account_nonce, deployment_nonce) = decompose_full_nonce(stored_full);
+
+        let supplied = tx.nonce().map(|n| U256::from(n.0));
+
+        let final_nonce = match supplied {
+            // caller explicitly set a nonce ≥ on-chain ⇒ honour it
+            Some(n) if n >= account_nonce => n,
+            // otherwise use the current chain nonce
+            _ => account_nonce,
+        };
+
+        let enforced_full = nonces_to_full_nonce(final_nonce, deployment_nonce);
+        if enforced_full != stored_full {
             storage
                 .borrow_mut()
-                .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+                .set_value(nonce_key, u256_to_h256(enforced_full));
         }
 
         // We need to explicitly put enough balance into the account of the users
@@ -814,6 +824,9 @@ impl InMemoryNodeInner {
                 storage
                     .borrow_mut()
                     .set_value(balance_key, u256_to_h256(current_balance));
+
+                let nonce_u32: u32 = final_nonce.try_into().expect("nonce always fits into u32");
+                l2_common_data.nonce = Nonce(nonce_u32);
             }
             ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
         }
