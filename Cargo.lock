@@ -2404,7 +2404,7 @@ checksum = "89e25b6adfb930f02d1981565a6e5d9c547ac15a96606256d3b59040e5cd4ca3"
 [[package]]
 name = "basic_bootloader"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -2421,7 +2421,7 @@ dependencies = [
 [[package]]
 name = "basic_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "arrayvec 0.7.6",
  "cfg-if",
@@ -2448,7 +2448,7 @@ checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 [[package]]
 name = "bigint_with_control"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "prover",
  "serde",
@@ -2572,7 +2572,7 @@ dependencies = [
 [[package]]
 name = "blake2_with_compression"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "prover",
  "serde",
@@ -2594,7 +2594,7 @@ dependencies = [
 [[package]]
 name = "blake2s_u32"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "unroll",
 ]
@@ -2868,7 +2868,7 @@ dependencies = [
 [[package]]
 name = "circuit_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "fft",
  "field",
@@ -3374,14 +3374,14 @@ checksum = "43da5946c66ffcc7745f48db692ffbb10a83bfe0afd96235c5c2a4fb23994929"
 [[package]]
 name = "crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.5.0",
  "ark-serialize 0.5.0",
- "ark-std 0.5.0",
+ "ark-std 0.3.0",
  "blake2",
  "cfg-if",
  "const_for",
@@ -3430,7 +3430,7 @@ dependencies = [
 [[package]]
 name = "cs"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode",
@@ -3471,8 +3471,8 @@ dependencies = [
 
 [[package]]
 name = "cycle_marker"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+version = "0.0.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 
 [[package]]
 name = "darling"
@@ -4391,7 +4391,7 @@ dependencies = [
 [[package]]
 name = "evm_interpreter"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -4404,10 +4404,11 @@ dependencies = [
 [[package]]
 name = "execution_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "risc_v_simulator",
  "serde",
+ "serde_json",
  "trace_and_split",
  "verifier_common",
 ]
@@ -4479,7 +4480,7 @@ dependencies = [
 [[package]]
 name = "fft"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "field",
  "itertools 0.13.0",
@@ -4493,7 +4494,7 @@ dependencies = [
 [[package]]
 name = "field"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "rand 0.9.1",
  "seq-macro",
@@ -4515,7 +4516,7 @@ dependencies = [
 [[package]]
 name = "final_reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "circuit_common",
  "prover",
@@ -4591,7 +4592,7 @@ dependencies = [
 [[package]]
 name = "forward_system"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "arrayvec 0.7.6",
  "basic_bootloader",
@@ -6342,8 +6343,8 @@ dependencies = [
 
 [[package]]
 name = "modexp"
-version = "1.0.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 
 [[package]]
 name = "native-tls"
@@ -6394,7 +6395,7 @@ dependencies = [
 [[package]]
 name = "non_determinism_source"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 
 [[package]]
 name = "nu-ansi-term"
@@ -6542,7 +6543,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.3.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.101",
@@ -6691,7 +6692,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "oracle_provider"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "ringbuffer",
  "risc_v_simulator",
@@ -7096,7 +7097,7 @@ dependencies = [
 [[package]]
 name = "poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "field",
  "non_determinism_source",
@@ -7344,7 +7345,7 @@ dependencies = [
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "bit-set 0.8.0",
  "blake2s_u32",
@@ -7372,7 +7373,7 @@ dependencies = [
 [[package]]
 name = "prover_examples"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "bincode",
  "prover",
@@ -7629,7 +7630,7 @@ dependencies = [
 [[package]]
 name = "reduced_risc_v_machine"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "circuit_common",
  "prover",
@@ -7860,7 +7861,7 @@ dependencies = [
 [[package]]
 name = "rig"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "alloy 0.4.0",
  "basic_bootloader",
@@ -7931,7 +7932,7 @@ dependencies = [
 [[package]]
 name = "risc_v_cycles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "circuit_common",
  "prover",
@@ -7943,7 +7944,7 @@ dependencies = [
 [[package]]
 name = "risc_v_simulator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "addr2line 0.22.0",
  "blake2s_u32",
@@ -8702,7 +8703,7 @@ dependencies = [
 [[package]]
 name = "setups"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "bigint_with_control",
  "blake2_with_compression",
@@ -8976,9 +8977,10 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "storage_models"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "arrayvec 0.7.6",
+ "crypto",
  "either",
  "ruint",
  "zk_ee",
@@ -9179,7 +9181,7 @@ dependencies = [
 [[package]]
 name = "system_hooks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "arrayvec 0.7.6",
  "crypto",
@@ -9749,7 +9751,7 @@ dependencies = [
 [[package]]
 name = "trace_and_split"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "prover",
  "serde",
@@ -9761,7 +9763,7 @@ dependencies = [
 [[package]]
 name = "trace_holder"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "field",
  "worker",
@@ -9858,7 +9860,7 @@ dependencies = [
 [[package]]
 name = "transcript"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "blake2s_u32",
  "unroll",
@@ -10139,7 +10141,7 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 [[package]]
 name = "verifier_common"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "blake2s_u32",
  "cs",
@@ -10155,7 +10157,7 @@ dependencies = [
 [[package]]
 name = "verifier_generator"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "proc-macro-error2",
  "proc-macro2",
@@ -10852,7 +10854,7 @@ dependencies = [
 [[package]]
 name = "worker"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/air_compiler#0592eea17ca50a344286346db18f809525499e11"
+source = "git+https://github.com/matter-labs/air_compiler#1afabfc30bcdcf0c67822f102b2ee9762f2bce79"
 dependencies = [
  "num_cpus",
  "rayon",
@@ -11058,7 +11060,7 @@ dependencies = [
 [[package]]
 name = "zk_ee"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "arrayvec 0.7.6",
  "bitflags 2.9.0",
@@ -11219,7 +11221,7 @@ dependencies = [
 [[package]]
 name = "zk_os_runner"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "cycle_marker",
  "execution_utils",
@@ -11308,7 +11310,7 @@ dependencies = [
 [[package]]
 name = "zkos_api"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#9af46897b5b662c4a914bf692120fac137f077c7"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=main#80a7ab4e1e67579c700043ed0b0e2cc3e42cc252"
 dependencies = [
  "forward_system",
  "oracle_provider",

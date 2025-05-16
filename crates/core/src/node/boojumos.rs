@@ -370,7 +370,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         (
             forward_system::run::simulate_tx(
                 tx_raw,
-                storage_commitment,
                 batch_context,
                 tree.clone(),
                 preimage_source.clone(),
@@ -386,7 +385,6 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         let noop = NoopTxCallback {};
         let batch_output = forward_system::run::run_batch(
             batch_context,
-            storage_commitment,
             // FIXME
             tree.clone(),
             preimage_source.clone(),
