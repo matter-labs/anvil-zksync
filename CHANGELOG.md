@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.2](https://github.com/matter-labs/anvil-zksync/compare/v0.6.1...v0.6.2) (2025-05-20)
+
+
+### Features
+
+* **boojum-os:** Updated boojum os support ([#702](https://github.com/matter-labs/anvil-zksync/issues/702)) ([eca0fec](https://github.com/matter-labs/anvil-zksync/commit/eca0fececf69a9d1bdb30440245807ec2b8c7860))
+* Support setting EVM bytecode ([#707](https://github.com/matter-labs/anvil-zksync/issues/707)) ([7195c0f](https://github.com/matter-labs/anvil-zksync/commit/7195c0f7bcedd283e5b8832c271624d4e0730968))
+* Support state overrides in eth_call ([#706](https://github.com/matter-labs/anvil-zksync/issues/706)) ([590335f](https://github.com/matter-labs/anvil-zksync/commit/590335f5f8ee0ce2028f41de7230ac6858702c01))
+
+
+### Bug Fixes
+
+* address timeout issue in CI ([#705](https://github.com/matter-labs/anvil-zksync/issues/705)) ([543096e](https://github.com/matter-labs/anvil-zksync/commit/543096e082de9f316a9d0b8c19b45326c8c1175d))
+* set call request's nonce during estimation ([#711](https://github.com/matter-labs/anvil-zksync/issues/711)) ([923a708](https://github.com/matter-labs/anvil-zksync/commit/923a70821df91ca5505288c8a671990bdbf62344))
+* Update nonces for accounts during impersonation ([#708](https://github.com/matter-labs/anvil-zksync/issues/708)) ([b6b0d69](https://github.com/matter-labs/anvil-zksync/commit/b6b0d69394f03de270323fdc11a4339c14d5a4ae))
+
 ## [0.6.1](https://github.com/matter-labs/anvil-zksync/compare/v0.6.0...v0.6.1) (2025-05-05)
 
 
