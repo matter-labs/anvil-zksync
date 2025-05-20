@@ -7,6 +7,7 @@ use crate::node::error::{ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::Blockchain;
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
+use crate::node::inner::storage::ReadStorageDyn;
 use crate::node::inner::time::Time;
 use crate::node::inner::vm_runner::TxBatchExecutionResult;
 use crate::node::keys::StorageKeyLayout;
@@ -65,7 +66,7 @@ use zksync_types::l1::L1Tx;
 use zksync_types::l2::{L2Tx, TransactionType};
 use zksync_types::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::utils::{decompose_full_nonce, nonces_to_full_nonce};
+use zksync_types::utils::decompose_full_nonce;
 use zksync_types::web3::{keccak256, Index};
 use zksync_types::{
     api, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
@@ -471,6 +472,18 @@ impl InMemoryNodeInner {
     pub async fn estimate_gas_impl(&self, req: CallRequest) -> Result<Fee, Web3Error> {
         let mut request_with_gas_per_pubdata_overridden = req;
 
+        // If not passed, set request nonce to the expected value
+        if request_with_gas_per_pubdata_overridden.nonce.is_none() {
+            let nonce_key = self.storage_key_layout.get_nonce_key(
+                &request_with_gas_per_pubdata_overridden
+                    .from
+                    .unwrap_or_default(),
+            );
+            let full_nonce = self.fork_storage.read_value_alt(&nonce_key).await?;
+            let (account_nonce, _) = decompose_full_nonce(h256_to_u256(full_nonce));
+            request_with_gas_per_pubdata_overridden.nonce = Some(account_nonce);
+        }
+
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
                 eip712_meta.gas_per_pubdata =
@@ -781,19 +794,7 @@ impl InMemoryNodeInner {
 
         let storage = StorageView::new(fork_storage).to_rc_ptr();
 
-        // The nonce needs to be updated
-        let nonce_key = self
-            .storage_key_layout
-            .get_nonce_key(&tx.initiator_account());
-        if let Some(nonce) = tx.nonce() {
-            let full_nonce = storage.borrow_mut().read_value(&nonce_key);
-            let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-            let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
-            storage
-                .borrow_mut()
-                .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-        }
-
+        // TODO: core doesn't do this during estimation and fast-fails with validation error instead
         // We need to explicitly put enough balance into the account of the users
         let payer = tx.payer();
         let balance_key = self
@@ -830,7 +831,7 @@ impl InMemoryNodeInner {
             );
             // Temporary hack - as we update the 'storage' just above, but boojumos loads its full
             // state from fork_storage (that is not updated).
-            vm.update_inconsistent_keys(&[&nonce_key, &balance_key]);
+            vm.update_inconsistent_keys(&[&balance_key]);
             AnvilVM::BoojumOs(vm)
         } else {
             AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
