@@ -1,13 +1,11 @@
 use anvil_zksync_common::address_map::{self, KNOWN_ADDRESSES};
 use anvil_zksync_types::traces::{
-    CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallEvent, DecodedCallTrace, L2L1Log,
-    L2L1Logs, TraceMemberOrder,
+    CallLog, CallTrace, CallTraceArena, CallTraceNode, DecodedCallEvent, DecodedCallTrace,
+    ExecutionResult, L2L1Log, L2L1Logs, TraceMemberOrder,
 };
 use decode::CallTraceDecoder;
 use writer::TraceWriter;
-use zksync_multivm::interface::{
-    Call, ExecutionResult, Halt, VmExecutionResultAndLogs, VmRevertReason,
-};
+use zksync_multivm::interface::{Call, Halt, VmExecutionResultAndLogs};
 use zksync_types::H160;
 
 pub mod abi_utils;
@@ -26,7 +24,7 @@ fn convert_call_to_call_trace(call: &Call) -> CallTrace {
     // Determine the execution result based on individual call
     let execution_result = if let Some(ref revert_reason) = call.revert_reason {
         ExecutionResult::Revert {
-            output: VmRevertReason::from(revert_reason.as_bytes()),
+            output: revert_reason.clone(),
         }
     } else if let Some(ref err) = call.error {
         ExecutionResult::Halt {
@@ -60,7 +58,7 @@ pub fn build_call_trace_arena(
 
     // Update the root node's execution result.
     if let Some(root_node) = arena.arena.get_mut(0) {
-        root_node.trace.execution_result = tx_result.result.clone();
+        root_node.trace.execution_result = tx_result.result.clone().into();
     }
 
     for call in calls {
