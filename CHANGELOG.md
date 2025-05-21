@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.3](https://github.com/matter-labs/anvil-zksync/compare/v0.6.2...v0.6.3) (2025-05-21)
+
+
+### Bug Fixes
+
+* account for pubdata cost in estimation bounds ([#713](https://github.com/matter-labs/anvil-zksync/issues/713)) ([ab3cd44](https://github.com/matter-labs/anvil-zksync/commit/ab3cd44b6cc8fdcbe1a5281b211239dbbeb58fe1))
+* preserve human-readable revert message ([#715](https://github.com/matter-labs/anvil-zksync/issues/715)) ([1a06611](https://github.com/matter-labs/anvil-zksync/commit/1a06611f32e6b43cefce98fe5d7517956c213e82))
+
 ## [0.6.2](https://github.com/matter-labs/anvil-zksync/compare/v0.6.1...v0.6.2) (2025-05-20)
 
 
