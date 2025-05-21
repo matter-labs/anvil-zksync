@@ -883,8 +883,9 @@ impl InMemoryNodeInner {
         } = self.estimate_gas_step(
             tx.clone(),
             gas_per_pubdata_byte,
-            // TODO: check what the max value should be here.
-            MAX_L2_TX_GAS_LIMIT,
+            // `MAX_L2_TX_GAS_LIMIT` is what can be used by the transaction logic, but we give
+            // extra to account for potential pubdata cost
+            MAX_L2_TX_GAS_LIMIT + MAX_VM_PUBDATA_PER_BATCH as u64 * gas_per_pubdata_byte,
             batch_env,
             system_env,
             &self.fork_storage,
