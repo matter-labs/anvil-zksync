@@ -19,7 +19,7 @@ case $PROTOCOL_VERSION in
     ERA_CONTRACTS_GIT_COMMIT=216c413ffe523186feb75263de3169cb38f7e93a
     ;;
   v30)
-    ERA_CONTRACTS_GIT_COMMIT=8113cd505f358dfe4f09d11bc4bc68552b5c5c51
+    ERA_CONTRACTS_GIT_COMMIT=0f5f4b0b6055b0cb59de6176e80cdca9666d265b
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
@@ -46,7 +46,7 @@ L1_ARTIFACTS_SRC_DIR=contracts/l1-contracts/zkout
 L2_ARTIFACTS_SRC_DIR=contracts/l2-contracts/zkout
 SYSTEM_ARTIFACTS_SRC_DIR=contracts/system-contracts/zkout
 
-l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "InteropCenter" "AssetTracker" "InteropHandler" "L2NativeTokenVault" "L2WrappedBaseToken" "L2MessageVerification")
+l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "InteropCenter" "AssetTracker" "InteropHandler" "L2NativeTokenVault" "L2WrappedBaseToken" "L2MessageVerification" "ChainAssetHandler")
 l2_artifacts=("TimestampAsserter")
 system_contracts_sol=(
   "AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount"
