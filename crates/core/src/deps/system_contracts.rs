@@ -23,7 +23,7 @@ use zksync_types::{
     L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_STANDARD_TRIGGER_ACCOUNT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL,
     MODEXP_PRECOMPILE_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
     PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
-    SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS
 };
 use zksync_types::{AccountTreeId, Address, H160};
 
@@ -134,7 +134,7 @@ const V29: ProtocolVersionId = ProtocolVersionId::Version29;
 const V30: ProtocolVersionId = ProtocolVersionId::Version30;
 
 /// Triple containing a name of a contract, its L2 address and minimum supported protocol version
-static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 45] = [
+static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 46] = [
     // *************************************************
     // *     Kernel contracts (base offset 0x8000)     *
     // *************************************************
@@ -180,6 +180,7 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 45] = [
         L2_MESSAGE_VERIFICATION_ADDRESS,
         V29,
     ),
+    ("ChainAssetHandler", L2_CHAIN_ASSET_HANDLER_ADDRESS, V29),
     ("InteropCenter", L2_INTEROP_CENTER_ADDRESS, V30),
     ("InteropAccount", INTEROP_ACCOUNT_ADDRESS, V30),
     ("AssetTracker", L2_ASSET_TRACKER_ADDRESS, V30),
