@@ -11,7 +11,7 @@ use zksync_multivm::{
     vm_latest::TracerPointer,
     HistoryMode,
 };
-use zksync_types::{ Address, StorageKey, Transaction};
+use zksync_types::{Address, StorageKey, Transaction};
 
 use crate::deps::InMemoryStorage;
 
