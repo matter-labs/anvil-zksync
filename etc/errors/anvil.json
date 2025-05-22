@@ -1049,7 +1049,7 @@
                   "This error occurs when a transaction validation is failed and it is not executed.",
                   "This is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of the halt.",
                   "",
-                  "The validation may for various reasons including:",
+                  "The validation may fail for various reasons including:",
                   "- Gas limit exceedance",
                   "- Invalid gas limit value",
                   "- maxFeePerGas exceeding maxPriorityFeePerGas, and so on.",
