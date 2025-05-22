@@ -180,7 +180,7 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 46] = [
         L2_MESSAGE_VERIFICATION_ADDRESS,
         V29,
     ),
-    ("ChainAssetHandler", L2_CHAIN_ASSET_HANDLER_ADDRESS, V29),
+    ("ChainAssetHandler", L2_CHAIN_ASSET_HANDLER_ADDRESS, V30), // kl todo: change this when the v29 contracts are bumped
     ("InteropCenter", L2_INTEROP_CENTER_ADDRESS, V30),
     ("InteropAccount", INTEROP_ACCOUNT_ADDRESS, V30),
     ("AssetTracker", L2_ASSET_TRACKER_ADDRESS, V30),
