@@ -1,4 +1,5 @@
 //! Helper methods to display transaction data in more human readable way.
+pub mod errors;
 pub mod transaction;
 
 use crate::bootloader_debug::BootloaderDebug;
@@ -11,6 +12,7 @@ use anvil_zksync_common::utils::cost::format_gwei;
 use colored::Colorize;
 use serde::Deserialize;
 use std::fmt;
+use std::fmt::Write;
 use std::str;
 use zksync_error::{documentation::Documented, CustomErrorMessage, NamedError};
 use zksync_error_description::ErrorDocumentation;
@@ -557,10 +559,16 @@ where
                 None
             }
         };
-        let summary = doc
-            .as_ref()
-            .map_or("An unknown error occurred", |d| d.summary.as_str());
-        out += &format!("    = {} {}\n", "error:".bright_red(), summary);
+
+        if let Some(doc) = doc {
+            let _ = errors::format_summary(doc, &mut out);
+        } else {
+            let _ = writeln!(
+                out,
+                "    = {} An unknown error occurred",
+                "error:".bright_red()
+            );
+        }
         out
     }
 
@@ -615,48 +623,11 @@ where
     fn docs(&self) -> String {
         let mut out = String::new();
         if let Ok(Some(doc)) = self.error.get_documentation() {
-            if !doc.likely_causes.is_empty() {
-                out += "    | \n";
-                out += &format!("    | {}\n", "Likely causes:".cyan());
-                for cause in &doc.likely_causes {
-                    out += &format!("    |   - {}\n", cause.cause);
-                }
-                // Collect fixes.
-                let all_fixes: Vec<&String> = doc
-                    .likely_causes
-                    .iter()
-                    .flat_map(|cause| &cause.fixes)
-                    .collect();
-                if !all_fixes.is_empty() {
-                    out += "    | \n";
-                    out += &format!("    | {}\n", "Possible fixes:".green().bold());
-                    for fix in &all_fixes {
-                        out += &format!("    |   - {}\n", fix);
-                    }
-                }
-                // Collect references.
-                let all_references: Vec<&String> = doc
-                    .likely_causes
-                    .iter()
-                    .flat_map(|cause| &cause.references)
-                    .collect();
-                if !all_references.is_empty() {
-                    out += &format!(
-                        "\n{} \n",
-                        "For more information about this error, visit:"
-                            .cyan()
-                            .bold()
-                    );
-                    for reference in &all_references {
-                        out += &format!("  - {}\n", reference.underline());
-                    }
-                }
-            }
-            out += "    |\n";
-            out += &format!("{} {}\n", "note:".blue(), doc.description);
+            let _ = errors::format_additional(doc, &mut out);
         }
-        out += &format!(
-            "{} transaction execution halted due to the above error\n",
+        let _ = writeln!(
+            &mut out,
+            "{} transaction execution halted due to the above error",
             "error:".red()
         );
         out
@@ -680,4 +651,32 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.report())
     }
+}
+
+/// Constructs a new `String` by applying a function to a mutable reference of an empty string.
+///
+/// # Arguments
+///
+/// * `f` - A closure that takes a mutable reference to a `String` and modifies it.
+///
+/// # Returns
+///
+/// A new `String` with the content added by the function.
+///
+/// # Examples
+///
+/// ```ignore
+/// let greeting = to_string_with(|s| {
+///     s.push_str("Hello, ");
+///     s.push_str("world!");
+/// });
+/// assert_eq!(greeting, "Hello, world!");
+/// ```
+pub fn write_to_string<F>(f: F) -> String
+where
+    F: FnOnce(&mut String),
+{
+    let mut s = String::new();
+    f(&mut s);
+    s
 }
