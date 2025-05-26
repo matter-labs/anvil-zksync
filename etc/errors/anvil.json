@@ -1185,7 +1185,7 @@
                     ]
                   },
                   {
-                    "cause": "The transaction is malformed",
+                    "cause": "The transaction is malformed.",
                     "fixes": [
                       "Check the nonce value provided in the RPC call that you are using (such as `eth_estimateGas`). If you do not care about the specific nonce for the transaction, do not provide any value for it.",
                       "Check all arguments of the RPC call (such as `eth_estimateGas`). Are the `from`, `to` addresses correct?"
