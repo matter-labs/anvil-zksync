@@ -72,7 +72,7 @@
                   "",
                   "The host and port used by anvil-zksync are also displayed when you start anvil-zksync:",
                   "",
-                  "```",
+                  "```text",
                   "========================================",
                   "Listening on 0.0.0.0:8011",
                   "========================================",
@@ -118,7 +118,7 @@
                   "Anvil-zksync was unable to open log file for writing.",
                   "By default, the log file is searched for at `./anvil-zksync.log`.",
                   "You may provide this path explicitly through the CLI argument `--log-file-path`."
-                  ],
+                ],
                 "likely_causes": [
                   {
                     "cause": "Wrong path to log file.",
@@ -191,7 +191,7 @@
           ]
         },
         {
-        "component_name": "Halt",
+          "component_name": "Halt",
           "component_code": 2,
           "identifier_encoding": "halt",
           "errors": [
@@ -213,7 +213,7 @@
                 "summary": "Account validation failed during execution.",
                 "description": "This error occurs when the account validation step fails during the verification and execution of a transaction.",
                 "likely_causes": [
-                    {
+                  {
                     "cause": "Insufficient funds to cover transaction costs.",
                     "fixes": [
                       "Add enough balance to the account to pay for gas and the transaction amount."
@@ -303,13 +303,13 @@
                 "summary": "Payment for the transaction failed.",
                 "description": "This error is emitted when the system fails to deduct the required fees for executing the transaction.",
                 "likely_causes": [
-                   {
-                      "cause": "Insufficient funds to cover the transaction fee.",
-                      "fixes": [
-                        "Ensure the account balance is sufficient to cover the fee (maxFeePerGas * gasLimit)."
-                      ]
-                    },
-                    {
+                  {
+                    "cause": "Insufficient funds to cover the transaction fee.",
+                    "fixes": [
+                      "Ensure the account balance is sufficient to cover the fee (maxFeePerGas * gasLimit)."
+                    ]
+                  },
+                  {
                     "cause": "Incorrect transaction fee configuration (maxFeePerGas or gasLimit).",
                     "fixes": [
                       "Verify that the maxFeePerGas and gasLimit values are correctly set to reflect the intended fee, and ensure they are within the limits of the account's balance."
@@ -386,7 +386,7 @@
                 "summary": "The sender address is not a valid account.",
                 "description": "This error occurs when a transaction is attempted from an address that has not been deployed as an account, meaning the `from` address is just a contract.",
                 "likely_causes": [
-                   {
+                  {
                     "cause": "Account not deployed with `createAccount` or `create2Account`",
                     "fixes": [
                       "Ensure that the `from` address is an account deployed using `createAccount` or `create2Account`."
@@ -439,7 +439,7 @@
                 ]
               }
             },
-           {
+            {
               "name": "UnexpectedVMBehavior",
               "code": 10,
               "message": "Virtual machine entered unexpected state. Error description: {problem}",
@@ -764,7 +764,7 @@
                 "summary": "An unknown VM revert reason was encountered.",
                 "description": "This error is emitted when the VM encounters a revert reason that is not recognized. In most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution.",
                 "likely_causes": [
-                   {
+                  {
                     "cause": "The transaction exhausted all the gas allocated for execution.",
                     "fixes": [
                       "Increase the gas limit and verify that the contract logic is optimized. Review gas usage."
@@ -957,6 +957,93 @@
           ]
         },
         {
+          "component_name": "GasEstimation",
+          "component_code": 5,
+          "identifier_encoding": "gas_estim",
+          "errors" : [
+            {
+              "name": "ExceedsLimitForPublishedPubdata",
+              "code": 1,
+              "message": "Transaction has published {pubdata_published} bytes which exceeds limit for published pubdata ({pubdata_limit}).",
+              "fields": [
+                {
+                  "name":"pubdata_published",
+                  "type":"uint"
+                },
+                {
+                  "name":"pubdata_limit",
+                  "type":"uint"
+                }
+              ],
+              "doc" : {
+                "summary": "Transaction exceeds the limit for published pubdata.",
+                "description": "This error occurs when a transaction attempts to publish more pubdata than is allowed in a batch. Each transaction has a limit on how much pubdata it can publish to maintain network efficiency and prevent abuse."
+              }
+            },
+            {
+              "name": "ExceedsBlockGasLimit",
+              "code": 2,
+              "message": "Estimating full gas limit overflows while adding up additional gas ({gas_for_pubdata}), overhead ({overhead}), and estimated transaction body gas cost ({estimated_body_cost}).",
+              "fields": [
+                {
+                  "name":"overhead",
+                  "type":"u64"
+                },
+                {
+                  "name":"gas_for_pubdata",
+                  "type":"u64"
+                },
+                {
+                  "name":"estimated_body_cost",
+                  "type":"u64"
+                }
+              ],
+              "doc": {
+                "summary": "Transaction gas estimation exceeds the block gas limit.",
+                "description": "This error occurs when the total gas required for a transaction exceeds the maximum allowed for a block. The total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs, and the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown."
+              }
+            },
+            {
+              "name": "TransactionHalt",
+              "code": 10,
+              "message": "Execution halted during the gas estimation:\n{inner}",
+              "fields": [
+                {
+                  "name": "inner",
+                  "type": "Halt"
+                }
+              ],
+              "doc": {
+                "summary": "Transaction execution halted while estimating required gas in anvil-zksync.",
+                "description": [
+                  "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction ",
+                  "and the transaction is halted due to an error.",
+                  "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."
+                ]
+              }
+            },
+            {
+              "name": "TransactionRevert",
+              "code": 11,
+              "message": "Execution reverted during the gas estimation:\n{inner}",
+              "fields": [
+                {
+                  "name": "inner",
+                  "type": "Revert"
+                }
+              ],
+              "doc": {
+                "summary": "Transaction execution reverted while estimating required gas in anvil-zksync.",
+                "description": [
+                  "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction ",
+                  "and the transaction is reverted.",
+                  "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."
+                ]
+              }
+            }
+          ]
+        },
+        {
           "component_name": "AnvilNode",
           "component_code": 10,
           "identifier_encoding": "node",
@@ -964,7 +1051,7 @@
             {
               "name": "TransactionHalt",
               "code": 1,
-              "message": "Transaction {transaction_hash} execution halted, reason: {inner}",
+              "message": "Transaction {transaction_hash} execution halted:\n{inner}",
               "fields": [
                 {
                   "name": "inner",
@@ -1032,7 +1119,7 @@
             {
               "name": "TransactionValidationFailed",
               "code": 10,
-              "message": "Transaction {transaction_hash}: validation failed. Reason: {inner}",
+              "message": "Transaction {transaction_hash}: validation failed: {inner}",
               "fields": [
                 {
                   "name": "inner",
@@ -1055,6 +1142,55 @@
                   "- maxFeePerGas exceeding maxPriorityFeePerGas, and so on.",
                   "",
                   "When using anvil-zksync for testing, these errors are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network."
+                ]
+              }
+            },
+            {
+              "name": "TransactionGasEstimationFailed",
+              "code": 11,
+              "message": "Gas estimation failed: \n{inner}",
+              "fields": [
+                {
+                  "name": "inner",
+                  "type": "GasEstimation"
+                },
+                {
+                  "name": "transaction_data",
+                  "type": "bytes"
+                }
+              ],
+              "doc": {
+                "summary": "Transaction gas estimation failed in anvil-zksync.",
+                "description": [
+                  "This error occurs when a gas estimation for transaction failed.",
+                  "This is a wrapper error that contains a more specific gas estimation error inside it, which provides details about the cause of failure."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "The transaction always reverts, so it can't be estimated.",
+                    "fixes": [
+                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of revert."
+                    ]
+                  },
+                  {
+                    "cause": "The transaction always halts, so it can't be estimated.",
+                    "fixes": [
+                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of halt."
+                    ]
+                  },
+                  {
+                    "cause": "The transaction requires too much gas to be executed. For example, it may contain an infinite loop.",
+                    "fixes": [
+                      "Debug the transaction to see why it consumes more gas than is allowed."
+                    ]
+                  },
+                  {
+                    "cause": "The transaction is malformed",
+                    "fixes": [
+                      "Check the nonce value provided in the RPC call that you are using (such as `eth_estimateGas`). If you do not care about the specific nonce for the transaction, do not provide any value for it.",
+                      "Check all arguments of the RPC call (such as `eth_estimateGas`). Are the `from`, `to` addresses correct?"
+                    ]
+                  }
                 ]
               }
             },
@@ -1115,7 +1251,57 @@
                   }
                 ]
               }
+            },
+            {
+              "name": "SerializationError",
+              "code": 30,
+              "message": "Failed to parse L1 transaction from request (from={from}, to={to}): {reason}.",
+              "fields": [
+                {
+                  "name": "from",
+                  "type": "H256"
+                },
+                {
+                  "name": "to",
+                  "type": "H256"
+                },
+                {
+                  "name": "reason",
+                  "type": "string"
+                }
+              ],
+              "doc": {
+                "summary": "Failed to serialize transaction request into a valid transaction.",
+                "description": [
+                  "This error occurs when anvil-zksync is unable to convert a transaction request into a properly formatted transaction object.",
+                  "This typically happens during transaction creation or gas estimation when the request contains invalid or incompatible parameters."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "Malformed transaction data in the request.",
+                    "fixes": [
+                      "Verify that all transaction parameters are properly formatted and have valid values.",
+                      "Check that addresses are valid Ethereum addresses.",
+                      "Ensure that numeric values are within their allowed ranges."
+                    ]
+                  },
+                  {
+                    "cause": "Missing required transaction fields.",
+                    "fixes": [
+                      "Make sure all required fields for the transaction type are included in the request."
+                    ]
+                  },
+                  {
+                    "cause": "Incompatible transaction parameters.",
+                    "fixes": [
+                      "Check that the combination of parameters is valid for the transaction type being used.",
+                      "Verify that gas-related parameters are consistent with each other."
+                    ]
+                  }
+                ]
+              }
             }
+
           ]
         },
         {
@@ -1202,7 +1388,7 @@
             {
               "name": "StateFileAccess",
               "code": 6,
-              "message": "Error while accessing the state located at `{path}`. Reason: {reason}.",
+              "message": "Error while accessing the state located at `{path}`: {reason}.",
               "fields": [
                 {
                   "name": "path",

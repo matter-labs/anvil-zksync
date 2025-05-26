@@ -4,6 +4,7 @@ use anvil_zksync_common::utils::numbers::h256_to_u64;
 use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
 use std::collections::HashSet;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
@@ -323,7 +324,7 @@ impl InMemoryNode {
         req: zksync_types::transaction_request::CallRequest,
         // TODO: Support
         _block: Option<BlockNumber>,
-    ) -> Result<U256, Web3Error> {
+    ) -> AnvilNodeResult<U256> {
         let fee = self.inner.read().await.estimate_gas_impl(req).await?;
         Ok(fee.gas_limit)
     }

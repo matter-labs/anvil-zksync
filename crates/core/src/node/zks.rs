@@ -1,6 +1,7 @@
 use crate::node::InMemoryNode;
 use anyhow::Context;
 use std::collections::HashMap;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::api;
 use zksync_types::fee::Fee;
@@ -18,11 +19,11 @@ use zksync_types::{
 use zksync_web3_decl::error::Web3Error;
 
 impl InMemoryNode {
-    pub async fn estimate_fee_impl(&self, req: CallRequest) -> Result<Fee, Web3Error> {
+    pub async fn estimate_fee_impl(&self, req: CallRequest) -> AnvilNodeResult<Fee> {
         self.inner.read().await.estimate_gas_impl(req).await
     }
 
-    pub async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> Result<U256, Web3Error> {
+    pub async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> AnvilNodeResult<U256> {
         self.inner
             .read()
             .await

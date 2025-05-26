@@ -69,7 +69,9 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::AnvilNode as AnvilNodeError;
         pub type AnvilNodeResult<T> = core::result::Result<T, AnvilNodeError>;
         pub use crate::error::definitions::AnvilNode::GenericError;
+        pub use crate::error::definitions::AnvilNode::SerializationError;
         pub use crate::error::definitions::AnvilNode::TimestampBackwardsError;
+        pub use crate::error::definitions::AnvilNode::TransactionGasEstimationFailed;
         pub use crate::error::definitions::AnvilNode::TransactionHalt;
         pub use crate::error::definitions::AnvilNode::TransactionValidationFailed;
         pub use crate::error::definitions::AnvilNodeCode as ErrorCode;
@@ -83,6 +85,29 @@ pub mod anvil_zksync {
         }
         pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::AnvilNode(GenericError {
+                message: err.to_string(),
+            })
+        }
+    }
+    pub mod gas_estim {
+        pub use crate::error::definitions::GasEstimation as GasEstimationError;
+        pub type GasEstimationResult<T> = core::result::Result<T, GasEstimationError>;
+        pub use crate::error::definitions::GasEstimation::ExceedsBlockGasLimit;
+        pub use crate::error::definitions::GasEstimation::ExceedsLimitForPublishedPubdata;
+        pub use crate::error::definitions::GasEstimation::GenericError;
+        pub use crate::error::definitions::GasEstimation::TransactionHalt;
+        pub use crate::error::definitions::GasEstimation::TransactionRevert;
+        pub use crate::error::definitions::GasEstimationCode as ErrorCode;
+        #[macro_export]
+        macro_rules ! anvil_zksync_gas_estim_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: gas_estim :: GasEstimationError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zksync_gas_estim_generic_error as generic_error;
+        pub fn to_generic<T: std::fmt::Display>(err: T) -> GasEstimationError {
+            GenericError {
+                message: err.to_string(),
+            }
+        }
+        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+            super::AnvilZksyncError::GasEstimation(GenericError {
                 message: err.to_string(),
             })
         }

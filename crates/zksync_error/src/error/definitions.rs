@@ -48,7 +48,7 @@ pub enum AnvilEnvironment {
     #[doc = ""]
     #[doc = "The host and port used by anvil-zksync are also displayed when you start anvil-zksync:"]
     #[doc = ""]
-    #[doc = "```"]
+    #[doc = "```text"]
     #[doc = "========================================"]
     #[doc = "Listening on 0.0.0.0:8011"]
     #[doc = "========================================"]
@@ -284,7 +284,7 @@ pub enum AnvilNode {
     #[doc = "This error occurs when a transaction validation is failed and it is not executed."]
     #[doc = "This is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of the halt."]
     #[doc = ""]
-    #[doc = "The validation may for various reasons including:"]
+    #[doc = "The validation may fail for various reasons including:"]
     #[doc = "- Gas limit exceedance"]
     #[doc = "- Invalid gas limit value"]
     #[doc = "- maxFeePerGas exceeding maxPriorityFeePerGas, and so on."]
@@ -294,6 +294,16 @@ pub enum AnvilNode {
         inner: Box<TransactionValidation>,
         transaction_hash: Box<zksync_basic_types::H256>,
     } = 10u32,
+    #[doc = "# Summary "]
+    #[doc = "Transaction gas estimation failed in anvil-zksync."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when a gas estimation for transaction failed."]
+    #[doc = "This is a wrapper error that contains a more specific gas estimation error inside it, which provides details about the cause of failure."]
+    TransactionGasEstimationFailed {
+        inner: Box<GasEstimation>,
+        transaction_data: Vec<u8>,
+    } = 11u32,
     #[doc = "# Summary "]
     #[doc = "Requested block timestamp is earlier than the current timestamp."]
     #[doc = ""]
@@ -314,6 +324,17 @@ pub enum AnvilNode {
         timestamp_requested: zksync_basic_types::U64,
         timestamp_now: zksync_basic_types::U64,
     } = 20u32,
+    #[doc = "# Summary "]
+    #[doc = "Failed to serialize transaction request into a valid transaction."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when anvil-zksync is unable to convert a transaction request into a properly formatted transaction object."]
+    #[doc = "This typically happens during transaction creation or gas estimation when the request contains invalid or incompatible parameters."]
+    SerializationError {
+        from: Box<zksync_basic_types::H256>,
+        to: Box<zksync_basic_types::H256>,
+        reason: String,
+    } = 30u32,
     GenericError {
         message: String,
     } = 0u32,
@@ -371,13 +392,19 @@ impl CustomErrorMessage for AnvilNode {
                 inner,
                 transaction_hash,
             } => {
-                format ! ("[anvil_zksync-node-1] Transaction {transaction_hash} execution halted, reason: {inner}")
+                format ! ("[anvil_zksync-node-1] Transaction {transaction_hash} execution halted:\n{inner}")
             }
             AnvilNode::TransactionValidationFailed {
                 inner,
                 transaction_hash,
             } => {
-                format ! ("[anvil_zksync-node-10] Transaction {transaction_hash}: validation failed. Reason: {inner}")
+                format ! ("[anvil_zksync-node-10] Transaction {transaction_hash}: validation failed: {inner}")
+            }
+            AnvilNode::TransactionGasEstimationFailed {
+                inner,
+                transaction_data,
+            } => {
+                format!("[anvil_zksync-node-11] Gas estimation failed: \n{inner}")
             }
             AnvilNode::TimestampBackwardsError {
                 timestamp_requested,
@@ -385,8 +412,147 @@ impl CustomErrorMessage for AnvilNode {
             } => {
                 format ! ("[anvil_zksync-node-20] Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.")
             }
+            AnvilNode::SerializationError { from, to, reason } => {
+                format ! ("[anvil_zksync-node-30] Failed to parse L1 transaction from request (from={from}, to={to}): {reason}.")
+            }
             AnvilNode::GenericError { message } => {
                 format!("[anvil_zksync-node-0] Generic error: {message}")
+            }
+        }
+    }
+}
+#[doc = ""]
+#[doc = ""]
+#[doc = "Domain: AnvilZKsync"]
+#[repr(u32)]
+#[derive(
+    AsRefStr,
+    Clone,
+    Debug,
+    Eq,
+    EnumDiscriminants,
+    PartialEq,
+    serde :: Serialize,
+    serde :: Deserialize,
+)]
+#[strum_discriminants(name(GasEstimationCode))]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(derive(AsRefStr, FromRepr))]
+#[non_exhaustive]
+pub enum GasEstimation {
+    #[doc = "# Summary "]
+    #[doc = "Transaction exceeds the limit for published pubdata."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when a transaction attempts to publish more pubdata than is allowed in a batch. Each transaction has a limit on how much pubdata it can publish to maintain network efficiency and prevent abuse."]
+    ExceedsLimitForPublishedPubdata {
+        pubdata_published: u32,
+        pubdata_limit: u32,
+    } = 1u32,
+    #[doc = "# Summary "]
+    #[doc = "Transaction gas estimation exceeds the block gas limit."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when the total gas required for a transaction exceeds the maximum allowed for a block. The total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs, and the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown."]
+    ExceedsBlockGasLimit {
+        overhead: zksync_basic_types::U64,
+        gas_for_pubdata: zksync_basic_types::U64,
+        estimated_body_cost: zksync_basic_types::U64,
+    } = 2u32,
+    #[doc = "# Summary "]
+    #[doc = "Transaction execution halted while estimating required gas in anvil-zksync."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction "]
+    #[doc = "and the transaction is halted due to an error."]
+    #[doc = "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."]
+    TransactionHalt {
+        inner: Box<Halt>,
+    } = 10u32,
+    #[doc = "# Summary "]
+    #[doc = "Transaction execution reverted while estimating required gas in anvil-zksync."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction "]
+    #[doc = "and the transaction is reverted."]
+    #[doc = "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."]
+    TransactionRevert {
+        inner: Box<Revert>,
+    } = 11u32,
+    GenericError {
+        message: String,
+    } = 0u32,
+}
+impl std::error::Error for GasEstimation {}
+impl NamedError for GasEstimation {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl NamedError for GasEstimationCode {
+    fn get_error_name(&self) -> String {
+        self.as_ref().to_owned()
+    }
+}
+impl From<GasEstimation> for crate::ZksyncError {
+    fn from(val: GasEstimation) -> Self {
+        val.to_unified()
+    }
+}
+impl std::fmt::Display for GasEstimation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.get_message())
+    }
+}
+impl Documented for GasEstimation {
+    type Documentation = &'static zksync_error_description::ErrorDocumentation;
+    fn get_documentation(
+        &self,
+    ) -> Result<Option<Self::Documentation>, crate::documentation::DocumentationError> {
+        self.to_unified().get_identifier().get_documentation()
+    }
+}
+impl From<anyhow::Error> for GasEstimation {
+    fn from(value: anyhow::Error) -> Self {
+        let message = format!("{value:#?}");
+        GasEstimation::GenericError { message }
+    }
+}
+impl From<GasEstimation> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
+    fn from(value: GasEstimation) -> Self {
+        crate::packed::pack(value)
+    }
+}
+impl From<GasEstimation> for crate::serialized::SerializedError {
+    fn from(value: GasEstimation) -> Self {
+        let packed = crate::packed::pack(value);
+        crate::serialized::serialize(packed).expect("Internal serialization error.")
+    }
+}
+impl CustomErrorMessage for GasEstimation {
+    fn get_message(&self) -> String {
+        match self {
+            GasEstimation::ExceedsLimitForPublishedPubdata {
+                pubdata_published,
+                pubdata_limit,
+            } => {
+                format ! ("[anvil_zksync-gas_estim-1] Transaction has published {pubdata_published} bytes which exceeds limit for published pubdata ({pubdata_limit}).")
+            }
+            GasEstimation::ExceedsBlockGasLimit {
+                overhead,
+                gas_for_pubdata,
+                estimated_body_cost,
+            } => {
+                format ! ("[anvil_zksync-gas_estim-2] Estimating full gas limit overflows while adding up additional gas ({gas_for_pubdata}), overhead ({overhead}), and estimated transaction body gas cost ({estimated_body_cost}).")
+            }
+            GasEstimation::TransactionHalt { inner } => {
+                format ! ("[anvil_zksync-gas_estim-10] Execution halted during the gas estimation:\n{inner}")
+            }
+            GasEstimation::TransactionRevert { inner } => {
+                format ! ("[anvil_zksync-gas_estim-11] Execution reverted during the gas estimation:\n{inner}")
+            }
+            GasEstimation::GenericError { message } => {
+                format!("[anvil_zksync-gas_estim-0] Generic error: {message}")
             }
         }
     }
@@ -945,7 +1111,7 @@ impl CustomErrorMessage for StateLoader {
                 format!("[anvil_zksync-state-5] Unknown version of the state: {version}.")
             }
             StateLoader::StateFileAccess { path, reason } => {
-                format ! ("[anvil_zksync-state-6] Error while accessing the state located at `{path}`. Reason: {reason}.")
+                format ! ("[anvil_zksync-state-6] Error while accessing the state located at `{path}`: {reason}.")
             }
             StateLoader::GenericError { message } => {
                 format!("[anvil_zksync-state-0] Generic error: {message}")
