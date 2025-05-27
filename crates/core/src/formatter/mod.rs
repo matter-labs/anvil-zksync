@@ -666,7 +666,7 @@ where
 /// # Examples
 ///
 /// ```ignore
-/// let greeting = to_string_with(|s| {
+/// let greeting = write_to_string(|s| {
 ///     s.push_str("Hello, ");
 ///     s.push_str("world!");
 /// });

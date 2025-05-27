@@ -69,7 +69,6 @@ impl RpcErrorAdapter for StateLoaderError {
     }
 }
 
-/// All Anvil node errors are treated as internal errors.
 impl RpcErrorAdapter for AnvilNodeError {
     fn into(error: Self) -> ErrorObjectOwned {
         // Map the Web3Error to an appropriate RPC error code

@@ -506,6 +506,7 @@ impl InMemoryNodeInner {
         )
         .map_err(
             |inner| zksync_error::anvil_zksync::node::SerializationError {
+                transaction_type: "L2".to_owned(),
                 from: Box::new(from.unwrap_or_default().into()),
                 to: Box::new(to.unwrap_or_default().into()),
                 reason: inner.to_string(),
@@ -548,6 +549,7 @@ impl InMemoryNodeInner {
         )
         .map_err(
             |inner| zksync_error::anvil_zksync::node::SerializationError {
+                transaction_type: "L1".to_owned(),
                 from: Box::new(from.unwrap_or_default().into()),
                 to: Box::new(to.unwrap_or_default().into()),
                 reason: inner.to_string(),

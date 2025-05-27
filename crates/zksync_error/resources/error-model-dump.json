@@ -2439,8 +2439,12 @@
         "name": "SerializationError",
         "code": 30,
         "identifier": "[anvil_zksync-node-30]",
-        "message": "Failed to parse L1 transaction from request (from={from}, to={to}): {reason}.",
+        "message": "Failed to parse a {transaction_type} transaction from request (from={from}, to={to}): {reason}.",
         "fields": [
+          {
+            "name": "transaction_type",
+            "type": "string"
+          },
           {
             "name": "from",
             "type": "H256"

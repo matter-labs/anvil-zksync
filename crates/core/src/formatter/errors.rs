@@ -4,6 +4,8 @@ use colored::Colorize as _;
 use zksync_error::documentation::Documented;
 use zksync_error_description::ErrorDocumentation;
 
+
+
 /// Formats the likely causes of an error with a styled header and bullet points.
 ///
 /// # Arguments
@@ -22,7 +24,7 @@ use zksync_error_description::ErrorDocumentation;
 ///     |   - Insufficient funds to cover transaction costs
 ///     |   - Incorrect transaction fee configuration
 /// ```
-pub fn format_likely_causes(doc: &ErrorDocumentation, f: &mut impl Write) -> std::fmt::Result {
+fn format_likely_causes(doc: &ErrorDocumentation, f: &mut impl Write) -> std::fmt::Result {
     if !doc.likely_causes.is_empty() {
         writeln!(f, "    | {}", "Likely causes:".cyan())?;
         for cause in doc.likely_causes.iter().map(|descr| &descr.cause) {
@@ -53,7 +55,7 @@ pub fn format_likely_causes(doc: &ErrorDocumentation, f: &mut impl Write) -> std
 ///     |   - Ensure the account balance is sufficient to cover the fee
 ///     |   - Verify that the maxFeePerGas and gasLimit values are correctly set
 /// ```
-pub fn format_fixes(doc: &ErrorDocumentation, f: &mut impl Write) -> std::fmt::Result {
+fn format_fixes(doc: &ErrorDocumentation, f: &mut impl Write) -> std::fmt::Result {
     let has_fixes = doc
         .likely_causes
         .iter()
@@ -88,7 +90,7 @@ pub fn format_fixes(doc: &ErrorDocumentation, f: &mut impl Write) -> std::fmt::R
 /// For more information about this error, visit:
 ///   - https://docs.zksync.io/error/ANVIL-05-01
 /// ```
-pub fn format_references(doc: &ErrorDocumentation, f: &mut impl Write) -> std::fmt::Result {
+fn format_references(doc: &ErrorDocumentation, f: &mut impl Write) -> std::fmt::Result {
     let has_references = doc
         .likely_causes
         .iter()
@@ -154,25 +156,6 @@ pub fn format_additional(doc: &ErrorDocumentation, f: &mut impl Write) -> std::f
     }
     writeln!(f, "{} {}", "note:".blue(), doc.description)?;
 
-    Ok(())
-}
-
-/// Formats both the error summary and all additional error information.
-///
-/// This is a convenience function that combines `format_summary` and `format_additional`
-/// into a single call.
-///
-/// # Arguments
-///
-/// * `doc` - The error documentation containing all error details
-/// * `f` - A mutable formatter to write the formatted output
-///
-/// # Returns
-///
-/// A `std::fmt::Result` indicating success or failure of the formatting operation
-pub fn format_alls(doc: &ErrorDocumentation, f: &mut impl Write) -> std::fmt::Result {
-    format_summary(doc, f)?;
-    format_additional(doc, f)?;
     Ok(())
 }
 

@@ -331,6 +331,7 @@ pub enum AnvilNode {
     #[doc = "This error occurs when anvil-zksync is unable to convert a transaction request into a properly formatted transaction object."]
     #[doc = "This typically happens during transaction creation or gas estimation when the request contains invalid or incompatible parameters."]
     SerializationError {
+        transaction_type: String,
         from: Box<zksync_basic_types::H256>,
         to: Box<zksync_basic_types::H256>,
         reason: String,
@@ -412,8 +413,13 @@ impl CustomErrorMessage for AnvilNode {
             } => {
                 format ! ("[anvil_zksync-node-20] Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.")
             }
-            AnvilNode::SerializationError { from, to, reason } => {
-                format ! ("[anvil_zksync-node-30] Failed to parse L1 transaction from request (from={from}, to={to}): {reason}.")
+            AnvilNode::SerializationError {
+                transaction_type,
+                from,
+                to,
+                reason,
+            } => {
+                format ! ("[anvil_zksync-node-30] Failed to parse a {transaction_type} transaction from request (from={from}, to={to}): {reason}.")
             }
             AnvilNode::GenericError { message } => {
                 format!("[anvil_zksync-node-0] Generic error: {message}")
