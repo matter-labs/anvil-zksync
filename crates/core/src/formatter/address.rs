@@ -3,7 +3,7 @@ use colored::Colorize;
 use zksync_types::H160;
 
 /// Converts a raw Ethereum address to a human-readable format.
-/// 
+///
 /// If the address is known (such as a system contract, precompile, or popular contract),
 /// this function returns a formatted string with the name and address. Otherwise, returns None.
 ///

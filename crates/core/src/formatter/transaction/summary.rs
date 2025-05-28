@@ -3,7 +3,6 @@
 //! This module provides utilities for creating detailed summaries of transaction
 //! execution, including gas usage, costs, storage changes, and execution status.
 
-
 use std::fmt::Display;
 
 use anvil_zksync_common::utils::cost::{format_eth, format_gwei};
@@ -14,7 +13,7 @@ use crate::utils::to_human_size;
 
 use super::{
     balance_diff::{BalanceDiff, BalanceDiffRepr},
-    status::TransactionStatus
+    status::TransactionStatus,
 };
 
 ///

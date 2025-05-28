@@ -7,7 +7,6 @@ use zksync_types::{Address, ExecuteTransactionCommon, Transaction};
 
 use crate::formatter::PrettyFmt;
 
-
 pub struct PrettyTransaction<'a>(pub &'a Transaction);
 pub struct PrettyTransactionEstimationView<'a>(pub &'a Transaction);
 

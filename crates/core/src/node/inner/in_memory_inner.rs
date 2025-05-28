@@ -1,7 +1,5 @@
 use crate::filters::EthFilters;
-use crate::formatter::errors::documentation::view::FullDocumentation;
-use crate::formatter::errors::view::{ErrorMessageView, EstimationErrorReport};
-use crate::formatter::transaction::view::PrettyTransactionEstimationView;
+use crate::formatter::errors::view::EstimationErrorReport;
 use crate::node::boojumos::BoojumOsVM;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
 use crate::node::diagnostics::vm::traces::extract_addresses;
@@ -779,10 +777,7 @@ Overflow when calculating gas estimation. We've exceeded the block gas limit by 
                     inner: Box::new(e),
                     transaction_data: tx.raw_bytes.clone().unwrap_or_default().0,
                 };
-                sh_println!(
-                    "{}",
-                    EstimationErrorReport::new(&error, &tx),
-                );
+                sh_println!("{}", EstimationErrorReport::new(&error, &tx),);
                 Err(error)
             }
         }
@@ -955,10 +950,7 @@ Overflow when calculating gas estimation. We've exceeded the block gas limit by 
 
         if let Err(error) = result {
             if verbosity >= 1 {
-                sh_println!(
-                    "{}",
-                    EstimationErrorReport::new(&error, &tx),
-                );
+                sh_println!("{}", EstimationErrorReport::new(&error, &tx),);
             }
 
             if !call_traces.is_empty() && verbosity >= 2 {

@@ -1,8 +1,8 @@
 use crate::bootloader_debug::BootloaderDebug;
 use crate::formatter;
 use crate::formatter::errors::view::ExecutionErrorReport;
-use crate::formatter::transaction::summary::TransactionSummary;
 use crate::formatter::log::{compute_gas_details, Formatter};
+use crate::formatter::transaction::summary::TransactionSummary;
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
 use crate::node::diagnostics::account_has_code;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
@@ -519,8 +519,7 @@ impl VmRunner {
                         }
                         // Halts are reported and the execution proceeds
                         AnvilNodeError::TransactionHalt { inner, .. } => {
-                            let error_report =
-                                ExecutionErrorReport::new(inner.as_ref(), &tx);
+                            let error_report = ExecutionErrorReport::new(inner.as_ref(), &tx);
                             sh_eprintln!("{error_report}");
                             executor.rollback_last_tx().await?;
                         }

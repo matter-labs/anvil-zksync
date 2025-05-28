@@ -20,18 +20,20 @@ pub trait AnvilErrorDocumentation {
     /// Retrieves the error documentation if available.
     ///
     /// Returns `None` if documentation isn't available for this error.
-   fn get_documentation(&self) -> Option<&'static ErrorDocumentation>;
+    fn get_documentation(&self) -> Option<&'static ErrorDocumentation>;
 }
 
 impl<T> AnvilErrorDocumentation for T
 where
     T: Documented<Documentation = &'static ErrorDocumentation>,
 {
-   fn get_documentation(&self) -> Option<&'static ErrorDocumentation> {
+    fn get_documentation(&self) -> Option<&'static ErrorDocumentation> {
         match Documented::get_documentation(self) {
             Ok(res) => res,
             Err(e) => {
-                tracing::warn!("Failed to get error documentation. The documentation may be malformed: {e}.");
+                tracing::warn!(
+                    "Failed to get error documentation. The documentation may be malformed: {e}."
+                );
                 None
             }
         }
@@ -41,10 +43,7 @@ where
 /// Formats the likely causes section of error documentation.
 ///
 /// Writes a formatted list of likely causes for the error, if any exist.
-fn format_likely_causes(
-    doc: &ErrorDocumentation,
-    w: &mut impl Write,
-) -> std::fmt::Result {
+fn format_likely_causes(doc: &ErrorDocumentation, w: &mut impl Write) -> std::fmt::Result {
     if !doc.likely_causes.is_empty() {
         writeln!(w, "    | {}", "Likely causes:".cyan())?;
         for cause in doc.likely_causes.iter().map(|descr| &descr.cause) {

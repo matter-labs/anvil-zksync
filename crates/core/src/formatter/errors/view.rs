@@ -3,8 +3,8 @@
 //! This module provides specialized view structs for rendering different types
 //! of error reports with appropriate formatting and context information.
 
-use std::fmt::Write;
 use std::fmt::Debug;
+use std::fmt::Write;
 
 use colored::Colorize as _;
 use zksync_error::CustomErrorMessage;
@@ -20,13 +20,13 @@ use super::documentation::{
 
 /// Displays a basic error message with standard styling.
 ///
-/// This view wraps any type that implements `CustomErrorMessage` and 
+/// This view wraps any type that implements `CustomErrorMessage` and
 /// renders its error message with appropriate styling.
 pub struct ErrorMessageView<'a, E>(pub &'a E)
 where
     E: CustomErrorMessage;
 
-impl<'a, E> PrettyFmt for ErrorMessageView<'a, E>
+impl<E> PrettyFmt for ErrorMessageView<'_, E>
 where
     E: CustomErrorMessage,
 {
@@ -41,7 +41,7 @@ where
     }
 }
 
-impl<'a, E> std::fmt::Display for ErrorMessageView<'a, E>
+impl<E> std::fmt::Display for ErrorMessageView<'_, E>
 where
     E: CustomErrorMessage,
 {
@@ -74,7 +74,7 @@ where
     }
 }
 
-impl<'a, E> PrettyFmt for ExecutionErrorReport<'a, E>
+impl<E> PrettyFmt for ExecutionErrorReport<'_, E>
 where
     E: AnvilErrorDocumentation + CustomErrorMessage + Debug,
 {
@@ -126,7 +126,7 @@ where
     }
 }
 
-impl<'a, E> PrettyFmt for EstimationErrorReport<'a, E>
+impl<E> PrettyFmt for EstimationErrorReport<'_, E>
 where
     E: AnvilErrorDocumentation + CustomErrorMessage + Debug,
 {

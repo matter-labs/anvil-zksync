@@ -24,7 +24,7 @@ pub struct FullDocumentation<'a, E>(pub &'a E)
 where
     E: AnvilErrorDocumentation;
 
-impl<'a, E> PrettyFmt for FullDocumentation<'a, E>
+impl<E> PrettyFmt for FullDocumentation<'_, E>
 where
     E: AnvilErrorDocumentation,
 {
@@ -47,7 +47,7 @@ where
     }
 }
 
-impl<'a, E> std::fmt::Display for FullDocumentation<'a, E>
+impl<E> std::fmt::Display for FullDocumentation<'_, E>
 where
     E: AnvilErrorDocumentation,
 {
@@ -64,7 +64,7 @@ pub struct SummaryView<'a, E>(pub &'a E)
 where
     E: AnvilErrorDocumentation;
 
-impl<'a, E> PrettyFmt for SummaryView<'a, E>
+impl<E> PrettyFmt for SummaryView<'_, E>
 where
     E: AnvilErrorDocumentation,
 {
@@ -82,7 +82,7 @@ where
     }
 }
 
-impl<'a, E> std::fmt::Display for SummaryView<'a, E>
+impl<E> std::fmt::Display for SummaryView<'_, E>
 where
     E: AnvilErrorDocumentation,
 {
@@ -99,7 +99,7 @@ pub struct CausesView<'a, E>(pub &'a E)
 where
     E: AnvilErrorDocumentation;
 
-impl<'a, E> std::fmt::Display for CausesView<'a, E>
+impl<E> std::fmt::Display for CausesView<'_, E>
 where
     E: AnvilErrorDocumentation,
 {
@@ -108,7 +108,7 @@ where
     }
 }
 
-impl<'a, E> PrettyFmt for CausesView<'a, E>
+impl<E> PrettyFmt for CausesView<'_, E>
 where
     E: AnvilErrorDocumentation,
 {
@@ -136,7 +136,7 @@ pub struct DescriptionView<'a, E>(pub &'a E)
 where
     E: AnvilErrorDocumentation;
 
-impl<'a, E> PrettyFmt for DescriptionView<'a, E>
+impl<E> PrettyFmt for DescriptionView<'_, E>
 where
     E: AnvilErrorDocumentation,
 {
@@ -148,7 +148,7 @@ where
     }
 }
 
-impl<'a, E> std::fmt::Display for DescriptionView<'a, E>
+impl<E> std::fmt::Display for DescriptionView<'_, E>
 where
     E: AnvilErrorDocumentation,
 {
