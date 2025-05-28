@@ -469,9 +469,16 @@ pub enum GasEstimation {
     #[doc = "Transaction execution halted while estimating required gas in anvil-zksync."]
     #[doc = ""]
     #[doc = "# Description"]
+    #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
+    #[doc = "If the first run was successful, anvil-zksync proceeds with the estimation"]
+    #[doc = ""]
     #[doc = "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction "]
-    #[doc = "and the transaction is halted due to an error."]
-    #[doc = "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."]
+    #[doc = "but the estimation fails because the transaction is reverted."]
+    #[doc = ""]
+    #[doc = "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds."]
+    #[doc = "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values."]
+    #[doc = "However, it is possible to craft transactions with exotic dependencies on gas."]
+    #[doc = "For example, the transaction may explicitly revert if the gas value provided is an even number."]
     TransactionHalt {
         inner: Box<Halt>,
     } = 10u32,
@@ -479,12 +486,51 @@ pub enum GasEstimation {
     #[doc = "Transaction execution reverted while estimating required gas in anvil-zksync."]
     #[doc = ""]
     #[doc = "# Description"]
+    #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
+    #[doc = "If the first run was successful, anvil-zksync proceeds with the estimation"]
+    #[doc = ""]
     #[doc = "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction "]
-    #[doc = "and the transaction is reverted."]
-    #[doc = "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."]
+    #[doc = "but the estimation fails because the transaction is reverted."]
+    #[doc = ""]
+    #[doc = "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds."]
+    #[doc = "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values."]
+    #[doc = "However, it is possible to craft transactions with exotic dependencies on gas."]
+    #[doc = "For example, the transaction may explicitly revert if the gas value provided is an even number."]
     TransactionRevert {
         inner: Box<Revert>,
     } = 11u32,
+    #[doc = "# Summary "]
+    #[doc = "Transaction is not executable because it halts with maximal allowed gas possible."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
+    #[doc = "This error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable."]
+    #[doc = ""]
+    #[doc = "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds."]
+    #[doc = "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values."]
+    #[doc = "However, it is possible to craft transactions with exotic dependencies on gas."]
+    #[doc = "For example, the transaction may explicitly revert if the gas value provided is an even number."]
+    #[doc = "Therefore, the transaction failing with maximum gas may indicate a case of this exotic behavior."]
+    #[doc = "However, such behaviors make estimation impossible."]
+    TransactionAlwaysHalts {
+        inner: Box<Halt>,
+    } = 20u32,
+    #[doc = "# Summary "]
+    #[doc = "Transaction is not executable because it reverts with maximal allowed gas possible."]
+    #[doc = ""]
+    #[doc = "# Description"]
+    #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
+    #[doc = "This error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable."]
+    #[doc = ""]
+    #[doc = "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds."]
+    #[doc = "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values."]
+    #[doc = "However, it is possible to craft transactions with exotic dependencies on gas."]
+    #[doc = "For example, the transaction may explicitly revert if the gas value provided is an even number."]
+    #[doc = "Therefore, the transaction failing with maximum gas may indicate a case of this exotic behavior."]
+    #[doc = "However, such behaviors make estimation impossible."]
+    TransactionAlwaysReverts {
+        inner: Box<Revert>,
+    } = 21u32,
     GenericError {
         message: String,
     } = 0u32,
@@ -556,6 +602,12 @@ impl CustomErrorMessage for GasEstimation {
             }
             GasEstimation::TransactionRevert { inner } => {
                 format ! ("[anvil_zksync-gas_estim-11] Execution reverted during the gas estimation:\n{inner}")
+            }
+            GasEstimation::TransactionAlwaysHalts { inner } => {
+                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction halts even given maximal gas: \n{inner}")
+            }
+            GasEstimation::TransactionAlwaysReverts { inner } => {
+                format ! ("[anvil_zksync-gas_estim-21] Execution reverted during the gas estimation:\n{inner}")
             }
             GasEstimation::GenericError { message } => {
                 format!("[anvil_zksync-gas_estim-0] Generic error: {message}")

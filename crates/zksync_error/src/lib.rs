@@ -95,6 +95,8 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::GasEstimation::ExceedsBlockGasLimit;
         pub use crate::error::definitions::GasEstimation::ExceedsLimitForPublishedPubdata;
         pub use crate::error::definitions::GasEstimation::GenericError;
+        pub use crate::error::definitions::GasEstimation::TransactionAlwaysHalts;
+        pub use crate::error::definitions::GasEstimation::TransactionAlwaysReverts;
         pub use crate::error::definitions::GasEstimation::TransactionHalt;
         pub use crate::error::definitions::GasEstimation::TransactionRevert;
         pub use crate::error::definitions::GasEstimationCode as ErrorCode;

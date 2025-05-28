@@ -709,7 +709,7 @@ impl InMemoryNodeInner {
             VmVersion::latest(),
         ) as u64;
 
-        let result = match &estimate_gas_result.result {
+        let result: Result<Fee, gas_estim::GasEstimationError> = match &estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 Err(gas_estim::TransactionRevert {
@@ -725,7 +725,7 @@ impl InMemoryNodeInner {
             }
             ExecutionResult::Success { .. } => {
                 let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
-                    (value, false) => value,
+                    (value, false) => Ok(value),
                     (_, true) => {
                         tracing::info!("
 
@@ -737,47 +737,47 @@ Overflow when calculating gas estimation. We've exceeded the block gas limit by 
                         tracing::info!("\tGas for pubdata: {}", additional_gas_for_pubdata);
                         tracing::info!("\tOverhead: {}", overhead);
 
-                        return Err(
-                            zksync_error::anvil_zksync::node::TransactionGasEstimationFailed {
-                                inner: Box::new(
-                                    zksync_error::anvil_zksync::gas_estim::ExceedsBlockGasLimit {
-                                        overhead: overhead.into(),
-                                        gas_for_pubdata: additional_gas_for_pubdata.into(),
-                                        estimated_body_cost: tx_body_gas_limit.into(),
-                                    },
-                                ),
-                                transaction_data: tx.raw_bytes.unwrap_or_default().0,
+                        Err(
+                            zksync_error::anvil_zksync::gas_estim::ExceedsBlockGasLimit {
+                                overhead: overhead.into(),
+                                gas_for_pubdata: additional_gas_for_pubdata.into(),
+                                estimated_body_cost: tx_body_gas_limit.into(),
                             },
-                        );
+                        )
                     }
                 };
 
-                tracing::trace!("Gas Estimation Results");
-                tracing::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
-                tracing::trace!(
-                    "  additional_gas_for_pubdata: {}",
-                    additional_gas_for_pubdata
-                );
-                tracing::trace!("  overhead: {}", overhead);
-                tracing::trace!("  full_gas_limit: {}", full_gas_limit);
-                let fee = Fee {
-                    max_fee_per_gas: base_fee.into(),
-                    max_priority_fee_per_gas: 0u32.into(),
-                    gas_limit: full_gas_limit.into(),
-                    gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
-                };
-                Ok(fee)
+                match full_gas_limit {
+                    Ok(full_gas_limit) => {
+                        tracing::trace!("Gas Estimation Results");
+                        tracing::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
+                        tracing::trace!(
+                            "  additional_gas_for_pubdata: {}",
+                            additional_gas_for_pubdata
+                        );
+                        tracing::trace!("  overhead: {}", overhead);
+                        tracing::trace!("  full_gas_limit: {}", full_gas_limit);
+                        let fee = Fee {
+                            max_fee_per_gas: base_fee.into(),
+                            max_priority_fee_per_gas: 0u32.into(),
+                            gas_limit: full_gas_limit.into(),
+                            gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
+                        };
+                        Ok(fee)
+                    },
+                    Err(e) => Err(e),
+                }
             }
         };
 
         match result {
             Ok(fee) => Ok(fee),
             Err(e) => {
+                sh_println!("{}", EstimationErrorReport::new(&e, &tx),);
                 let error = TransactionGasEstimationFailed {
                     inner: Box::new(e),
                     transaction_data: tx.raw_bytes.clone().unwrap_or_default().0,
                 };
-                sh_println!("{}", EstimationErrorReport::new(&error, &tx),);
                 Err(error)
             }
         }
@@ -922,7 +922,7 @@ Overflow when calculating gas estimation. We've exceeded the block gas limit by 
             true,
         );
 
-        let result: zksync_error::anvil_zksync::node::AnvilNodeResult<()> =
+        let result: zksync_error::anvil_zksync::gas_estim::GasEstimationResult<()> =
             match tx_result.result {
                 ExecutionResult::Success { .. } => {
                     // Transaction is executable with max gas, proceed with gas estimation
@@ -931,22 +931,18 @@ Overflow when calculating gas estimation. We've exceeded the block gas limit by 
                 ExecutionResult::Revert { ref output } => {
                     let revert_reason: RevertError = output.clone().to_revert_reason().await;
 
-                    Err(gas_estim::TransactionRevert {
+                    Err(gas_estim::TransactionAlwaysReverts {
                         inner: Box::new(revert_reason),
                     })
                 }
                 ExecutionResult::Halt { ref reason } => {
                     let halt_error: HaltError = reason.clone().to_halt_error().await;
 
-                    Err(gas_estim::TransactionHalt {
+                    Err(gas_estim::TransactionAlwaysHalts {
                         inner: Box::new(halt_error),
                     })
                 }
-            }
-            .map_err(|inner| AnvilNodeError::TransactionGasEstimationFailed {
-                inner: Box::new(inner),
-                transaction_data: tx.raw_bytes.clone().unwrap_or_default().0,
-            });
+            };
 
         if let Err(error) = result {
             if verbosity >= 1 {
@@ -980,8 +976,10 @@ Overflow when calculating gas estimation. We've exceeded the block gas limit by 
                     sh_println!("\nTraces:\n{}", trace_output);
                 }
             };
-
-            Err(error)
+            Err(AnvilNodeError::TransactionGasEstimationFailed {
+                inner: Box::new(error),
+                transaction_data: tx.raw_bytes.clone().unwrap_or_default().0,
+            })
         } else {
             Ok(*tx_result)
         }

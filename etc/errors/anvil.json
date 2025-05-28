@@ -1047,9 +1047,16 @@
               "doc": {
                 "summary": "Transaction execution halted while estimating required gas in anvil-zksync.",
                 "description": [
+                  "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
+                  "If the first run was successful, anvil-zksync proceeds with the estimation",
+                  "",
                   "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction ",
-                  "and the transaction is halted due to an error.",
-                  "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."
+                  "but the estimation fails because the transaction is reverted.",
+                  "",
+                  "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds.",
+                  "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values.",
+                  "However, it is possible to craft transactions with exotic dependencies on gas.",
+                  "For example, the transaction may explicitly revert if the gas value provided is an even number."
                 ],
                 "likely_causes": [
                   {
@@ -1075,9 +1082,91 @@
               "doc": {
                 "summary": "Transaction execution reverted while estimating required gas in anvil-zksync.",
                 "description": [
+                  "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
+                  "If the first run was successful, anvil-zksync proceeds with the estimation",
+                  "",
                   "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction ",
-                  "and the transaction is reverted.",
-                  "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."
+                  "but the estimation fails because the transaction is reverted.",
+                  "",
+                  "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds.",
+                  "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values.",
+                  "However, it is possible to craft transactions with exotic dependencies on gas.",
+                  "For example, the transaction may explicitly revert if the gas value provided is an even number."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "The transaction always reverts.",
+                    "fixes": [
+                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of revert."
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "TransactionAlwaysHalts",
+              "code": 20,
+              "message": "Gas estimation is impossible because the transaction halts even given maximal gas: \n{inner}",
+              "fields": [
+                {
+                  "name": "inner",
+                  "type": "Halt"
+                }
+              ],
+              "doc": {
+                "summary": "Transaction is not executable because it halts with maximal allowed gas possible.",
+                "description": [
+                  "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
+                  "This error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable.",
+                  "",
+                  "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds.",
+                  "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values.",
+                  "However, it is possible to craft transactions with exotic dependencies on gas.",
+                  "For example, the transaction may explicitly revert if the gas value provided is an even number.",
+                  "Therefore, the transaction failing with maximum gas may indicate a case of this exotic behavior.",
+                  "However, such behaviors make estimation impossible."
+                ]
+                ,
+                "likely_causes": [
+                  {
+                    "cause": "The transaction always halts.",
+                    "fixes": [
+                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of halt."
+                    ]
+                  },
+                  {
+                    "cause": "The transaction is malformed.",
+                    "fixes": [
+                      "Check the transaction for nonce mismatches, signature issues, and possibly paymaster-related errors.",
+                      "Do not provide explicit nonce in your RPC request if you don't need it -- otherwise you risk triggering nonce mismatch."
+                    ]
+                  }
+                ]
+
+              }
+            },
+            {
+              "name": "TransactionAlwaysReverts",
+              "code": 21,
+              "message": "Execution reverted during the gas estimation:\n{inner}",
+              "fields": [
+                {
+                  "name": "inner",
+                  "type": "Revert"
+                }
+              ],
+              "doc": {
+                "summary": "Transaction is not executable because it reverts with maximal allowed gas possible.",
+                "description": [
+                  "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
+                  "This error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable.",
+                  "",
+                  "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds.",
+                  "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values.",
+                  "However, it is possible to craft transactions with exotic dependencies on gas.",
+                  "For example, the transaction may explicitly revert if the gas value provided is an even number.",
+                  "Therefore, the transaction failing with maximum gas may indicate a case of this exotic behavior.",
+                  "However, such behaviors make estimation impossible."
                 ],
                 "likely_causes": [
                   {
@@ -1212,33 +1301,6 @@
                 "description": [
                   "This error occurs when a gas estimation for transaction failed.",
                   "This is a wrapper error that contains a more specific gas estimation error inside it, which provides details about the cause of failure."
-                ],
-                "likely_causes": [
-                  {
-                    "cause": "The transaction always reverts, so it can't be estimated.",
-                    "fixes": [
-                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of revert."
-                    ]
-                  },
-                  {
-                    "cause": "The transaction always halts, so it can't be estimated.",
-                    "fixes": [
-                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of halt."
-                    ]
-                  },
-                  {
-                    "cause": "The transaction requires too much gas to be executed. For example, it may contain an infinite loop.",
-                    "fixes": [
-                      "Debug the transaction to see why it consumes more gas than is allowed."
-                    ]
-                  },
-                  {
-                    "cause": "The transaction is malformed.",
-                    "fixes": [
-                      "Check the nonce value provided in the RPC call that you are using (such as `eth_estimateGas`). If you do not care about the specific nonce for the transaction, do not provide any value for it.",
-                      "Check all arguments of the RPC call (such as `eth_estimateGas`). Are the `from`, `to` addresses correct?"
-                    ]
-                  }
                 ]
               }
             },
