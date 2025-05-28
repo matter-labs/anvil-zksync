@@ -131,8 +131,6 @@ where
     E: AnvilErrorDocumentation + CustomErrorMessage + Debug,
 {
     fn pretty_fmt(&self, w: &mut impl Write) -> std::fmt::Result {
-        dbg!(self.error);
-        dbg!(self.tx);
         write!(w, "{}", ErrorMessageView(self.error))?;
         write!(w, "{}", SummaryView(self.error))?;
         write!(w, "{}", PrettyTransactionEstimationView(self.tx))?;
