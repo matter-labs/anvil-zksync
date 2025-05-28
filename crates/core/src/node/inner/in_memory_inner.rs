@@ -726,15 +726,13 @@ impl InMemoryNodeInner {
             ExecutionResult::Success { .. } => {
                 let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
                     (value, false) => Ok(value),
-                    (_, true) => {
-                        Err(
-                            zksync_error::anvil_zksync::gas_estim::ExceedsBlockGasLimit {
-                                overhead: overhead.into(),
-                                gas_for_pubdata: additional_gas_for_pubdata.into(),
-                                estimated_body_cost: tx_body_gas_limit.into(),
-                            },
-                        )
-                    }
+                    (_, true) => Err(
+                        zksync_error::anvil_zksync::gas_estim::ExceedsBlockGasLimit {
+                            overhead: overhead.into(),
+                            gas_for_pubdata: additional_gas_for_pubdata.into(),
+                            estimated_body_cost: tx_body_gas_limit.into(),
+                        },
+                    ),
                 };
 
                 match full_gas_limit {
@@ -754,7 +752,7 @@ impl InMemoryNodeInner {
                             gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
                         };
                         Ok(fee)
-                    },
+                    }
                     Err(e) => Err(e),
                 }
             }
