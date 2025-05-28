@@ -977,7 +977,22 @@
               ],
               "doc" : {
                 "summary": "Transaction exceeds the limit for published pubdata.",
-                "description": "This error occurs when a transaction attempts to publish more pubdata than is allowed in a batch. Each transaction has a limit on how much pubdata it can publish to maintain network efficiency and prevent abuse."
+                "description": "This error occurs when a transaction attempts to publish more pubdata than is allowed in a batch. Each transaction has a limit on how much pubdata it can publish to maintain network efficiency and prevent abuse.",
+                "likely_causes": [
+                  {
+                    "cause": "The transaction requires too much gas to be executed. For example, it may contain an infinite loop.",
+                    "fixes": [
+                      "Debug the transaction to see why it consumes more gas than is allowed."
+                    ]
+                  },
+                  {
+                    "cause": "The transaction is malformed.",
+                    "fixes": [
+                      "Check the nonce value provided in the RPC call that you are using (such as `eth_estimateGas`). If you do not care about the specific nonce for the transaction, do not provide any value for it.",
+                      "Check all arguments of the RPC call (such as `eth_estimateGas`). Are the `from`, `to` addresses correct?"
+                    ]
+                  }
+                ]
               }
             },
             {
@@ -1000,7 +1015,23 @@
               ],
               "doc": {
                 "summary": "Transaction gas estimation exceeds the block gas limit.",
-                "description": "This error occurs when the total gas required for a transaction exceeds the maximum allowed for a block. The total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs, and the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown."
+                "description": "This error occurs when the total gas required for a transaction exceeds the maximum allowed for a block. The total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs, and the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown.",
+
+                "likely_causes": [
+                  {
+                    "cause": "The transaction requires too much gas to be executed. For example, it may contain an infinite loop.",
+                    "fixes": [
+                      "Debug the transaction to see why it consumes more gas than is allowed."
+                    ]
+                  },
+                  {
+                    "cause": "The transaction is malformed.",
+                    "fixes": [
+                      "Check the nonce value provided in the RPC call that you are using (such as `eth_estimateGas`). If you do not care about the specific nonce for the transaction, do not provide any value for it.",
+                      "Check all arguments of the RPC call (such as `eth_estimateGas`). Are the `from`, `to` addresses correct?"
+                    ]
+                  }
+                ]
               }
             },
             {
@@ -1019,7 +1050,16 @@
                   "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction ",
                   "and the transaction is halted due to an error.",
                   "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "The transaction always halts, so it can't be estimated.",
+                    "fixes": [
+                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of halt."
+                    ]
+                  }
                 ]
+
               }
             },
             {
@@ -1038,6 +1078,14 @@
                   "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction ",
                   "and the transaction is reverted.",
                   "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."
+                ],
+                "likely_causes": [
+                  {
+                    "cause": "The transaction always reverts, so it can't be estimated.",
+                    "fixes": [
+                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of revert."
+                    ]
+                  }
                 ]
               }
             }
