@@ -1,32 +1,27 @@
-//!
 //! Summarizes transaction effects and pretty prints them.
 //!
 //! This module provides utilities for creating detailed summaries of transaction
 //! execution, including gas usage, costs, storage changes, and execution status.
-//!
+
 
 use std::fmt::Display;
 
-use crate::utils::to_human_size;
 use anvil_zksync_common::utils::cost::{format_eth, format_gwei};
-use anvil_zksync_types::traces::LabeledAddress;
-use zksync_multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
+use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::{Address, Transaction, H256, U256};
 
-///
-/// Kind of outcomes of transaction execution.
-///
-pub enum TransactionStatus {
-    Success,
-    Failure,
-    Halt,
-}
+use crate::utils::to_human_size;
+
+use super::{
+    balance_diff::{BalanceDiff, BalanceDiffRepr},
+    status::TransactionStatus
+};
 
 ///
 /// Part of the transaction summary describing the chain-level context.
 /// Contains information about the environment where the transaction was executed.
 ///
-pub struct TransactionContext {
+struct TransactionContext {
     /// Gas price on L2 in wei
     l2_gas_price: u64,
 }
@@ -37,19 +32,10 @@ pub struct TransactionContext {
 ///
 /// Details of gas usage for transaction execution.
 ///
-pub struct GasDetails {
+struct GasDetails {
     limit: U256,
     used: U256,
     refunded: u64,
-}
-
-///
-/// Holds a fragment of account state before and after transaction.
-///
-pub struct BalanceDiff {
-    pub address: LabeledAddress,
-    pub balance_before: U256,
-    pub balance_after: U256,
 }
 
 ///
@@ -157,7 +143,7 @@ Refunded: {refunded_in_eth}
                 let mut balance_diffs_formatted_table = tabled::Table::new(
                     balance_diffs
                         .iter()
-                        .map(Into::<internal::BalanceDiffRepr>::into)
+                        .map(Into::<BalanceDiffRepr>::into)
                         .collect::<Vec<_>>(),
                 );
                 balance_diffs_formatted_table.with(tabled::settings::Style::modern());
@@ -166,91 +152,5 @@ Refunded: {refunded_in_eth}
             }
         }
         Ok(())
-    }
-}
-
-impl TransactionStatus {
-    fn emoji(&self) -> &str {
-        match self {
-            Self::Success => "✅",
-            Self::Failure => "❌",
-            Self::Halt => "⏸️",
-        }
-    }
-}
-impl From<&ExecutionResult> for TransactionStatus {
-    fn from(value: &ExecutionResult) -> Self {
-        match value {
-            ExecutionResult::Success { .. } => Self::Success,
-            ExecutionResult::Revert { .. } => Self::Failure,
-            ExecutionResult::Halt { .. } => Self::Halt,
-        }
-    }
-}
-impl Display for TransactionStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            TransactionStatus::Success => "SUCCESS",
-            TransactionStatus::Failure => "FAILED",
-            TransactionStatus::Halt => "HALTED",
-        })
-    }
-}
-
-impl From<crate::node::diagnostics::vm::balance_diff::BalanceDiff> for BalanceDiff {
-    fn from(value: crate::node::diagnostics::vm::balance_diff::BalanceDiff) -> Self {
-        let crate::node::diagnostics::vm::balance_diff::BalanceDiff {
-            address,
-            balance_before,
-            balance_after,
-        } = value;
-        Self {
-            address,
-            balance_before,
-            balance_after,
-        }
-    }
-}
-mod internal {
-    use std::cmp::Ordering;
-
-    use anvil_zksync_common::utils::cost::{format_eth, format_gwei};
-    use zksync_types::U256;
-
-    use super::BalanceDiff;
-
-    ///
-    /// Representation of `[BalanceDiff]`, prepared for formatting using `Tabled`
-    ///
-    #[derive(tabled::Tabled)]
-    pub(super) struct BalanceDiffRepr {
-        pub address: String,
-        pub before: String,
-        pub after: String,
-        pub delta: String,
-    }
-
-    fn compute_delta(before: &U256, after: &U256) -> String {
-        match before.cmp(after) {
-            Ordering::Less => format!("+{}", format_gwei(after - before)),
-            Ordering::Equal => "0".to_string(),
-            Ordering::Greater => format!("-{}", format_gwei(before - after)),
-        }
-    }
-
-    impl From<&BalanceDiff> for BalanceDiffRepr {
-        fn from(val: &BalanceDiff) -> Self {
-            let BalanceDiff {
-                address,
-                balance_before,
-                balance_after,
-            } = val;
-            BalanceDiffRepr {
-                address: address.to_string(),
-                before: format_eth(*balance_before),
-                after: format_eth(*balance_after),
-                delta: compute_delta(balance_before, balance_after),
-            }
-        }
     }
 }
