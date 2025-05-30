@@ -22,13 +22,14 @@ use super::documentation::{
 ///
 /// This view wraps any type that implements `CustomErrorMessage` and
 /// renders its error message with appropriate styling.
+#[derive(Debug)]
 pub struct ErrorMessageView<'a, E>(pub &'a E)
 where
-    E: CustomErrorMessage;
+    E: CustomErrorMessage + Debug;
 
 impl<E> PrettyFmt for ErrorMessageView<'_, E>
 where
-    E: CustomErrorMessage,
+    E: CustomErrorMessage + Debug,
 {
     fn pretty_fmt(&self, w: &mut impl Write) -> std::fmt::Result {
         writeln!(
@@ -43,7 +44,7 @@ where
 
 impl<E> std::fmt::Display for ErrorMessageView<'_, E>
 where
-    E: CustomErrorMessage,
+    E: CustomErrorMessage + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.pretty_fmt(f)
@@ -54,6 +55,7 @@ where
 ///
 /// Combines error details with transaction context to provide a complete
 /// picture of what went wrong during transaction execution.
+#[derive(Debug)]
 pub struct ExecutionErrorReport<'a, E>
 where
     E: AnvilErrorDocumentation + CustomErrorMessage + Debug,
@@ -106,6 +108,7 @@ where
 ///
 /// Similar to `ExecutionErrorReport`, but tailored for errors that occur
 /// during transaction gas estimation.
+#[derive(Debug)]
 pub struct EstimationErrorReport<'a, E>
 where
     E: AnvilErrorDocumentation + CustomErrorMessage + Debug,

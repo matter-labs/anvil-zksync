@@ -4,6 +4,7 @@
 //! enabling the customizable display of different parts of error information
 //! such as summary, causes, fixes, and detailed descriptions.
 
+use std::fmt::Debug;
 use std::fmt::Write;
 
 use colored::Colorize as _;
@@ -20,6 +21,7 @@ use super::{
 /// This view wraps an error and provides a fully-formatted display of all
 /// available documentation, including summary, causes, fixes, references,
 /// and detailed description.
+#[derive(Debug)]
 pub struct FullDocumentation<'a, E>(pub &'a E)
 where
     E: AnvilErrorDocumentation;
@@ -60,6 +62,7 @@ where
 ///
 /// This view provides a concise display showing just the error summary,
 /// which is useful for brief error notifications.
+#[derive(Debug)]
 pub struct SummaryView<'a, E>(pub &'a E)
 where
     E: AnvilErrorDocumentation;
@@ -95,6 +98,7 @@ where
 ///
 /// This view focuses on the actionable information about an error,
 /// showing its likely causes, suggested fixes, and reference links.
+#[derive(Debug)]
 pub struct CausesView<'a, E>(pub &'a E)
 where
     E: AnvilErrorDocumentation;
@@ -132,6 +136,7 @@ where
 ///
 /// This view shows the full technical explanation of an error,
 /// which is useful for advanced troubleshooting.
+#[derive(Debug)]
 pub struct DescriptionView<'a, E>(pub &'a E)
 where
     E: AnvilErrorDocumentation;

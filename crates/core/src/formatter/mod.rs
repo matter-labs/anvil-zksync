@@ -7,7 +7,7 @@ pub mod transaction;
 
 use std::fmt::Write;
 
-pub trait PrettyFmt {
+pub trait PrettyFmt: std::fmt::Debug {
     fn pretty_fmt(&self, writer: &mut impl Write) -> std::fmt::Result;
 }
 
@@ -17,7 +17,7 @@ pub trait ToPrettyString {
 
 impl<T> ToPrettyString for T
 where
-    T: PrettyFmt + std::fmt::Debug,
+    T: PrettyFmt,
 {
     fn to_string_pretty(&self) -> Option<String> {
         let mut result = String::new();

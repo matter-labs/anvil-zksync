@@ -16,7 +16,7 @@ use zksync_error_description::ErrorDocumentation;
 ///
 /// This trait is a core part of the error handling system, allowing errors
 /// to expose their associated documentation for improved error reporting.
-pub trait AnvilErrorDocumentation {
+pub trait AnvilErrorDocumentation: std::fmt::Debug {
     /// Retrieves the error documentation if available.
     ///
     /// Returns `None` if documentation isn't available for this error.
@@ -25,7 +25,7 @@ pub trait AnvilErrorDocumentation {
 
 impl<T> AnvilErrorDocumentation for T
 where
-    T: Documented<Documentation = &'static ErrorDocumentation>,
+    T: Documented<Documentation = &'static ErrorDocumentation> + std::fmt::Debug,
 {
     fn get_documentation(&self) -> Option<&'static ErrorDocumentation> {
         match Documented::get_documentation(self) {
