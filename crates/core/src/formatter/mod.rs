@@ -22,7 +22,7 @@ where
     fn to_string_pretty(&self) -> Option<String> {
         let mut result = String::new();
         if let Err(e) = self.pretty_fmt(&mut result) {
-            tracing::warn!("Error: {e}\nFailed to pretty print {self:?}.");
+            tracing::warn!(err = ?e, origin = ?self, "Error: Failed to pretty print.");
         }
         Some(result)
     }
