@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::formatter::{self, PubdataBytesInfo};
+use crate::formatter::log::Formatter;
+use crate::formatter::pubdata_bytes::PubdataBytesInfo;
 
 use anvil_zksync_common::sh_println;
 use anvil_zksync_types::ShowStorageLogs;
@@ -98,7 +99,7 @@ pub fn print_storage_logs_details(
 
         if should_print {
             let is_last = index == result.logs.storage_logs.len() - 1;
-            let mut formatter = formatter::Formatter::new();
+            let mut formatter = Formatter::new();
             formatter.print_storage_logs(log_query, pubdata_bytes_info, index + 1, is_last);
         }
     }

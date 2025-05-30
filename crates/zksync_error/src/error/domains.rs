@@ -17,6 +17,8 @@ use crate::error::definitions::FoundryUpstream;
 use crate::error::definitions::FoundryUpstreamCode;
 use crate::error::definitions::FoundryZksync;
 use crate::error::definitions::FoundryZksyncCode;
+use crate::error::definitions::GasEstimation;
+use crate::error::definitions::GasEstimationCode;
 use crate::error::definitions::Halt;
 use crate::error::definitions::HaltCode;
 use crate::error::definitions::HardhatUpstream;
@@ -105,6 +107,9 @@ impl ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::AnvilNode)
             }
+            ZksyncError::AnvilZksync(AnvilZksync::GasEstimation(_)) => {
+                Kind::AnvilZksync(AnvilZksyncCode::GasEstimation)
+            }
             ZksyncError::AnvilZksync(AnvilZksync::Halt(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::Halt)
             }
@@ -153,6 +158,9 @@ impl ZksyncError {
             }
             ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(error)) => {
                 Into::<AnvilNodeCode>::into(error) as u32
+            }
+            ZksyncError::AnvilZksync(AnvilZksync::GasEstimation(error)) => {
+                Into::<GasEstimationCode>::into(error) as u32
             }
             ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => {
                 Into::<HaltCode>::into(error) as u32
@@ -223,6 +231,7 @@ pub enum AnvilZksync {
     AnvilEnvironment(AnvilEnvironment),
     AnvilGeneric(AnvilGeneric),
     AnvilNode(AnvilNode),
+    GasEstimation(GasEstimation),
     Halt(Halt),
     Revert(Revert),
     StateLoader(StateLoader),
@@ -261,6 +270,16 @@ impl ICustomError<ZksyncError, ZksyncError> for AnvilNode {
 impl From<AnvilNode> for AnvilZksync {
     fn from(val: AnvilNode) -> Self {
         AnvilZksync::AnvilNode(val)
+    }
+}
+impl ICustomError<ZksyncError, ZksyncError> for GasEstimation {
+    fn to_unified(&self) -> ZksyncError {
+        AnvilZksync::GasEstimation(self.clone()).to_unified()
+    }
+}
+impl From<GasEstimation> for AnvilZksync {
+    fn from(val: GasEstimation) -> Self {
+        AnvilZksync::GasEstimation(val)
     }
 }
 impl ICustomError<ZksyncError, ZksyncError> for Halt {
@@ -322,6 +341,7 @@ impl crate::documentation::Documented for AnvilZksync {
             AnvilZksync::AnvilEnvironment(error) => error.get_documentation(),
             AnvilZksync::AnvilGeneric(error) => error.get_documentation(),
             AnvilZksync::AnvilNode(error) => error.get_documentation(),
+            AnvilZksync::GasEstimation(error) => error.get_documentation(),
             AnvilZksync::Halt(error) => error.get_documentation(),
             AnvilZksync::Revert(error) => error.get_documentation(),
             AnvilZksync::StateLoader(error) => error.get_documentation(),
@@ -335,6 +355,7 @@ impl std::fmt::Display for AnvilZksync {
             AnvilZksync::AnvilEnvironment(component) => component.fmt(f),
             AnvilZksync::AnvilGeneric(component) => component.fmt(f),
             AnvilZksync::AnvilNode(component) => component.fmt(f),
+            AnvilZksync::GasEstimation(component) => component.fmt(f),
             AnvilZksync::Halt(component) => component.fmt(f),
             AnvilZksync::Revert(component) => component.fmt(f),
             AnvilZksync::StateLoader(component) => component.fmt(f),

@@ -1,5 +1,8 @@
 use crate::bootloader_debug::BootloaderDebug;
-use crate::formatter::{self, ExecutionErrorReport};
+use crate::formatter;
+use crate::formatter::errors::view::ExecutionErrorReport;
+use crate::formatter::log::{compute_gas_details, Formatter};
+use crate::formatter::transaction::summary::TransactionSummary;
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
 use crate::node::diagnostics::account_has_code;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
@@ -111,8 +114,8 @@ impl VmRunner {
         if let Some(bootloader_result) = bootloader_debug_result {
             let bootloader_debug = bootloader_result.clone()?;
 
-            let gas_details = formatter::compute_gas_details(&bootloader_debug, spent_on_pubdata);
-            let mut formatter = formatter::Formatter::new();
+            let gas_details = compute_gas_details(&bootloader_debug, spent_on_pubdata);
+            let mut formatter = Formatter::new();
 
             let fee_model_config = fee_input_provider.get_fee_model_config();
 
@@ -218,7 +221,7 @@ impl VmRunner {
             }
         }
 
-        let balance_diffs: Vec<formatter::transaction::BalanceDiff> =
+        let balance_diffs: Vec<formatter::transaction::balance_diff::BalanceDiff> =
             extract_balance_diffs(&known_addresses, &tx_result.logs.storage_logs)
                 .into_iter()
                 .map(Into::into)
@@ -226,7 +229,7 @@ impl VmRunner {
 
         sh_println!(
             "{}",
-            formatter::transaction::TransactionSummary::new(
+            TransactionSummary::new(
                 config.get_l2_gas_price(),
                 tx,
                 &tx_result,
@@ -255,7 +258,7 @@ impl VmRunner {
         }
         // Print VM details if enabled
         if config.show_vm_details != ShowVMDetails::None {
-            let mut formatter = formatter::Formatter::new();
+            let mut formatter = Formatter::new();
             formatter.print_vm_details(&tx_result);
         }
 
@@ -510,13 +513,13 @@ impl VmRunner {
                     match &e {
                         // Validation errors are reported and the execution proceeds
                         AnvilNodeError::TransactionValidationFailed { .. } => {
-                            let error_report = ExecutionErrorReport::new(&e, Some(&tx));
+                            let error_report = ExecutionErrorReport::new(&e, &tx);
                             sh_eprintln!("{error_report}");
                             executor.rollback_last_tx().await?;
                         }
                         // Halts are reported and the execution proceeds
                         AnvilNodeError::TransactionHalt { inner, .. } => {
-                            let error_report = ExecutionErrorReport::new(inner.as_ref(), Some(&tx));
+                            let error_report = ExecutionErrorReport::new(inner.as_ref(), &tx);
                             sh_eprintln!("{error_report}");
                             executor.rollback_last_tx().await?;
                         }
