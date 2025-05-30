@@ -1265,7 +1265,7 @@
           }
         ],
         "documentation": {
-          "description": "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nThis error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable.\n\nThere might be valid, but exotic transactions that fail when run with maximum gas provided,\nbut these are rare, typically involving transactions that depend on specific gas values.\nUsually, this error indicates either an unconditional revert or excessive gas consumption.",
+          "description": "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nThis error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable.\n\nThere might be valid, but exotic transactions that fail when run with maximum gas provided,\nbut these are rare. Typically they depend on specific gas values.\nUsually, this error indicates either an unconditional revert or excessive gas consumption.",
           "summary": "Transaction is not executable because it halts with maximal allowed gas possible.",
           "likely_causes": [
             {
@@ -1308,7 +1308,7 @@
         "name": "TransactionAlwaysReverts",
         "code": 21,
         "identifier": "[anvil_zksync-gas_estim-21]",
-        "message": "Execution reverted during the gas estimation:\n{inner}",
+        "message": "Gas estimation is impossible because the transaction reverts even given maximal gas: \n{inner}",
         "fields": [
           {
             "name": "inner",
@@ -1316,7 +1316,7 @@
           }
         ],
         "documentation": {
-          "description": "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nThis error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable.\n\nThere might be valid, but exotic transactions that fail when run with maximum gas provided,\nbut these are rare, typically involving transactions that depend on specific gas values.\nUsually, this error indicates either an unconditional revert or excessive gas consumption.",
+          "description": "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nThis error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable.\n\nThere might be valid, but exotic transactions that fail when run with maximum gas provided,\nbut these are rare. Typically they depend on specific gas values.\nUsually, this error indicates either an unconditional revert or excessive gas consumption.",
           "summary": "Transaction is not executable because it reverts with maximal allowed gas possible.",
           "likely_causes": [
             {
@@ -2335,7 +2335,7 @@
         "name": "TransactionValidationFailed",
         "code": 10,
         "identifier": "[anvil_zksync-node-10]",
-        "message": "Transaction {transaction_hash}: validation failed: {inner}",
+        "message": "Transaction {transaction_hash}: validation failed:\n{inner}",
         "fields": [
           {
             "name": "inner",

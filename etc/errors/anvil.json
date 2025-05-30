@@ -1118,7 +1118,7 @@
                   "This error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable.",
                   "",
                   "There might be valid, but exotic transactions that fail when run with maximum gas provided,",
-                  "but these are rare, typically involving transactions that depend on specific gas values.",
+                  "but these are rare. Typically they depend on specific gas values.",
                   "Usually, this error indicates either an unconditional revert or excessive gas consumption."
                 ]
                 ,
@@ -1144,7 +1144,7 @@
             {
               "name": "TransactionAlwaysReverts",
               "code": 21,
-              "message": "Execution reverted during the gas estimation:\n{inner}",
+              "message": "Gas estimation is impossible because the transaction reverts even given maximal gas: \n{inner}",
               "fields": [
                 {
                   "name": "inner",
@@ -1158,7 +1158,7 @@
                   "This error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable.",
                   "",
                   "There might be valid, but exotic transactions that fail when run with maximum gas provided,",
-                  "but these are rare, typically involving transactions that depend on specific gas values.",
+                  "but these are rare. Typically they depend on specific gas values.",
                   "Usually, this error indicates either an unconditional revert or excessive gas consumption."
                 ],
                 "likely_causes": [

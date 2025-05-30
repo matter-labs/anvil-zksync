@@ -399,7 +399,7 @@ impl CustomErrorMessage for AnvilNode {
                 inner,
                 transaction_hash,
             } => {
-                format ! ("[anvil_zksync-node-10] Transaction {transaction_hash}: validation failed: {inner}")
+                format ! ("[anvil_zksync-node-10] Transaction {transaction_hash}: validation failed:\n{inner}")
             }
             AnvilNode::TransactionGasEstimationFailed {
                 inner,
@@ -505,7 +505,7 @@ pub enum GasEstimation {
     #[doc = "This error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable."]
     #[doc = ""]
     #[doc = "There might be valid, but exotic transactions that fail when run with maximum gas provided,"]
-    #[doc = "but these are rare, typically involving transactions that depend on specific gas values."]
+    #[doc = "but these are rare. Typically they depend on specific gas values."]
     #[doc = "Usually, this error indicates either an unconditional revert or excessive gas consumption."]
     TransactionAlwaysHalts {
         inner: Box<Halt>,
@@ -518,7 +518,7 @@ pub enum GasEstimation {
     #[doc = "This error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable."]
     #[doc = ""]
     #[doc = "There might be valid, but exotic transactions that fail when run with maximum gas provided,"]
-    #[doc = "but these are rare, typically involving transactions that depend on specific gas values."]
+    #[doc = "but these are rare. Typically they depend on specific gas values."]
     #[doc = "Usually, this error indicates either an unconditional revert or excessive gas consumption."]
     TransactionAlwaysReverts {
         inner: Box<Revert>,
@@ -599,7 +599,7 @@ impl CustomErrorMessage for GasEstimation {
                 format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction halts even given maximal gas: \n{inner}")
             }
             GasEstimation::TransactionAlwaysReverts { inner } => {
-                format ! ("[anvil_zksync-gas_estim-21] Execution reverted during the gas estimation:\n{inner}")
+                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible because the transaction reverts even given maximal gas: \n{inner}")
             }
             GasEstimation::GenericError { message } => {
                 format!("[anvil_zksync-gas_estim-0] Generic error: {message}")
