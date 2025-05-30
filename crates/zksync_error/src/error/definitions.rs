@@ -469,16 +469,15 @@ pub enum GasEstimation {
     #[doc = "Transaction execution halted while estimating required gas in anvil-zksync."]
     #[doc = ""]
     #[doc = "# Description"]
+    #[doc = "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction "]
+    #[doc = "but the estimation fails because the transaction is halted."]
+    #[doc = ""]
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
     #[doc = "If the first run was successful, anvil-zksync proceeds with the estimation"]
-    #[doc = ""]
-    #[doc = "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction "]
-    #[doc = "but the estimation fails because the transaction is reverted."]
-    #[doc = ""]
-    #[doc = "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds."]
-    #[doc = "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values."]
-    #[doc = "However, it is possible to craft transactions with exotic dependencies on gas."]
-    #[doc = "For example, the transaction may explicitly revert if the gas value provided is an even number."]
+    #[doc = "The estimation algorithm looks for a minimum gas value that makes the transaction succeed."]
+    #[doc = "This works if the transaction fails for all lower gas values and succeeds for all higher gas values."]
+    #[doc = "Some valid, but exotic transactions, resist estimation."]
+    #[doc = "Typically they depend on specific gas values, for example, they fail if `gasleft()` returned a value in a specific range."]
     TransactionHalt {
         inner: Box<Halt>,
     } = 10u32,
@@ -486,16 +485,15 @@ pub enum GasEstimation {
     #[doc = "Transaction execution reverted while estimating required gas in anvil-zksync."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
-    #[doc = "If the first run was successful, anvil-zksync proceeds with the estimation"]
-    #[doc = ""]
     #[doc = "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction "]
     #[doc = "but the estimation fails because the transaction is reverted."]
     #[doc = ""]
-    #[doc = "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds."]
-    #[doc = "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values."]
-    #[doc = "However, it is possible to craft transactions with exotic dependencies on gas."]
-    #[doc = "For example, the transaction may explicitly revert if the gas value provided is an even number."]
+    #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
+    #[doc = "If the first run was successful, anvil-zksync proceeds with the estimation"]
+    #[doc = "The estimation algorithm looks for a minimum gas value that makes the transaction succeed."]
+    #[doc = "This works if the transaction fails for all lower gas values and succeeds for all higher gas values."]
+    #[doc = "Some valid, but exotic transactions, resist estimation."]
+    #[doc = "Typically they depend on specific gas values, for example, they revert if `gasleft()` returned a value in a specific range."]
     TransactionRevert {
         inner: Box<Revert>,
     } = 11u32,
@@ -506,12 +504,9 @@ pub enum GasEstimation {
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
     #[doc = "This error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable."]
     #[doc = ""]
-    #[doc = "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds."]
-    #[doc = "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values."]
-    #[doc = "However, it is possible to craft transactions with exotic dependencies on gas."]
-    #[doc = "For example, the transaction may explicitly revert if the gas value provided is an even number."]
-    #[doc = "Therefore, the transaction failing with maximum gas may indicate a case of this exotic behavior."]
-    #[doc = "However, such behaviors make estimation impossible."]
+    #[doc = "There might be valid, but exotic transactions that fail when run with maximum gas provided,"]
+    #[doc = "but these are rare, typically involving transactions that depend on specific gas values."]
+    #[doc = "Usually, this error indicates either an unconditional revert or excessive gas consumption."]
     TransactionAlwaysHalts {
         inner: Box<Halt>,
     } = 20u32,
@@ -522,12 +517,9 @@ pub enum GasEstimation {
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
     #[doc = "This error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable."]
     #[doc = ""]
-    #[doc = "To estimate the cost, anvil-zksync looks for a gas value starting from which the transaction succeeds."]
-    #[doc = "This works well if the transaction fails for all lower gas values and succeeds for all higher gas values."]
-    #[doc = "However, it is possible to craft transactions with exotic dependencies on gas."]
-    #[doc = "For example, the transaction may explicitly revert if the gas value provided is an even number."]
-    #[doc = "Therefore, the transaction failing with maximum gas may indicate a case of this exotic behavior."]
-    #[doc = "However, such behaviors make estimation impossible."]
+    #[doc = "There might be valid, but exotic transactions that fail when run with maximum gas provided,"]
+    #[doc = "but these are rare, typically involving transactions that depend on specific gas values."]
+    #[doc = "Usually, this error indicates either an unconditional revert or excessive gas consumption."]
     TransactionAlwaysReverts {
         inner: Box<Revert>,
     } = 21u32,
