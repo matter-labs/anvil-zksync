@@ -32,7 +32,7 @@ where
             Ok(res) => res,
             Err(e) => {
                 tracing::warn!(
-                    "Failed to get error documentation. The documentation may be malformed: {e}."
+                    error = ?e, "Failed to get error documentation. The documentation may be malformed."
                 );
                 None
             }
