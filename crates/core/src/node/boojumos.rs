@@ -339,6 +339,8 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         // TODO: set proper values
         block_hashes: Default::default(),
         coinbase: B160::ZERO,
+        // No idea..
+        native_price: ruint::aliases::U256::from(10u64),
         gas_limit: 100_000_000,
     };
 
@@ -394,7 +396,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         .unwrap();
 
         if let Some(zkos_path) = zkos_path {
-            let result = zkos_api::run_batch_generate_witness(
+            let result = zksync_os_api::run_batch_generate_witness(
                 batch_context,
                 tree.clone(),
                 preimage_source.clone(),
