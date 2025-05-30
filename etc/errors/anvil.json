@@ -1250,7 +1250,7 @@
             {
               "name": "TransactionValidationFailed",
               "code": 10,
-              "message": "Transaction {transaction_hash}: validation failed: {inner}",
+              "message": "Transaction {transaction_hash}: validation failed:\n{inner}",
               "fields": [
                 {
                   "name": "inner",
