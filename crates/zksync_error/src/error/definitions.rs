@@ -405,7 +405,7 @@ impl CustomErrorMessage for AnvilNode {
                 inner,
                 transaction_data,
             } => {
-                format!("[anvil_zksync-node-11] Gas estimation failed: \n{inner}")
+                format!("[anvil_zksync-node-11] Gas estimation failed:\n{inner}")
             }
             AnvilNode::TimestampBackwardsError {
                 timestamp_requested,
@@ -600,10 +600,10 @@ impl CustomErrorMessage for GasEstimation {
                 format ! ("[anvil_zksync-gas_estim-11] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, returning unspent gas: {inner}")
             }
             GasEstimation::TransactionAlwaysHalts { inner } => {
-                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and returns unspent gas.")
+                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and returns unspent gas:\n{inner}")
             }
             GasEstimation::TransactionAlwaysReverts { inner } => {
-                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and burns all gas.")
+                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and burns all gas:\n{inner}")
             }
             GasEstimation::GenericError { message } => {
                 format!("[anvil_zksync-gas_estim-0] Generic error: {message}")

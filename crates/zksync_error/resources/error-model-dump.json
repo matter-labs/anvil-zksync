@@ -1257,7 +1257,7 @@
         "name": "TransactionAlwaysHalts",
         "code": 20,
         "identifier": "[anvil_zksync-gas_estim-20]",
-        "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and returns unspent gas.",
+        "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and returns unspent gas:\n{inner}",
         "fields": [
           {
             "name": "inner",
@@ -1308,7 +1308,7 @@
         "name": "TransactionAlwaysReverts",
         "code": 21,
         "identifier": "[anvil_zksync-gas_estim-21]",
-        "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and burns all gas.",
+        "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and burns all gas:\n{inner}",
         "fields": [
           {
             "name": "inner",
@@ -2369,7 +2369,7 @@
         "name": "TransactionGasEstimationFailed",
         "code": 11,
         "identifier": "[anvil_zksync-node-11]",
-        "message": "Gas estimation failed: \n{inner}",
+        "message": "Gas estimation failed:\n{inner}",
         "fields": [
           {
             "name": "inner",
