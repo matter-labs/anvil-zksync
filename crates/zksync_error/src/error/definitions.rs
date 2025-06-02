@@ -259,20 +259,20 @@ impl CustomErrorMessage for AnvilGeneric {
 #[non_exhaustive]
 pub enum AnvilNode {
     #[doc = "# Summary "]
-    #[doc = "Transaction execution halted in anvil-zksync."]
+    #[doc = "Transaction execution reverted and gas was burned."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error occurs when a transaction execution is halted due to an error in the anvil-zksync virtual machine execution."]
-    #[doc = "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt."]
+    #[doc = "This error occurs when a transaction execution is reverted due to an error in the anvil-zksync virtual machine execution and all gas is burned."]
+    #[doc = "This is a wrapper error that contains a more specific error inside it."]
     #[doc = ""]
-    #[doc = "The VM may halt execution for various reasons including:"]
+    #[doc = "The VM may fail for various reasons including:"]
     #[doc = "- Account validation failures (signature issues, nonce mismatches)"]
     #[doc = "- Paymaster-related errors (when testing account abstraction features)"]
     #[doc = "- Gas limit exceedance"]
     #[doc = "- Storage access limitations"]
     #[doc = "- Contract execution failures"]
     #[doc = ""]
-    #[doc = "When using anvil-zksync for testing, these halts are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network."]
+    #[doc = "When using anvil-zksync for testing, these failures are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network."]
     TransactionHalt {
         inner: Box<Halt>,
         transaction_hash: Box<zksync_basic_types::H256>,
@@ -282,7 +282,7 @@ pub enum AnvilNode {
     #[doc = ""]
     #[doc = "# Description"]
     #[doc = "This error occurs when a transaction validation is failed and it is not executed."]
-    #[doc = "This is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of the halt."]
+    #[doc = "This is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of failure."]
     #[doc = ""]
     #[doc = "The validation may fail for various reasons including:"]
     #[doc = "- Gas limit exceedance"]
@@ -393,7 +393,7 @@ impl CustomErrorMessage for AnvilNode {
                 inner,
                 transaction_hash,
             } => {
-                format ! ("[anvil_zksync-node-1] Transaction {transaction_hash} execution halted:\n{inner}")
+                format ! ("[anvil_zksync-node-1] Transaction {transaction_hash} execution reverted and gas was burned:\n{inner}")
             }
             AnvilNode::TransactionValidationFailed {
                 inner,
@@ -459,18 +459,20 @@ pub enum GasEstimation {
     #[doc = "Transaction gas estimation exceeds the block gas limit."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error occurs when the total gas required for a transaction exceeds the maximum allowed for a block. The total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs, and the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown."]
+    #[doc = "This error occurs when the total gas required for a transaction exceeds the maximum allowed for a block."]
+    #[doc = "The total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs,"]
+    #[doc = "and the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown."]
     ExceedsBlockGasLimit {
         overhead: zksync_basic_types::U64,
         gas_for_pubdata: zksync_basic_types::U64,
         estimated_body_cost: zksync_basic_types::U64,
     } = 2u32,
     #[doc = "# Summary "]
-    #[doc = "Transaction execution halted while estimating required gas in anvil-zksync."]
+    #[doc = "Transaction execution reverts and burns all gas while estimating required gas in anvil-zksync."]
     #[doc = ""]
     #[doc = "# Description"]
     #[doc = "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction "]
-    #[doc = "but the estimation fails because the transaction is halted."]
+    #[doc = "but the estimation fails because the transaction reverts and burns all gas."]
     #[doc = ""]
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
     #[doc = "If the first run was successful, anvil-zksync proceeds with the estimation"]
@@ -502,7 +504,8 @@ pub enum GasEstimation {
     #[doc = ""]
     #[doc = "# Description"]
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
-    #[doc = "This error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable."]
+    #[doc = "This error occurs when this initial run results in a revert and burns all gas, suggesting that "]
+    #[doc = "no amount of gas will make this transaction executable."]
     #[doc = ""]
     #[doc = "There might be valid, but exotic transactions that fail when run with maximum gas provided,"]
     #[doc = "but these are rare. Typically they depend on specific gas values."]
@@ -515,7 +518,8 @@ pub enum GasEstimation {
     #[doc = ""]
     #[doc = "# Description"]
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
-    #[doc = "This error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable."]
+    #[doc = "This error occurs when this initial run results in a revert and returns unspent gas, suggesting that "]
+    #[doc = "no amount of gas will make this transaction executable."]
     #[doc = ""]
     #[doc = "There might be valid, but exotic transactions that fail when run with maximum gas provided,"]
     #[doc = "but these are rare. Typically they depend on specific gas values."]
@@ -590,16 +594,16 @@ impl CustomErrorMessage for GasEstimation {
                 format ! ("[anvil_zksync-gas_estim-2] Estimating full gas limit overflows while adding up additional gas ({gas_for_pubdata}), overhead ({overhead}), and estimated transaction body gas cost ({estimated_body_cost}).")
             }
             GasEstimation::TransactionHalt { inner } => {
-                format ! ("[anvil_zksync-gas_estim-10] Execution halted during the gas estimation:\n{inner}")
+                format ! ("[anvil_zksync-gas_estim-10] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, burning all gas: {inner}")
             }
             GasEstimation::TransactionRevert { inner } => {
-                format ! ("[anvil_zksync-gas_estim-11] Execution reverted during the gas estimation:\n{inner}")
+                format ! ("[anvil_zksync-gas_estim-11] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, returning unspent gas: {inner}")
             }
             GasEstimation::TransactionAlwaysHalts { inner } => {
-                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction can not be executed with maximum gas.")
+                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and returns unspent gas.")
             }
             GasEstimation::TransactionAlwaysReverts { inner } => {
-                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible because the transaction can not be executed with maximum gas possible.")
+                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and burns all gas.")
             }
             GasEstimation::GenericError { message } => {
                 format!("[anvil_zksync-gas_estim-0] Generic error: {message}")
@@ -696,7 +700,7 @@ pub enum Halt {
     #[doc = "An unknown error occurred."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error is emitted when the system encounters an unspecified reason for halting."]
+    #[doc = "This error is emitted when the system encounters an unspecified reason for reverting and burning all gas."]
     Unknown {
         msg: String,
         data: String,
