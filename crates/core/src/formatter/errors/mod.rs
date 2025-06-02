@@ -17,5 +17,5 @@ use zksync_error::CustomErrorMessage;
 /// error message to the provided writer.
 pub fn format_message(error: &impl CustomErrorMessage, w: &mut impl Write) -> std::fmt::Result {
     let error_msg = error.get_message();
-    writeln!(w, "{}: {}", "error".red().bold(), error_msg.red())
+    write!(w, "{}: {}", "error".red().bold(), error_msg.red())
 }

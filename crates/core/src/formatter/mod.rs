@@ -6,6 +6,7 @@ pub mod errors;
 pub mod log;
 pub mod pubdata_bytes;
 pub mod transaction;
+pub mod util;
 
 use std::fmt::Write;
 

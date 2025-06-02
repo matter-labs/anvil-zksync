@@ -45,9 +45,9 @@ where
 /// Writes a formatted list of likely causes for the error, if any exist.
 fn format_likely_causes(doc: &ErrorDocumentation, w: &mut impl Write) -> std::fmt::Result {
     if !doc.likely_causes.is_empty() {
-        writeln!(w, "    | {}", "Likely causes:".cyan())?;
+        writeln!(w, "\n{}", "Likely causes:".cyan())?;
         for cause in doc.likely_causes.iter().map(|descr| &descr.cause) {
-            writeln!(w, "    |   - {cause}")?;
+            writeln!(w, "  - {cause}")?;
         }
     }
     Ok(())
@@ -62,10 +62,9 @@ fn format_fixes(doc: &ErrorDocumentation, w: &mut impl Write) -> std::fmt::Resul
         .iter()
         .any(|cause| !cause.fixes.is_empty());
     if has_fixes {
-        writeln!(w, "    | ")?;
-        writeln!(w, "    | {}", "Possible fixes:".green().bold())?;
+        writeln!(w, "{}", "\nPossible fixes:".green().bold())?;
         for fix in doc.likely_causes.iter().flat_map(|cause| &cause.fixes) {
-            writeln!(w, "    |   - {fix}")?;
+            writeln!(w, "  - {fix}")?;
         }
     }
     Ok(())
@@ -98,12 +97,13 @@ fn format_references(doc: &ErrorDocumentation, w: &mut impl Write) -> std::fmt::
 ///
 /// Writes a concise summary of the error with appropriate styling.
 fn format_summary(doc: &ErrorDocumentation, w: &mut impl Write) -> std::fmt::Result {
-    writeln!(w, "    = {} {}", "error:".bright_red(), &doc.summary)
+    //write!(w, "{} {}", "error:".bright_red(), &doc.summary)
+    write!(w, "{}", &doc.summary)
 }
 
 /// Formats the detailed error description.
 ///
 /// Writes the full description of the error with appropriate styling.
 fn format_description(doc: &ErrorDocumentation, w: &mut impl Write) -> std::fmt::Result {
-    writeln!(w, "{} {}", "note:".blue(), doc.description)
+    write!(w, "{} {}", "note:".blue(), doc.description)
 }

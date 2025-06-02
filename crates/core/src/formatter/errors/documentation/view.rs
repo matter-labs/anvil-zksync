@@ -34,13 +34,13 @@ where
         if let Some(doc) = self.0.get_documentation() {
             format_summary(doc, w)?;
             if !doc.likely_causes.is_empty() {
-                writeln!(w, "    │ ")?;
+                writeln!(w)?;
                 format_likely_causes(doc, w)?;
-                writeln!(w, "    │ ")?;
+                writeln!(w)?;
                 format_fixes(doc, w)?;
-                writeln!(w, "    │ ")?;
+                writeln!(w)?;
                 format_references(doc, w)?;
-                writeln!(w, "    │")?;
+                writeln!(w)?;
             }
 
             format_description(doc, w)?;
@@ -75,9 +75,9 @@ where
         if let Some(doc) = self.0.get_documentation() {
             format_summary(doc, w)?;
         } else {
-            writeln!(
+            write!(
                 w,
-                "    = {error} An unknown error occurred",
+                "{error} An unknown error occurred",
                 error = "error:".bright_red()
             )?;
         }
@@ -119,13 +119,9 @@ where
     fn pretty_fmt(&self, w: &mut impl Write) -> std::fmt::Result {
         if let Some(doc) = self.0.get_documentation() {
             if !doc.likely_causes.is_empty() {
-                writeln!(w, "    │ ")?;
                 format_likely_causes(doc, w)?;
-                writeln!(w, "    │ ")?;
                 format_fixes(doc, w)?;
-                writeln!(w, "    │ ")?;
                 format_references(doc, w)?;
-                writeln!(w, "    │")?;
             }
         }
         Ok(())

@@ -1266,7 +1266,7 @@
         ],
         "documentation": {
           "description": "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nThis error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable.\n\nThere might be valid, but exotic transactions that fail when run with maximum gas provided,\nbut these are rare. Typically they depend on specific gas values.\nUsually, this error indicates either an unconditional revert or excessive gas consumption.",
-          "summary": "Transaction is not executable, because it halts with maximum gas possible.",
+          "summary": "An attempt to run the transaction with maximum gas resulted in reverting the transaction and burning all gas.",
           "likely_causes": [
             {
               "cause": "The transaction always halts.",
@@ -1317,7 +1317,7 @@
         ],
         "documentation": {
           "description": "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nThis error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable.\n\nThere might be valid, but exotic transactions that fail when run with maximum gas provided,\nbut these are rare. Typically they depend on specific gas values.\nUsually, this error indicates either an unconditional revert or excessive gas consumption.",
-          "summary": "Transaction is not executable because it reverts with maximum allowed gas.",
+          "summary": "An attempt to run the transaction with maximum gas resulted in reverting the transaction and returning unspent gas.",
           "likely_causes": [
             {
               "cause": "The transaction always reverts, so it can't be estimated.",
@@ -2670,7 +2670,7 @@
               "fixes": [
                 "Check the transaction parameters, such as sender address, function inputs, and required permissions.",
                 "Ensure that the contract state allows the operation (e.g., the caller has the required role or balance).",
-                "Check the transaction logs and VM trace for deeper debugging."
+                "For further debugging, check the transaction logs and VM trace."
               ],
               "report": "",
               "owner": null,
@@ -2779,7 +2779,7 @@
           }
         ],
         "documentation": {
-          "description": "This error is emitted when the VM encounters a revert reason that is not recognized. In most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution.",
+          "description": "This error is emitted when the VM encounters a revert reason that is not recognized.\nIn most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution.",
           "summary": "An unknown VM revert reason was encountered.",
           "likely_causes": [
             {

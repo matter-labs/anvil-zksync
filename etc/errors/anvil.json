@@ -428,7 +428,7 @@
               ],
               "doc": {
                 "summary": "An unknown error occurred.",
-                "description": "This error is emitted when the system encounters an unspecified reason for halting.",
+                "description": "This error is emitted when the system encounters an unspecified reason for reverting and burning all gas.",
                 "likely_causes": [
                   {
                     "cause": "Unexpected or unhandled VM state, or insufficient gas.",
@@ -705,7 +705,7 @@
                     "fixes": [
                       "Check the transaction parameters, such as sender address, function inputs, and required permissions.",
                       "Ensure that the contract state allows the operation (e.g., the caller has the required role or balance).",
-                      "Check the transaction logs and VM trace for deeper debugging."
+                      "For further debugging, check the transaction logs and VM trace."
                     ]
                   }
                 ]
@@ -762,7 +762,10 @@
               ],
               "doc": {
                 "summary": "An unknown VM revert reason was encountered.",
-                "description": "This error is emitted when the VM encounters a revert reason that is not recognized. In most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution.",
+                "description": [
+                  "This error is emitted when the VM encounters a revert reason that is not recognized.",
+                  "In most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution."
+                ],
                 "likely_causes": [
                   {
                     "cause": "The transaction exhausted all the gas allocated for execution.",
@@ -1015,8 +1018,11 @@
               ],
               "doc": {
                 "summary": "Transaction gas estimation exceeds the block gas limit.",
-                "description": "This error occurs when the total gas required for a transaction exceeds the maximum allowed for a block. The total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs, and the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown.",
-
+                "description": [
+                  "This error occurs when the total gas required for a transaction exceeds the maximum allowed for a block.",
+                  "The total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs,",
+                  "and the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown."
+                ],
                 "likely_causes": [
                   {
                     "cause": "The transaction requires too much gas to be executed. For example, it may contain an infinite loop.",
@@ -1037,7 +1043,7 @@
             {
               "name": "TransactionHalt",
               "code": 10,
-              "message": "Execution halted during the gas estimation:\n{inner}",
+              "message": "Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, burning all gas: {inner}",
               "fields": [
                 {
                   "name": "inner",
@@ -1045,10 +1051,10 @@
                 }
               ],
               "doc": {
-                "summary": "Transaction execution halted while estimating required gas in anvil-zksync.",
+                "summary": "Transaction execution reverts and burns all gas while estimating required gas in anvil-zksync.",
                 "description": [
                  "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction ",
-                  "but the estimation fails because the transaction is halted.",
+                  "but the estimation fails because the transaction reverts and burns all gas.",
                   "",
                   "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
                   "If the first run was successful, anvil-zksync proceeds with the estimation",
@@ -1059,9 +1065,9 @@
                 ],
                 "likely_causes": [
                   {
-                    "cause": "The transaction always halts, so it can't be estimated.",
+                    "cause": "The transaction always reverts and burns all gas, so it can't be estimated.",
                     "fixes": [
-                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of halt."
+                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of failure."
                     ]
                   }
                 ]
@@ -1071,7 +1077,7 @@
             {
               "name": "TransactionRevert",
               "code": 11,
-              "message": "Execution reverted during the gas estimation:\n{inner}",
+              "message": "Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, returning unspent gas: {inner}",
               "fields": [
                 {
                   "name": "inner",
@@ -1104,7 +1110,7 @@
             {
               "name": "TransactionAlwaysHalts",
               "code": 20,
-              "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas.",
+              "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and returns unspent gas.",
               "fields": [
                 {
                   "name": "inner",
@@ -1112,10 +1118,11 @@
                 }
               ],
               "doc": {
-                "summary": "Transaction is not executable, because it halts with maximum gas possible.",
+                "summary": "An attempt to run the transaction with maximum gas resulted in reverting the transaction and burning all gas.",
                 "description": [
                   "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
-                  "This error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable.",
+                  "This error occurs when this initial run results in a revert and burns all gas, suggesting that ",
+                  "no amount of gas will make this transaction executable.",
                   "",
                   "There might be valid, but exotic transactions that fail when run with maximum gas provided,",
                   "but these are rare. Typically they depend on specific gas values.",
@@ -1124,16 +1131,16 @@
                 ,
                 "likely_causes": [
                   {
-                    "cause": "The transaction always halts.",
+                    "cause": "The transaction always reverts and burns gas.",
                     "fixes": [
-                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of halt."
+                      "Inspect the source code of your contracts and debug the transaction to eliminate the cause of failure."
                     ]
                   },
                   {
                     "cause": "The transaction is malformed.",
                     "fixes": [
                       "Check the transaction for nonce mismatches, signature issues, and possibly paymaster-related errors.",
-                      "If transaction is expected to halt (e.g., for testing purposes), avoid estimating gas for it and provide gas limit manually.",
+                      "If transaction is expected to revert (e.g., for testing purposes), avoid estimating gas for it and provide gas limit manually.",
                       "Do not provide explicit nonce in your RPC request if you don't need it -- otherwise you risk triggering nonce mismatch."
                     ]
                   }
@@ -1144,7 +1151,7 @@
             {
               "name": "TransactionAlwaysReverts",
               "code": 21,
-              "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas possible.",
+              "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and burns all gas.",
               "fields": [
                 {
                   "name": "inner",
@@ -1152,10 +1159,11 @@
                 }
               ],
               "doc": {
-                "summary": "Transaction is not executable because it reverts with maximum allowed gas.",
+                "summary": "An attempt to run the transaction with maximum gas resulted in reverting the transaction and returning unspent gas.",
                 "description": [
                   "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
-                  "This error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable.",
+                  "This error occurs when this initial run results in a revert and returns unspent gas, suggesting that ",
+                  "no amount of gas will make this transaction executable.",
                   "",
                   "There might be valid, but exotic transactions that fail when run with maximum gas provided,",
                   "but these are rare. Typically they depend on specific gas values.",
@@ -1182,7 +1190,7 @@
             {
               "name": "TransactionHalt",
               "code": 1,
-              "message": "Transaction {transaction_hash} execution halted:\n{inner}",
+              "message": "Transaction {transaction_hash} execution reverted and gas was burned:\n{inner}",
               "fields": [
                 {
                   "name": "inner",
@@ -1194,27 +1202,27 @@
                 }
               ],
               "doc": {
-                "summary": "Transaction execution halted in anvil-zksync.",
+                "summary": "Transaction execution reverted and gas was burned.",
                 "description": [
-                  "This error occurs when a transaction execution is halted due to an error in the anvil-zksync virtual machine execution.",
-                  "This is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt.",
+                  "This error occurs when a transaction execution is reverted due to an error in the anvil-zksync virtual machine execution and all gas is burned.",
+                  "This is a wrapper error that contains a more specific error inside it.",
                   "",
-                  "The VM may halt execution for various reasons including:",
+                  "The VM may fail for various reasons including:",
                   "- Account validation failures (signature issues, nonce mismatches)",
                   "- Paymaster-related errors (when testing account abstraction features)",
                   "- Gas limit exceedance",
                   "- Storage access limitations",
                   "- Contract execution failures",
                   "",
-                  "When using anvil-zksync for testing, these halts are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network."
+                  "When using anvil-zksync for testing, these failures are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network."
                 ],
                 "likely_causes": [
                   {
-                    "cause": "Transaction execution in your test encountered a condition that forced it to halt prematurely.",
+                    "cause": "Transaction execution in your test encountered a condition that forced it to fail prematurely.",
                     "fixes": [
-                      "Fix the underlying issue based on the specific halt reason provided in the inner error.",
+                      "Fix the underlying issue based on the specific reason provided in the inner error.",
                       "Use anvil-zksync's debugging capabilities to trace the execution and identify the exact point of failure.",
-                      "For account-related halts, check account balance, nonce, and signature in your test setup."
+                      "For account-related failures, check account balance, nonce, and signature in your test setup."
                     ]
                   },
                   {
@@ -1265,7 +1273,7 @@
                 "summary": "Transaction validation failed in anvil-zksync.",
                 "description": [
                   "This error occurs when a transaction validation is failed and it is not executed.",
-                  "This is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of the halt.",
+                  "This is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of failure.",
                   "",
                   "The validation may fail for various reasons including:",
                   "- Gas limit exceedance",

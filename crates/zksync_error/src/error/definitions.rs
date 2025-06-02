@@ -498,7 +498,7 @@ pub enum GasEstimation {
         inner: Box<Revert>,
     } = 11u32,
     #[doc = "# Summary "]
-    #[doc = "Transaction is not executable, because it halts with maximum gas possible."]
+    #[doc = "An attempt to run the transaction with maximum gas resulted in reverting the transaction and burning all gas."]
     #[doc = ""]
     #[doc = "# Description"]
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
@@ -511,7 +511,7 @@ pub enum GasEstimation {
         inner: Box<Halt>,
     } = 20u32,
     #[doc = "# Summary "]
-    #[doc = "Transaction is not executable because it reverts with maximum allowed gas."]
+    #[doc = "An attempt to run the transaction with maximum gas resulted in reverting the transaction and returning unspent gas."]
     #[doc = ""]
     #[doc = "# Description"]
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
@@ -949,7 +949,8 @@ pub enum Revert {
     #[doc = "An unknown VM revert reason was encountered."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "This error is emitted when the VM encounters a revert reason that is not recognized. In most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution."]
+    #[doc = "This error is emitted when the VM encounters a revert reason that is not recognized."]
+    #[doc = "In most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution."]
     Unknown {
         function_selector: String,
         data: String,
