@@ -588,10 +588,10 @@
               ],
               "doc": {
                 "summary": "Unable to append the transaction hash to the ongoing L2 block.",
-                "description": "The system context call to record this transaction in the current L2 block failed. Common causes include invalid or corrupted L2 block data, insufficient gas, or unforeseen internal errors in the system context.",
+                "description": "The system context call to record this transaction in the current L2 block failed.",
                 "likely_causes": [
                   {
-                    "cause": "System context call failure or an invalid L2 block state (e.g., corrupted data, insufficient resources).",
+                    "cause": "System context call failure or an invalid L2 block state (e.g., corrupted data, insufficient resources, unforeseen internal errors in the system context).",
                     "fixes": [
                       "Verify the system context call logs and ensure there is enough gas.",
                       "Check for any data inconsistencies or corrupt block information."
@@ -685,7 +685,7 @@
             {
               "name": "General",
               "code": 1,
-              "message": "General revert error: {msg}",
+              "message": "Execution reverted with message: {msg}",
               "fields": [
                 {
                   "name": "msg",
@@ -701,7 +701,7 @@
                 "description": "This error indicates that the transaction execution was reverted.",
                 "likely_causes": [
                   {
-                    "cause": "The smart contract encountered a condition that triggered a revert. Common reasons include:",
+                    "cause": "The smart contract encountered a condition that triggered a revert.",
                     "fixes": [
                       "Check the transaction parameters, such as sender address, function inputs, and required permissions.",
                       "Ensure that the contract state allows the operation (e.g., the caller has the required role or balance).",
@@ -1104,7 +1104,7 @@
             {
               "name": "TransactionAlwaysHalts",
               "code": 20,
-              "message": "Gas estimation is impossible because the transaction halts even given maximal gas: \n{inner}",
+              "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas.",
               "fields": [
                 {
                   "name": "inner",
@@ -1112,7 +1112,7 @@
                 }
               ],
               "doc": {
-                "summary": "Transaction is not executable because it halts with maximal allowed gas possible.",
+                "summary": "Transaction is not executable, because it halts with maximum gas possible.",
                 "description": [
                   "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
                   "This error occurs when this initial run results in a halt, suggesting that no amount of gas will make this transaction executable.",
@@ -1144,7 +1144,7 @@
             {
               "name": "TransactionAlwaysReverts",
               "code": 21,
-              "message": "Gas estimation is impossible because the transaction reverts even given maximal gas: \n{inner}",
+              "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas possible.",
               "fields": [
                 {
                   "name": "inner",
@@ -1152,7 +1152,7 @@
                 }
               ],
               "doc": {
-                "summary": "Transaction is not executable because it reverts with maximal allowed gas possible.",
+                "summary": "Transaction is not executable because it reverts with maximum allowed gas.",
                 "description": [
                   "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
                   "This error occurs when this initial run results in a revert, suggesting that no amount of gas will make this transaction executable.",

@@ -498,7 +498,7 @@ pub enum GasEstimation {
         inner: Box<Revert>,
     } = 11u32,
     #[doc = "# Summary "]
-    #[doc = "Transaction is not executable because it halts with maximal allowed gas possible."]
+    #[doc = "Transaction is not executable, because it halts with maximum gas possible."]
     #[doc = ""]
     #[doc = "# Description"]
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
@@ -511,7 +511,7 @@ pub enum GasEstimation {
         inner: Box<Halt>,
     } = 20u32,
     #[doc = "# Summary "]
-    #[doc = "Transaction is not executable because it reverts with maximal allowed gas possible."]
+    #[doc = "Transaction is not executable because it reverts with maximum allowed gas."]
     #[doc = ""]
     #[doc = "# Description"]
     #[doc = "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible."]
@@ -596,10 +596,10 @@ impl CustomErrorMessage for GasEstimation {
                 format ! ("[anvil_zksync-gas_estim-11] Execution reverted during the gas estimation:\n{inner}")
             }
             GasEstimation::TransactionAlwaysHalts { inner } => {
-                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction halts even given maximal gas: \n{inner}")
+                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction can not be executed with maximum gas.")
             }
             GasEstimation::TransactionAlwaysReverts { inner } => {
-                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible because the transaction reverts even given maximal gas: \n{inner}")
+                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible because the transaction can not be executed with maximum gas possible.")
             }
             GasEstimation::GenericError { message } => {
                 format!("[anvil_zksync-gas_estim-0] Generic error: {message}")
@@ -751,7 +751,7 @@ pub enum Halt {
     #[doc = "Unable to append the transaction hash to the ongoing L2 block."]
     #[doc = ""]
     #[doc = "# Description"]
-    #[doc = "The system context call to record this transaction in the current L2 block failed. Common causes include invalid or corrupted L2 block data, insufficient gas, or unforeseen internal errors in the system context."]
+    #[doc = "The system context call to record this transaction in the current L2 block failed."]
     FailedToAppendTransactionToL2Block {
         msg: String,
     } = 17u32,
@@ -1008,7 +1008,7 @@ impl CustomErrorMessage for Revert {
     fn get_message(&self) -> String {
         match self {
             Revert::General { msg, data } => {
-                format!("[anvil_zksync-revert-1] General revert error: {msg}")
+                format!("[anvil_zksync-revert-1] Execution reverted with message: {msg}")
             }
             Revert::InnerTxError => {
                 format!("[anvil_zksync-revert-2] Bootloader-based transaction failed.")
