@@ -123,16 +123,15 @@ Lazy::new(|| {
                 }),
         );
 
-        // (2) Non-kernel
-        // list.extend(
-        //     NON_KERNEL_CONTRACT_LOCATIONS
-        //         .iter()
-        //         .filter(|(_, _, min_version)| &protocol_version >= min_version)
-        //         .map(|(artifact_name, address, _)| DeployedContract {
-        //             account_id: AccountTreeId::new(*address),
-        //             bytecode: load_builtin_contract(protocol_version, artifact_name),
-        //         }),
-        // );
+        list.extend(
+            NON_KERNEL_CONTRACT_LOCATIONS
+                .iter()
+                .filter(|(_, _, min_version)| &protocol_version >= min_version)
+                .map(|(artifact_name, address, _)| DeployedContract {
+                    account_id: AccountTreeId::new(*address),
+                    bytecode: load_builtin_contract(protocol_version, artifact_name),
+                }),
+        );
 
         result.insert(protocol_version, list);
     }
