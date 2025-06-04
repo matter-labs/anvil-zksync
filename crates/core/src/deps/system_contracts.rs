@@ -141,14 +141,14 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 38] = [
     // *************************************************
     // *  Non-kernel contracts (base offset 0x010000)  *
     // *************************************************
-    ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
-    ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
-    ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
-    ("L2AssetRouter", L2_ASSET_ROUTER_ADDRESS, V26),
-    ("L2NativeTokenVault", L2_NATIVE_TOKEN_VAULT_ADDRESS, V26),
-    ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
-    ("SloadContract", SLOAD_CONTRACT_ADDRESS, V26),
-    ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
+    // ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
+    // ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
+    // ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
+    // ("L2AssetRouter", L2_ASSET_ROUTER_ADDRESS, V26),
+    // ("L2NativeTokenVault", L2_NATIVE_TOKEN_VAULT_ADDRESS, V26),
+    // ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
+    // ("SloadContract", SLOAD_CONTRACT_ADDRESS, V26),
+    // ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
     // *************************************************
     // *                 Precompiles                   *
     // *************************************************
