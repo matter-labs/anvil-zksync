@@ -214,25 +214,6 @@ pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8
     ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
 ];
 
-// static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>> =
-//     Lazy::new(|| {
-//         let mut result = HashMap::new();
-//         for (protocol_version, _) in BUILTIN_CONTRACT_ARCHIVES {
-//             result.insert(
-//                 protocol_version,
-//                 BUILTIN_CONTRACT_LOCATIONS
-//                     .iter()
-//                     .filter(|(_, _, min_version)| &protocol_version >= min_version)
-//                     .map(|(artifact_name, address, _)| DeployedContract {
-//                         account_id: AccountTreeId::new(*address),
-//                         bytecode: load_builtin_contract(protocol_version, artifact_name),
-//                     })
-//                     .collect(),
-//             );
-//         }
-//         result
-//     });
-
 pub fn get_deployed_contracts(
     options: SystemContractsOptions,
     protocol_version: ProtocolVersionId,
