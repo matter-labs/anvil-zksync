@@ -22,7 +22,7 @@ use zksync_types::{
     NONCE_HOLDER_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
     SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
-use zksync_types::{AccountTreeId, Address, H160};
+use zksync_types::{l1, AccountTreeId, Address, H160};
 
 pub const TIMESTAMP_ASSERTER_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -76,33 +76,69 @@ static BUILTIN_CONTRACT_ARTIFACTS: Lazy<HashMap<ProtocolVersionId, HashMap<Strin
         result
     });
 
-pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
-    let artifact: Value = serde_json::from_slice(contents).expect(artifact_name);
-    let bytecode = artifact["bytecode"]
-        .as_object()
-        .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_name))
-        .get("object")
-        .unwrap_or_else(|| panic!("Bytecode object not found in {:?}", artifact_name))
-        .as_str()
-        .unwrap_or_else(|| panic!("Bytecode object is not a string in {:?}", artifact_name));
+    pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
+        let artifact: Value = serde_json::from_slice(contents).expect(artifact_name);
+        let bytecode = artifact["bytecode"]
+            .as_object()
+            .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_name))
+            .get("object")
+            .unwrap_or_else(|| panic!("Bytecode object not found in {:?}", artifact_name))
+            .as_str()
+            .unwrap_or_else(|| panic!("Bytecode object is not a string in {:?}", artifact_name));
+    
+        hex::decode(bytecode)
+            .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_name, err))
+    }
 
-    hex::decode(bytecode)
-        .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_name, err))
-}
+    pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name: &str) -> Vec<u8> {
+        let artifact_path = format!("{artifact_name}.json");
+        bytecode_from_slice(
+            artifact_name,
+            BUILTIN_CONTRACT_ARTIFACTS
+                .get(&protocol_version)
+                .unwrap_or_else(|| panic!("protocol version '{protocol_version}' is not supported"))
+                .get(&artifact_path)
+                .unwrap_or_else(|| {
+                    panic!("failed to find built-in contract artifact at '{artifact_path}'")
+                }),
+        )
+    }
 
-pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name: &str) -> Vec<u8> {
-    let artifact_path = format!("{artifact_name}.json");
-    bytecode_from_slice(
-        artifact_name,
-        BUILTIN_CONTRACT_ARTIFACTS
-            .get(&protocol_version)
-            .unwrap_or_else(|| panic!("protocol version '{protocol_version}' is not supported"))
-            .get(&artifact_path)
-            .unwrap_or_else(|| {
-                panic!("failed to find built-in contract artifact at '{artifact_path}'")
-            }),
-    )
-}
+    /// Build a static map of “everything” (kernel + non-kernel + precompile + L2 + empty).
+static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>> =
+Lazy::new(|| {
+    let mut result = HashMap::new();
+
+    for (protocol_version, _) in BUILTIN_CONTRACT_ARCHIVES {
+        let mut list = Vec::new();
+
+        // (1) Kernel
+        list.extend(
+            BUILTIN_CONTRACT_LOCATIONS
+                .iter()
+                .filter(|(_, _, min_version)| &protocol_version >= min_version)
+                .map(|(artifact_name, address, _)| DeployedContract {
+                    account_id: AccountTreeId::new(*address),
+                    bytecode: load_builtin_contract(protocol_version, artifact_name),
+                }),
+        );
+
+        // (2) Non-kernel
+        list.extend(
+            NON_KERNEL_CONTRACT_LOCATIONS
+                .iter()
+                .filter(|(_, _, min_version)| &protocol_version >= min_version)
+                .map(|(artifact_name, address, _)| DeployedContract {
+                    account_id: AccountTreeId::new(*address),
+                    bytecode: load_builtin_contract(protocol_version, artifact_name),
+                }),
+        );
+
+        result.insert(protocol_version, list);
+    }
+
+    result
+});
 
 const V26: ProtocolVersionId = ProtocolVersionId::Version26;
 const V27: ProtocolVersionId = ProtocolVersionId::Version27;
@@ -139,17 +175,6 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 30] = [
     ("EvmPredeploysManager", EVM_PREDEPLOYS_MANAGER_ADDRESS, V27),
     ("EvmHashesStorage", EVM_HASHES_STORAGE_ADDRESS, V27),
     // *************************************************
-    // *  Non-kernel contracts (base offset 0x010000)  *
-    // *************************************************
-    // ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
-    // ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
-    // ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
-    // ("L2AssetRouter", L2_ASSET_ROUTER_ADDRESS, V26),
-    // ("L2NativeTokenVault", L2_NATIVE_TOKEN_VAULT_ADDRESS, V26),
-    // ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
-    // ("SloadContract", SLOAD_CONTRACT_ADDRESS, V26),
-    // ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
-    // *************************************************
     // *                 Precompiles                   *
     // *************************************************
     ("Keccak256", KECCAK256_PRECOMPILE_ADDRESS, V26),
@@ -176,24 +201,38 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 30] = [
     ("EmptyContract", BOOTLOADER_ADDRESS, V26),
 ];
 
-static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>> =
-    Lazy::new(|| {
-        let mut result = HashMap::new();
-        for (protocol_version, _) in BUILTIN_CONTRACT_ARCHIVES {
-            result.insert(
-                protocol_version,
-                BUILTIN_CONTRACT_LOCATIONS
-                    .iter()
-                    .filter(|(_, _, min_version)| &protocol_version >= min_version)
-                    .map(|(artifact_name, address, _)| DeployedContract {
-                        account_id: AccountTreeId::new(*address),
-                        bytecode: load_builtin_contract(protocol_version, artifact_name),
-                    })
-                    .collect(),
-            );
-        }
-        result
-    });
+/// *************************************************************
+/// *  Non-kernel contracts (base offset 0x010000)             *
+/// *************************************************************
+pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8] = [
+    ("Create2Factory",            CREATE2_FACTORY_ADDRESS,                V26),
+    ("L2GenesisUpgrade",          L2_GENESIS_UPGRADE_ADDRESS,             V26),
+    ("Bridgehub",                 L2_BRIDGEHUB_ADDRESS,                   V26),
+    ("L2AssetRouter",             L2_ASSET_ROUTER_ADDRESS,                V26),
+    ("L2NativeTokenVault",        L2_NATIVE_TOKEN_VAULT_ADDRESS,          V26),
+    ("MessageRoot",               L2_MESSAGE_ROOT_ADDRESS,                V26),
+    ("SloadContract",             SLOAD_CONTRACT_ADDRESS,                 V26),
+    ("L2WrappedBaseToken",        L2_WRAPPED_BASE_TOKEN_IMPL,             V26),
+];
+
+// static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>> =
+//     Lazy::new(|| {
+//         let mut result = HashMap::new();
+//         for (protocol_version, _) in BUILTIN_CONTRACT_ARCHIVES {
+//             result.insert(
+//                 protocol_version,
+//                 BUILTIN_CONTRACT_LOCATIONS
+//                     .iter()
+//                     .filter(|(_, _, min_version)| &protocol_version >= min_version)
+//                     .map(|(artifact_name, address, _)| DeployedContract {
+//                         account_id: AccountTreeId::new(*address),
+//                         bytecode: load_builtin_contract(protocol_version, artifact_name),
+//                     })
+//                     .collect(),
+//             );
+//         }
+//         result
+//     });
 
 pub fn get_deployed_contracts(
     options: SystemContractsOptions,

@@ -1067,6 +1067,11 @@ Address: {address}
         self
     }
 
+    /// Check if L1 is enabled
+    pub fn is_l1_enabled(&self) -> bool {
+        self.l1_config.is_some()
+    }
+
     /// Set the auto L1 execution
     #[must_use]
     pub fn with_auto_execute_l1(mut self, auto_execute_l1: Option<bool>) -> Self {

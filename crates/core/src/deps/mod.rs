@@ -23,12 +23,23 @@ impl InMemoryStorage {
         system_contracts_options: SystemContractsOptions,
         protocol_version: ProtocolVersionId,
         system_contracts_path: Option<&Path>,
+        l1_usage: bool,
     ) -> Self {
-        let contracts = system_contracts::get_deployed_contracts(
+        let mut contracts = system_contracts::get_deployed_contracts(
             system_contracts_options,
             protocol_version,
             system_contracts_path,
         );
+        // 2) If l1_usage is false, drop all “non-kernel” addresses:
+        if !l1_usage {
+            contracts.retain(|contract| {
+                let addr = contract.account_id.address();
+                // keep only if this address is NOT in NON_KERNEL_CONTRACT_LOCATIONS
+                !system_contracts::NON_KERNEL_CONTRACT_LOCATIONS
+                    .iter()
+                    .any(|(_, a, _)| *a == *addr)
+            });
+        }
 
         let system_context_init_log = get_system_context_init_logs(chain_id);
         let state = contracts

@@ -53,6 +53,7 @@ impl ForkStorage {
         protocol_version: ProtocolVersionId,
         override_chain_id: Option<u32>,
         system_contracts_path: Option<&Path>,
+        l1_usage: Option<bool>,
     ) -> Self {
         let chain_id = if let Some(override_id) = override_chain_id {
             L2ChainId::from(override_id)
@@ -70,6 +71,7 @@ impl ForkStorage {
                     system_contracts_options,
                     protocol_version,
                     system_contracts_path,
+                    l1_usage.unwrap_or(false),
                 ),
                 value_read_cache: Default::default(),
                 fork,
@@ -392,7 +394,7 @@ mod tests {
 
         let options = SystemContractsOptions::default();
         let mut fork_storage: ForkStorage =
-            ForkStorage::new(fork, options, ProtocolVersionId::latest(), None, None);
+            ForkStorage::new(fork, options, ProtocolVersionId::latest(), None, None, None);
 
         assert!(fork_storage.is_write_initial(&never_written_key));
         assert!(!fork_storage.is_write_initial(&key_with_some_value));
@@ -427,6 +429,7 @@ mod tests {
             fork,
             SystemContractsOptions::default(),
             ProtocolVersionId::latest(),
+            None,
             None,
             None,
         );

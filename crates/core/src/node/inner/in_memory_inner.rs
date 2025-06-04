@@ -1177,6 +1177,7 @@ impl InMemoryNodeInner {
             self.blockchain.protocol_version,
             self.config.chain_id,
             self.config.system_contracts_path.as_deref(),
+            Some(self.config.is_l1_enabled()),
         );
         let mut old_storage = self.fork_storage.inner.write().unwrap();
         let mut new_storage = fork_storage.inner.write().unwrap();

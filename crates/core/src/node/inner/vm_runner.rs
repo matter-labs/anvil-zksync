@@ -706,6 +706,7 @@ mod test {
                 ProtocolVersionId::latest(),
                 None,
                 None,
+                None
             );
             let system_contracts = SystemContracts::from_options(
                 config.system_contracts_options,
