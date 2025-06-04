@@ -77,7 +77,9 @@ use zksync_types::{
 };
 
 /// Max possible size of an ABI encoded tx (in bytes).
-pub const MAX_TX_SIZE: usize = 1_000_000;
+/// NOTE: this deviates slightly from the default value in the main node config,
+/// that being `api.max_tx_size = 1_000_000`.
+pub const MAX_TX_SIZE: usize = 1_200_000;
 /// Acceptable gas overestimation limit.
 pub const ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION: u64 = 1_000;
 /// The maximum number of previous blocks to store the state for.
