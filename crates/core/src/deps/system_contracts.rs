@@ -134,7 +134,7 @@ static KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 17] = [
 /// *************************************************************
 /// *  Non-kernel contracts (base offset 0x010000)             *
 /// *************************************************************
-static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8] = [
+pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8] = [
     ("Create2Factory",           CREATE2_FACTORY_ADDRESS,               V26),
     ("L2GenesisUpgrade",         L2_GENESIS_UPGRADE_ADDRESS,            V26),
     ("Bridgehub",                L2_BRIDGEHUB_ADDRESS,                  V26),
