@@ -134,8 +134,12 @@ impl PrettyFmt for EstimationErrorReport<'_> {
             GasEstimationError::TransactionHalt { inner }
             | GasEstimationError::TransactionAlwaysHalts { inner } => {
                 let halt = inner.as_ref();
-                writeln!(w, "{}", ErrorMessageView(self.error))?;
                 let mut w = IndentingWriter::new(w, Some("│ "));
+
+                w.push_prefix("= ");
+                writeln!(w, "{}", ErrorMessageView(self.error))?;
+                w.pop_prefix();
+
                 writeln!(w, "{}", SummaryView(self.error))?;
                 w.indent();
                 w.push_prefix("= ");
@@ -159,8 +163,12 @@ impl PrettyFmt for EstimationErrorReport<'_> {
             GasEstimationError::TransactionRevert { inner }
             | GasEstimationError::TransactionAlwaysReverts { inner } => {
                 let revert = inner.as_ref();
-                writeln!(w, "{}", ErrorMessageView(self.error))?;
                 let mut w = IndentingWriter::new(w, Some("│ "));
+
+                w.push_prefix("= ");
+                writeln!(w, "{}", ErrorMessageView(self.error))?;
+                w.pop_prefix();
+
                 writeln!(w, "{}", SummaryView(self.error))?;
                 w.indent();
                 w.push_prefix("= ");
