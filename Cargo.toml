@@ -45,6 +45,7 @@ zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "c
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "54e0671189a5bc2ce88e72c36334f98fbbdd228d", default-features = false }
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "54e0671189a5bc2ce88e72c36334f98fbbdd228d" }
+zk_evm_abstractions = "=0.152.3"
 
 #########################
 # External dependencies #
