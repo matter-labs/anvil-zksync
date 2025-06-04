@@ -353,6 +353,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     if simulate_only {
         // Currently zkos doesn't do validation when running a simulated transaction.
         // This results in lower gas estimation - which might cause issues for the user.
+        // So here, we're manually adjusting the gas limit to account for the expected validation cost.
         const ZKOS_EXPECTED_VALIDATION_COST: u64 = 6_000;
         let new_gas_limit = tx
             .gas_limit()
@@ -362,6 +363,18 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
             ExecuteTransactionCommon::L2(data) => data.fee.gas_limit = new_gas_limit,
             ExecuteTransactionCommon::ProtocolUpgrade(data) => data.gas_limit = new_gas_limit,
         };
+
+        // FIXME: currently zkos requires gas price to be >0 (otherwise it fails with out of resources during validation)
+        if tx.max_fee_per_gas() == 0.into() {
+            let new_gas_price = 100.into();
+            match &mut tx.common_data {
+                ExecuteTransactionCommon::L2(data) => {
+                    data.fee.max_fee_per_gas = new_gas_price;
+                    data.fee.max_priority_fee_per_gas = new_gas_price;
+                }
+                _ => {}
+            };
+        }
     }
 
     let tx_raw = transaction_to_zkos_vec(&tx);
@@ -450,7 +463,10 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                         let nonce = account_properties.nonce;
                         let bytecode_hash = account_properties.bytecode_hash;
 
-                        println!("For account :{:?} nonce is {:?}", dst_address, nonce);
+                        println!(
+                            "For account :{:?} nonce is {:?} balance is {:?}, bytecode_hash is {:?} preimage hash is {:?}",
+                            dst_address, nonce, balance, bytecode_hash, preimage.0
+                        );
 
                         for (key, value) in [
                             (
@@ -475,12 +491,16 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                                 key,
                                 value,
                             };
-                            let prev_value = storage_ptr.set_value(key, value);
+                            // Create storage write, only if actually something has changed.
+                            let prev_value = storage_ptr.read_value(&key);
+                            if prev_value != value {
+                                let prev_value = storage_ptr.set_value(key, value);
 
-                            storage_logs.push(StorageLogWithPreviousValue {
-                                log: storage_log,
-                                previous_value: prev_value,
-                            });
+                                storage_logs.push(StorageLogWithPreviousValue {
+                                    log: storage_log,
+                                    previous_value: prev_value,
+                                })
+                            };
                         }
                     }
                 }
@@ -515,16 +535,23 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                                 data: data.clone(),
                             },
                         },
-                        logs: Default::default(),
+                        logs: VmExecutionLogs {
+                            // TODO: check if we should return storage_logs on revert.
+                            storage_logs,
+                            events: Default::default(),
+                            user_l2_to_l1_logs: Default::default(),
+                            system_l2_to_l1_logs: Default::default(),
+                            total_log_queries_count: Default::default(),
+                        },
                         statistics: Default::default(),
                         refunds: Refunds {
                             gas_refunded: tx_output.gas_refunded,
                             operator_suggested_refund: tx_output.gas_refunded,
                         },
-                        dynamic_factory_deps: Default::default(),
+                        dynamic_factory_deps,
                     },
                     witness,
-                )
+                );
             }
         },
         Err(invalid_tx) => {
@@ -826,9 +853,10 @@ fn get_account_properties(
                 AccountProperties::default()
             } else {
                 // Get from preimage:
-                let encoded = preimage_source
-                    .get_preimage(*account_hash)
-                    .unwrap_or_default();
+                let encoded = preimage_source.get_preimage(*account_hash).expect(
+                    format!("Missing preimage for {:?} and {:?}", address, account_hash).as_str(),
+                );
+
                 AccountProperties::decode(encoded.try_into().unwrap())
                     .expect("Failed to decode account properties")
             }
