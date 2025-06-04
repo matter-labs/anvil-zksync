@@ -104,78 +104,7 @@ pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name:
     )
 }
 
-const V26: ProtocolVersionId = ProtocolVersionId::Version26;
-const V27: ProtocolVersionId = ProtocolVersionId::Version27;
-const V28: ProtocolVersionId = ProtocolVersionId::Version28;
-
-/// *************************************************************
-/// *     Kernel contracts (base offset 0x8000)               *
-/// *************************************************************
-static KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 17] = [
-    ("AccountCodeStorage",       ACCOUNT_CODE_STORAGE_ADDRESS,         V26),
-    ("NonceHolder",              NONCE_HOLDER_ADDRESS,                  V26),
-    ("KnownCodesStorage",        KNOWN_CODES_STORAGE_ADDRESS,           V26),
-    ("ImmutableSimulator",       IMMUTABLE_SIMULATOR_STORAGE_ADDRESS,   V26),
-    ("ContractDeployer",         CONTRACT_DEPLOYER_ADDRESS,             V26),
-    ("L1Messenger",              L1_MESSENGER_ADDRESS,                  V26),
-    ("MsgValueSimulator",        MSG_VALUE_SIMULATOR_ADDRESS,           V26),
-    ("L2BaseToken",              L2_BASE_TOKEN_ADDRESS,                 V26),
-    ("SystemContext",            SYSTEM_CONTEXT_ADDRESS,                V26),
-    ("BootloaderUtilities",      BOOTLOADER_UTILITIES_ADDRESS,          V26),
-    ("EventWriter",              EVENT_WRITER_ADDRESS,                  V26),
-    ("Compressor",               COMPRESSOR_ADDRESS,                    V26),
-    ("ComplexUpgrader",          COMPLEX_UPGRADER_ADDRESS,              V26),
-    ("PubdataChunkPublisher",    PUBDATA_CHUNK_PUBLISHER_ADDRESS,       V26),
-    ("EvmGasManager",            EVM_GAS_MANAGER_ADDRESS,               V27),
-    ("EvmPredeploysManager",     EVM_PREDEPLOYS_MANAGER_ADDRESS,        V27),
-    ("EvmHashesStorage",         EVM_HASHES_STORAGE_ADDRESS,            V27),
-];
-
-/// *************************************************************
-/// *  Non-kernel contracts (base offset 0x010000)             *
-/// *************************************************************
-pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8] = [
-    ("Create2Factory",           CREATE2_FACTORY_ADDRESS,               V26),
-    ("L2GenesisUpgrade",         L2_GENESIS_UPGRADE_ADDRESS,            V26),
-    ("Bridgehub",                L2_BRIDGEHUB_ADDRESS,                  V26),
-    ("L2AssetRouter",            L2_ASSET_ROUTER_ADDRESS,               V26),
-    ("L2NativeTokenVault",       L2_NATIVE_TOKEN_VAULT_ADDRESS,         V26),
-    ("MessageRoot",              L2_MESSAGE_ROOT_ADDRESS,               V26),
-    ("SloadContract",            SLOAD_CONTRACT_ADDRESS,                V26),
-    ("L2WrappedBaseToken",       L2_WRAPPED_BASE_TOKEN_IMPL,            V26),
-];
-
-/// *************************************************************
-/// *                 Precompiles                              *
-/// *************************************************************
-static PRECOMPILE_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 10] = [
-    ("Keccak256",                KECCAK256_PRECOMPILE_ADDRESS,           V26),
-    ("SHA256",                   SHA256_PRECOMPILE_ADDRESS,              V26),
-    ("Ecrecover",                ECRECOVER_PRECOMPILE_ADDRESS,           V26),
-    ("EcAdd",                    EC_ADD_PRECOMPILE_ADDRESS,              V26),
-    ("EcMul",                    EC_MUL_PRECOMPILE_ADDRESS,              V26),
-    ("EcPairing",                EC_PAIRING_PRECOMPILE_ADDRESS,          V26),
-    ("CodeOracle",               CODE_ORACLE_ADDRESS,                    V26),
-    ("P256Verify",               SECP256R1_VERIFY_PRECOMPILE_ADDRESS,    V26),
-    ("Identity",                 IDENTITY_ADDRESS,                       V27),
-    ("Modexp",                   MODEXP_PRECOMPILE_ADDRESS,              V28),
-];
-
-/// *************************************************************
-/// *                L2 contracts                              *
-/// *************************************************************
-static L2_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 1] = [
-    ("TimestampAsserter",        TIMESTAMP_ASSERTER_ADDRESS,             V26),
-];
-
-/// *************************************************************
-/// *               Empty contracts                            *
-/// *************************************************************
-static EMPTY_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 2] = [
-    ("EmptyContract",            Address::zero(),                        V26),
-    ("EmptyContract",            BOOTLOADER_ADDRESS,                     V26),
-];
-
+/// Build a static map of “everything” (kernel + non-kernel + precompile + L2 + empty).
 static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>> =
     Lazy::new(|| {
         let mut result = HashMap::new();
@@ -185,7 +114,7 @@ static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>
 
             // (1) Kernel
             list.extend(
-                KERNEL_CONTRACT_LOCATIONS
+                BUILTIN_CONTRACT_LOCATIONS
                     .iter()
                     .filter(|(_, _, min_version)| &protocol_version >= min_version)
                     .map(|(artifact_name, address, _)| DeployedContract {
@@ -194,7 +123,6 @@ static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>
                     }),
             );
 
-            // (2) Non-kernel
             list.extend(
                 NON_KERNEL_CONTRACT_LOCATIONS
                     .iter()
@@ -205,44 +133,105 @@ static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>
                     }),
             );
 
-            // (3) Precompiles
-            list.extend(
-                PRECOMPILE_CONTRACT_LOCATIONS
-                    .iter()
-                    .filter(|(_, _, min_version)| &protocol_version >= min_version)
-                    .map(|(artifact_name, address, _)| DeployedContract {
-                        account_id: AccountTreeId::new(*address),
-                        bytecode: load_builtin_contract(protocol_version, artifact_name),
-                    }),
-            );
-
-            // (4) L2 contracts
-            list.extend(
-                L2_CONTRACT_LOCATIONS
-                    .iter()
-                    .filter(|(_, _, min_version)| &protocol_version >= min_version)
-                    .map(|(artifact_name, address, _)| DeployedContract {
-                        account_id: AccountTreeId::new(*address),
-                        bytecode: load_builtin_contract(protocol_version, artifact_name),
-                    }),
-            );
-
-            // (5) Empty contracts
-            list.extend(
-                EMPTY_CONTRACT_LOCATIONS
-                    .iter()
-                    .filter(|(_, _, min_version)| &protocol_version >= min_version)
-                    .map(|(_artifact_name, address, _)| DeployedContract {
-                        account_id: AccountTreeId::new(*address),
-                        bytecode: Vec::new(),
-                    }),
-            );
-
             result.insert(protocol_version, list);
         }
 
         result
     });
+
+const V26: ProtocolVersionId = ProtocolVersionId::Version26;
+const V27: ProtocolVersionId = ProtocolVersionId::Version27;
+const V28: ProtocolVersionId = ProtocolVersionId::Version28;
+
+/// Triple containing a name of a contract, its L2 address and minimum supported protocol version
+static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 30] = [
+    // *************************************************
+    // *     Kernel contracts (base offset 0x8000)     *
+    // *************************************************
+    ("AccountCodeStorage", ACCOUNT_CODE_STORAGE_ADDRESS, V26),
+    ("NonceHolder", NONCE_HOLDER_ADDRESS, V26),
+    ("KnownCodesStorage", KNOWN_CODES_STORAGE_ADDRESS, V26),
+    (
+        "ImmutableSimulator",
+        IMMUTABLE_SIMULATOR_STORAGE_ADDRESS,
+        V26,
+    ),
+    ("ContractDeployer", CONTRACT_DEPLOYER_ADDRESS, V26),
+    ("L1Messenger", L1_MESSENGER_ADDRESS, V26),
+    ("MsgValueSimulator", MSG_VALUE_SIMULATOR_ADDRESS, V26),
+    ("L2BaseToken", L2_BASE_TOKEN_ADDRESS, V26),
+    ("SystemContext", SYSTEM_CONTEXT_ADDRESS, V26),
+    ("BootloaderUtilities", BOOTLOADER_UTILITIES_ADDRESS, V26),
+    ("EventWriter", EVENT_WRITER_ADDRESS, V26),
+    ("Compressor", COMPRESSOR_ADDRESS, V26),
+    ("ComplexUpgrader", COMPLEX_UPGRADER_ADDRESS, V26),
+    (
+        "PubdataChunkPublisher",
+        PUBDATA_CHUNK_PUBLISHER_ADDRESS,
+        V26,
+    ),
+    ("EvmGasManager", EVM_GAS_MANAGER_ADDRESS, V27),
+    ("EvmPredeploysManager", EVM_PREDEPLOYS_MANAGER_ADDRESS, V27),
+    ("EvmHashesStorage", EVM_HASHES_STORAGE_ADDRESS, V27),
+    // *************************************************
+    // *                 Precompiles                   *
+    // *************************************************
+    ("Keccak256", KECCAK256_PRECOMPILE_ADDRESS, V26),
+    ("SHA256", SHA256_PRECOMPILE_ADDRESS, V26),
+    ("Ecrecover", ECRECOVER_PRECOMPILE_ADDRESS, V26),
+    ("EcAdd", EC_ADD_PRECOMPILE_ADDRESS, V26),
+    ("EcMul", EC_MUL_PRECOMPILE_ADDRESS, V26),
+    ("EcPairing", EC_PAIRING_PRECOMPILE_ADDRESS, V26),
+    ("CodeOracle", CODE_ORACLE_ADDRESS, V26),
+    ("P256Verify", SECP256R1_VERIFY_PRECOMPILE_ADDRESS, V26),
+    ("Identity", IDENTITY_ADDRESS, V27),
+    ("Modexp", MODEXP_PRECOMPILE_ADDRESS, V28),
+    // TODO: It might make more sense to source address for these from zkstack config
+    // *************************************************
+    // *                L2 contracts                   *
+    // *************************************************
+    ("TimestampAsserter", TIMESTAMP_ASSERTER_ADDRESS, V26),
+    // *************************************************
+    // *               Empty contracts                 *
+    // *************************************************
+    // For now, only zero address and the bootloader address have empty bytecode at the init
+    // In the future, we might want to set all of the system contracts this way.
+    ("EmptyContract", Address::zero(), V26),
+    ("EmptyContract", BOOTLOADER_ADDRESS, V26),
+];
+
+/// *************************************************************
+/// *  Non-kernel contracts (base offset 0x010000)             *
+/// *************************************************************
+pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8] = [
+    ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
+    ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
+    ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
+    ("L2AssetRouter", L2_ASSET_ROUTER_ADDRESS, V26),
+    ("L2NativeTokenVault", L2_NATIVE_TOKEN_VAULT_ADDRESS, V26),
+    ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
+    ("SloadContract", SLOAD_CONTRACT_ADDRESS, V26),
+    ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
+];
+
+// static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>> =
+//     Lazy::new(|| {
+//         let mut result = HashMap::new();
+//         for (protocol_version, _) in BUILTIN_CONTRACT_ARCHIVES {
+//             result.insert(
+//                 protocol_version,
+//                 BUILTIN_CONTRACT_LOCATIONS
+//                     .iter()
+//                     .filter(|(_, _, min_version)| &protocol_version >= min_version)
+//                     .map(|(artifact_name, address, _)| DeployedContract {
+//                         account_id: AccountTreeId::new(*address),
+//                         bytecode: load_builtin_contract(protocol_version, artifact_name),
+//                     })
+//                     .collect(),
+//             );
+//         }
+//         result
+//     });
 
 pub fn get_deployed_contracts(
     options: SystemContractsOptions,
@@ -272,14 +261,17 @@ mod tests {
     use super::*;
 
     fn count_protocol_contracts(protocol_version: ProtocolVersionId) -> usize {
-        KERNEL_CONTRACT_LOCATIONS
+        let kernel_count = BUILTIN_CONTRACT_LOCATIONS
             .iter()
-            .chain(NON_KERNEL_CONTRACT_LOCATIONS.iter())
-            .chain(PRECOMPILE_CONTRACT_LOCATIONS.iter())
-            .chain(L2_CONTRACT_LOCATIONS.iter())
-            .chain(EMPTY_CONTRACT_LOCATIONS.iter())
             .filter(|(_, _, min_version)| &protocol_version >= min_version)
-            .count()
+            .count();
+
+        let non_kernel_count = NON_KERNEL_CONTRACT_LOCATIONS
+            .iter()
+            .filter(|(_, _, min_version)| &protocol_version >= min_version)
+            .count();
+
+        kernel_count + non_kernel_count
     }
 
     #[test]
