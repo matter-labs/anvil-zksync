@@ -109,7 +109,7 @@ const V27: ProtocolVersionId = ProtocolVersionId::Version27;
 const V28: ProtocolVersionId = ProtocolVersionId::Version28;
 
 /// Triple containing a name of a contract, its L2 address and minimum supported protocol version
-static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 38] = [
+static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 30] = [
     // *************************************************
     // *     Kernel contracts (base offset 0x8000)     *
     // *************************************************
