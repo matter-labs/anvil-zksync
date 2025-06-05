@@ -19,7 +19,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly-2025-03-19
           components: rustfmt, clippy
 
       - uses: actions/setup-node@v4
@@ -44,7 +44,7 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly-2025-03-19
 
       - name: Install Foundry-ZKsync
         uses: dutterbutter/foundry-zksync-toolchain@v1
