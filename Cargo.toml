@@ -47,6 +47,16 @@ zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", re
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "54e0671189a5bc2ce88e72c36334f98fbbdd228d" }
 
 #########################
+# ZKsyncOs dependencies  #
+#########################
+forward_system = { git = "https://github.com/matter-labs/zksync-os.git", rev = "3246224672077ce39d0555c55773a68fef6153a3"}
+basic_system = { git = "https://github.com/matter-labs/zksync-os.git", rev = "3246224672077ce39d0555c55773a68fef6153a3"}
+zk_ee = { git = "https://github.com/matter-labs/zksync-os.git", rev = "3246224672077ce39d0555c55773a68fef6153a3"}
+system_hooks = { git = "https://github.com/matter-labs/zksync-os.git", rev = "3246224672077ce39d0555c55773a68fef6153a3"}
+zksync_os_api = { git = "https://github.com/matter-labs/zksync-os.git", rev = "3246224672077ce39d0555c55773a68fef6153a3" }
+rig = { git = "https://github.com/matter-labs/zksync-os.git", rev = "3246224672077ce39d0555c55773a68fef6153a3" }
+
+#########################
 # External dependencies #
 #########################
 anyhow = "1.0"

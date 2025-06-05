@@ -36,8 +36,8 @@ lint:
 	cd e2e-tests-rust && cargo fmt --all -- --check
 	cd spec-tests && cargo fmt --all -- --check
 	cargo fmt --all -- --check
-	cargo clippy --tests -p anvil-zksync -- -D warnings --allow clippy::unwrap_used
-	cd e2e-tests-rust && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
+	cargo clippy --no-deps --tests -p anvil-zksync -- -D warnings --allow clippy::unwrap_used
+	cd e2e-tests-rust && cargo clippy --no-deps --tests -- -D warnings --allow clippy::unwrap_used
 	cd spec-tests && cargo clippy --tests -- -D warnings --allow clippy::unwrap_used
 
 # Fix lint errors

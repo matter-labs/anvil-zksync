@@ -3,11 +3,10 @@
 use std::{alloc::Global, collections::HashMap, vec};
 
 use anvil_zksync_config::types::BoojumConfig;
-use basic_system::system_implementation::io::{
+use basic_system::system_implementation::flat_storage_model::{
     address_into_special_storage_key, AccountProperties, TestingTree,
     ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
 };
-//use basic_system::basic_system::simple_growable_storage::TestingTree;
 use forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
     StorageCommitment,
@@ -50,7 +49,7 @@ static BATCH_WITNESS: Lazy<Mutex<HashMap<u32, Vec<u8>>>> = Lazy::new(|| {
 // As nonces are normally kept inside account properties, and here we only 'simulate' putting them in some
 // location, so that the rest of the anvil can work.
 // But if we tried reading stuff from 0x8003, where nonces are normally located - we might be reading some garbage.
-pub const FAKE_NONCE_ADDRESS: B160 = B160::from_limbs([0x8153 as u64, 0, 0]);
+pub const FAKE_NONCE_ADDRESS: B160 = B160::from_limbs([0x8153_u64, 0, 0]);
 
 pub fn set_batch_witness(key: u32, value: Vec<u8>) {
     let mut map = BATCH_WITNESS.lock().unwrap();
@@ -68,33 +67,29 @@ pub fn bytes32_to_h256(data: Bytes32) -> H256 {
 }
 
 pub fn h256_to_bytes32(data: &H256) -> Bytes32 {
-    Bytes32::from(data.as_fixed_bytes().clone())
+    Bytes32::from(*data.as_fixed_bytes())
 }
 
 pub fn b160_to_h160(data: B160) -> H160 {
     H160::from_slice(&data.to_be_bytes_vec())
 }
 
-pub fn pad_to_word(input: &Vec<u8>) -> Vec<u8> {
-    let mut data = input.clone();
+pub fn pad_to_word(input: &[u8]) -> Vec<u8> {
+    let mut data = input.to_owned();
     let remainder = input.len().div_ceil(32) * 32 - input.len();
-    for _ in 0..remainder {
-        data.push(0u8);
-    }
+    data.extend(std::iter::repeat_n(0u8, remainder));
     data
 }
 
 pub fn h160_to_b160(data: &H160) -> B160 {
-    B160::from_be_bytes(data.as_fixed_bytes().clone())
+    B160::from_be_bytes(*data.as_fixed_bytes())
 }
 
 // Helper methods to add data to the Vec<u8> in the format expected by ZKOS.
 pub fn append_address(data: &mut Vec<u8>, address: &H160) {
     let mut pp = vec![0u8; 32];
     let ap1 = address.as_fixed_bytes();
-    for i in 0..20 {
-        pp[i + 12] = ap1[i];
-    }
+    pp[12..(20 + 12)].copy_from_slice(ap1);
     data.append(&mut pp);
 }
 
@@ -107,18 +102,14 @@ pub fn append_u256(data: &mut Vec<u8>, payload: &zksync_types::U256) {
 pub fn append_u64(data: &mut Vec<u8>, payload: u64) {
     let mut pp = [0u8; 32];
     let pp1 = payload.to_be_bytes();
-    for i in 0..8 {
-        pp[24 + i] = pp1[i];
-    }
+    pp[24..(8 + 24)].copy_from_slice(&pp1);
     data.append(&mut pp.to_vec());
 }
 
 pub fn append_usize(data: &mut Vec<u8>, payload: usize) {
     let mut pp = [0u8; 32];
     let pp1 = payload.to_be_bytes();
-    for i in 0..8 {
-        pp[24 + i] = pp1[i];
-    }
+    pp[24..(8 + 24)].copy_from_slice(&pp1);
     data.append(&mut pp.to_vec());
 }
 
@@ -154,7 +145,7 @@ pub fn create_tree_from_full_state(
             set_account_properties(
                 &mut tree,
                 &mut preimage_source,
-                cc.try_into().unwrap(),
+                cc,
                 None,
                 Some(entry.1.to_low_u64_be()),
                 None,
@@ -165,7 +156,7 @@ pub fn create_tree_from_full_state(
             set_account_properties(
                 &mut tree,
                 &mut preimage_source,
-                cc.try_into().unwrap(),
+                cc,
                 Some(ruint::aliases::U256::from_be_slice(entry.1.as_bytes())),
                 None,
                 None,
@@ -185,11 +176,11 @@ pub fn create_tree_from_full_state(
             let bytecode = raw_storage
                 .factory_deps
                 .get(bytecode_hash)
-                .expect(&format!("Cannot find bytecode for {:?}", bytecode_hash));
+                .unwrap_or_else(|| panic!("Cannot find bytecode for {:?}", bytecode_hash));
             set_account_properties(
                 &mut tree,
                 &mut preimage_source,
-                cc.try_into().unwrap(),
+                cc,
                 None,
                 None,
                 Some(bytecode.clone()),
@@ -251,7 +242,7 @@ pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
     // max fee per gas
     append_u256(&mut tx_raw, &fee_per_gas);
     // max priority fee per gas.
-    // hack for legacy tx (verify!!)
+    // TODO: hack for legacy tx (verify!!)
     append_u256(&mut tx_raw, &common_data.fee.max_priority_fee_per_gas);
 
     // paymaster
@@ -264,7 +255,7 @@ pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
 
     let mut reserved = [0u64; 4];
 
-    // Should check chain_id
+    // TODO: should check chain_id
     if tx_type_id == 0 {
         reserved[0] = 1;
     }
@@ -273,9 +264,8 @@ pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
         reserved[1] = 1;
     }
 
-    for i in 0..4 {
-        // reserved
-        append_u64(&mut tx_raw, reserved[i]);
+    for &value in reserved.iter().take(4) {
+        append_u64(&mut tx_raw, value);
     }
 
     let signature_u256 = common_data.signature.len().div_ceil(32) as u64;
@@ -295,7 +285,7 @@ pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
     // factory deps
     append_u64(&mut tx_raw, current_offset * 32);
     current_offset += 1;
-    // paymater
+    // paymaster
     append_u64(&mut tx_raw, current_offset * 32);
     current_offset += 1;
     // reserved
@@ -311,13 +301,14 @@ pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
 
     // factory deps
     append_u64(&mut tx_raw, 0);
-    // paymater
+    // paymaster
     append_u64(&mut tx_raw, 0);
     // reserved
     append_u64(&mut tx_raw, 0);
     tx_raw
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute_tx_in_zkos<W: WriteStorage>(
     tx: &Transaction,
     tree: &InMemoryTree,
@@ -339,7 +330,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         // TODO: set proper values
         block_hashes: Default::default(),
         coinbase: B160::ZERO,
-        // No idea..
+        // TODO: investigate
         native_price: ruint::aliases::U256::from(10u64),
         gas_limit: 100_000_000,
     };
@@ -367,12 +358,9 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         // FIXME: currently zkos requires gas price to be >0 (otherwise it fails with out of resources during validation)
         if tx.max_fee_per_gas() == 0.into() {
             let new_gas_price = 100.into();
-            match &mut tx.common_data {
-                ExecuteTransactionCommon::L2(data) => {
-                    data.fee.max_fee_per_gas = new_gas_price;
-                    data.fee.max_priority_fee_per_gas = new_gas_price;
-                }
-                _ => {}
+            if let ExecuteTransactionCommon::L2(data) = &mut tx.common_data {
+                data.fee.max_fee_per_gas = new_gas_price;
+                data.fee.max_priority_fee_per_gas = new_gas_price;
             };
         }
     }
@@ -400,7 +388,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         let noop = NoopTxCallback {};
         let batch_output = forward_system::run::run_batch(
             batch_context,
-            // FIXME
+            // TODO: FIXME
             tree.clone(),
             preimage_source.clone(),
             tx_source.clone(),
@@ -418,8 +406,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                 &zkos_path,
             );
 
-            witness = Some(result.iter().map(|x| x.to_be_bytes()).flatten().collect());
-            //set_batch_witness(batch_env.number.0, witness);
+            witness = Some(result.iter().flat_map(|x| x.to_be_bytes()).collect());
         }
 
         let mut storage_ptr = storage.borrow_mut();
@@ -436,7 +423,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
             let prev_value = storage_ptr.set_value(storage_key, storage_value);
 
             let storage_log = StorageLog {
-                // FIXME - should distinguish between initial write and repeated write.
+                // TODO: FIXME - should distinguish between initial write and repeated write.
                 kind: zksync_types::StorageLogKind::InitialWrite,
                 key: storage_key,
                 value: storage_value,
@@ -457,9 +444,8 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                     if preimage.0 == write.value {
                         found = true;
                         let account_properties =
-                            AccountProperties::decode(preimage.1.clone().try_into().unwrap())
-                                .unwrap();
-                        let balance = account_properties.nominal_token_balance;
+                            AccountProperties::decode(&preimage.1.clone().try_into().unwrap());
+                        let balance = account_properties.balance;
                         let nonce = account_properties.nonce;
                         let bytecode_hash = account_properties.bytecode_hash;
 
@@ -486,7 +472,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                             ),
                         ] {
                             let storage_log = StorageLog {
-                                // FIXME - should distinguish between initial write and repeated write.
+                                // TODO: FIXME - should distinguish between initial write and repeated write.
                                 kind: zksync_types::StorageLogKind::InitialWrite,
                                 key,
                                 value,
@@ -853,12 +839,13 @@ fn get_account_properties(
                 AccountProperties::default()
             } else {
                 // Get from preimage:
-                let encoded = preimage_source.get_preimage(*account_hash).expect(
-                    format!("Missing preimage for {:?} and {:?}", address, account_hash).as_str(),
-                );
+                let encoded = preimage_source
+                    .get_preimage(*account_hash)
+                    .unwrap_or_else(|| {
+                        panic!("Missing preimage for {:?} and {:?}", address, account_hash)
+                    });
 
-                AccountProperties::decode(encoded.try_into().unwrap())
-                    .expect("Failed to decode account properties")
+                AccountProperties::decode(&encoded.try_into().unwrap())
             }
         }
     }
@@ -882,7 +869,7 @@ pub fn set_account_properties(
             .insert(account_properties.bytecode_hash, bytecode);
     }
     if let Some(nominal_token_balance) = balance {
-        account_properties.nominal_token_balance = nominal_token_balance;
+        account_properties.balance = nominal_token_balance;
     }
     if let Some(nonce) = nonce {
         account_properties.nonce = nonce;

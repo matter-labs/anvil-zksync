@@ -25,6 +25,14 @@ zksync_basic_types.workspace = true
 zksync_error.workspace = true
 zksync-error-description.workspace = true
 
+# ZK os dependencies
+forward_system.workspace = true
+basic_system.workspace = true
+zk_ee.workspace = true
+system_hooks.workspace = true
+zksync_os_api.workspace = true
+rig.workspace = true
+
 anyhow.workspace = true
 tokio.workspace = true
 futures.workspace = true
@@ -51,25 +59,6 @@ async-trait.workspace = true
 url.workspace = true
 indicatif.workspace = true
 tabled.workspace = true
-
-
-# ZK os dependencies
-
-forward_system = { git = "https://github.com/matter-labs/zksync-os.git", rev = "1440219ddffc328cf9a78075dc3e2a5940c2af4d"}
-basic_system = { git = "https://github.com/matter-labs/zksync-os.git", rev = "1440219ddffc328cf9a78075dc3e2a5940c2af4d"}
-zk_ee = { git = "https://github.com/matter-labs/zksync-os.git", rev = "1440219ddffc328cf9a78075dc3e2a5940c2af4d"}
-system_hooks = { git = "https://github.com/matter-labs/zksync-os.git", rev = "1440219ddffc328cf9a78075dc3e2a5940c2af4d"}
-zksync_os_api = { git = "https://github.com/matter-labs/zksync-os.git", rev = "1440219ddffc328cf9a78075dc3e2a5940c2af4d" }
-rig = { git = "https://github.com/matter-labs/zksync-os.git", rev = "1440219ddffc328cf9a78075dc3e2a5940c2af4d" }
-
-
-#forward_system = { path = "../../../zksync-os/forward_system" }
-#basic_system = { path = "../../../zksync-os/basic_system" }
-#zk_ee = { path = "../../../zksync-os/zk_ee" }
-#system_hooks = { path = "../../../zksync-os/system_hooks" }
-#zksync_os_api = { path = "../../../zksync-os/api" }
-#rig = { path = "../../../zksync-os/tests/rig"}
-
 
 ruint = { version = "1.12.3", default-features = false, features = ["alloc"]}
 
