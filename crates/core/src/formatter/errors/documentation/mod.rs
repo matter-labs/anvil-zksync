@@ -97,7 +97,6 @@ fn format_references(doc: &ErrorDocumentation, w: &mut impl Write) -> std::fmt::
 ///
 /// Writes a concise summary of the error with appropriate styling.
 fn format_summary(doc: &ErrorDocumentation, w: &mut impl Write) -> std::fmt::Result {
-    //write!(w, "{} {}", "error:".bright_red(), &doc.summary)
     write!(w, "{}", &doc.summary)
 }
 
