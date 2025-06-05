@@ -201,6 +201,7 @@ impl InMemoryNodeInner {
                 // incorrect replays of transacions during the migration period, that
                 // depend on block number or timestamp.
                 max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
             },
         };
 

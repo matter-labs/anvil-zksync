@@ -363,6 +363,9 @@ impl ReadBlockchain for Blockchain {
                 l2_fair_gas_price,
                 fair_pubdata_price,
                 base_system_contracts_hashes,
+                commit_tx_finality: None,
+                prove_tx_finality: None,
+                execute_tx_finality: None,
             },
             operator_address: Address::zero(),
             protocol_version: Some(self.protocol_version),
@@ -631,13 +634,14 @@ impl BlockchainState {
         match block_id {
             api::BlockId::Number(number) => {
                 let number = match number {
+                    api::BlockNumber::FastFinalized | // TODO: Review how we handle these
                     api::BlockNumber::Finalized
                     | api::BlockNumber::Pending
                     | api::BlockNumber::Committed
                     | api::BlockNumber::L1Committed
                     | api::BlockNumber::Latest => self.current_block,
                     api::BlockNumber::Earliest => L2BlockNumber(0),
-                    api::BlockNumber::Number(n) => L2BlockNumber(n.as_u32()),
+                    api::BlockNumber::Number(n) => L2BlockNumber(n.as_u32())
                 };
                 self.hashes.get(&number).copied()
             }

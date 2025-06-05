@@ -123,6 +123,7 @@ pub fn create_genesis_from_json(
             timestamp,
             prev_block_hash: H256::zero(),
             max_virtual_blocks_to_create: 0,
+            interop_roots: vec![],
         },
     });
 
@@ -164,6 +165,7 @@ pub fn create_genesis<TX>(
             timestamp,
             prev_block_hash: Default::default(),
             max_virtual_blocks_to_create: 0,
+            interop_roots: vec![],
         },
     };
     let genesis_block = create_block(
