@@ -1,5 +1,5 @@
 use crate::filters::EthFilters;
-use crate::formatter::ExecutionErrorReport;
+use crate::formatter::errors::view::EstimationErrorReport;
 use crate::node::boojumos::BoojumOsVM;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
 use crate::node::diagnostics::vm::traces::extract_addresses;
@@ -31,7 +31,6 @@ use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
 };
-use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -39,7 +38,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_error::anvil_zksync::node::AnvilNodeResult;
+use zksync_error::anvil_zksync::gas_estim;
+use zksync_error::anvil_zksync::node::{
+    AnvilNodeError, AnvilNodeResult, TransactionGasEstimationFailed,
+};
 use zksync_error::anvil_zksync::state::{StateLoaderError, StateLoaderResult};
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, StorageView, WriteStorage};
@@ -469,7 +471,9 @@ impl InMemoryNodeInner {
     /// # Returns
     ///
     /// A `Result` with a `Fee` representing the estimated gas related data.
-    pub async fn estimate_gas_impl(&self, req: CallRequest) -> Result<Fee, Web3Error> {
+    pub async fn estimate_gas_impl(&self, req: CallRequest) -> AnvilNodeResult<Fee> {
+        let from = req.from;
+        let to = req.to;
         let mut request_with_gas_per_pubdata_overridden = req;
 
         // If not passed, set request nonce to the expected value
@@ -500,8 +504,14 @@ impl InMemoryNodeInner {
             MAX_TX_SIZE,
             self.system_contracts.allow_no_target(),
         )
-        .map_err(Web3Error::SerializationError)?;
-
+        .map_err(
+            |inner| zksync_error::anvil_zksync::node::SerializationError {
+                transaction_type: "L2".to_owned(),
+                from: Box::new(from.unwrap_or_default().into()),
+                to: Box::new(to.unwrap_or_default().into()),
+                reason: inner.to_string(),
+            },
+        )?;
         // Properly format signature
         if l2_tx.common_data.signature.is_empty() {
             l2_tx.common_data.signature = vec![0u8; 65];
@@ -520,7 +530,10 @@ impl InMemoryNodeInner {
         self.estimate_gas_inner(l2_tx.into()).await
     }
 
-    pub async fn estimate_l1_to_l2_gas_impl(&self, req: CallRequest) -> Result<U256, Web3Error> {
+    pub async fn estimate_l1_to_l2_gas_impl(&self, req: CallRequest) -> AnvilNodeResult<U256> {
+        let from = req.from;
+        let to = req.to;
+
         let mut request_with_gas_per_pubdata_overridden = req;
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
@@ -534,12 +547,19 @@ impl InMemoryNodeInner {
             request_with_gas_per_pubdata_overridden,
             self.system_contracts.allow_no_target(),
         )
-        .map_err(Web3Error::SerializationError)?;
+        .map_err(
+            |inner| zksync_error::anvil_zksync::node::SerializationError {
+                transaction_type: "L1".to_owned(),
+                from: Box::new(from.unwrap_or_default().into()),
+                to: Box::new(to.unwrap_or_default().into()),
+                reason: inner.to_string(),
+            },
+        )?;
 
         Ok(self.estimate_gas_inner(l1_tx.into()).await?.gas_limit)
     }
 
-    async fn estimate_gas_inner(&self, mut tx: Transaction) -> Result<Fee, Web3Error> {
+    async fn estimate_gas_inner(&self, mut tx: Transaction) -> AnvilNodeResult<Fee> {
         let fee_input = {
             let fee_input = self.fee_input_provider.get_batch_fee_input_scaled();
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
@@ -603,10 +623,13 @@ impl InMemoryNodeInner {
                 .await?;
 
             if result.statistics.pubdata_published > (MAX_VM_PUBDATA_PER_BATCH as u32) {
-                return Err(Web3Error::SubmitTransactionError(
-                    "exceeds limit for published pubdata".into(),
-                    Default::default(),
-                ));
+                return Err(TransactionGasEstimationFailed {
+                    inner: Box::new(gas_estim::ExceedsLimitForPublishedPubdata {
+                        pubdata_published: result.statistics.pubdata_published,
+                        pubdata_limit: (MAX_VM_PUBDATA_PER_BATCH as u32),
+                    }),
+                    transaction_data: tx.raw_bytes.unwrap_or_default().0,
+                });
             }
 
             // It is assumed that there is no overflow here
@@ -686,70 +709,64 @@ impl InMemoryNodeInner {
             VmVersion::latest(),
         ) as u64;
 
-        match &estimate_gas_result.result {
+        let result: Result<Fee, gas_estim::GasEstimationError> = match &estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
-                let message = output.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
-                let data = output.encoded_data();
-
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
-                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
-                sh_println!("{}", error_report);
-
-                Err(Web3Error::SubmitTransactionError(pretty_message, data))
+                Err(gas_estim::TransactionRevert {
+                    inner: Box::new(revert_reason),
+                })
             }
             ExecutionResult::Halt { reason } => {
-                let message = reason.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
-
                 let halt_error: HaltError = reason.clone().to_halt_error().await;
-                let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
-                sh_println!("{}", error_report);
 
-                Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
+                Err(gas_estim::TransactionHalt {
+                    inner: Box::new(halt_error),
+                })
             }
             ExecutionResult::Success { .. } => {
                 let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
-                    (value, false) => value,
-                    (_, true) => {
-                        tracing::info!("Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:");
-                        tracing::info!(
-                            "\tEstimated transaction body gas cost: {}",
-                            tx_body_gas_limit
+                    (value, false) => Ok(value),
+                    (_, true) => Err(
+                        zksync_error::anvil_zksync::gas_estim::ExceedsBlockGasLimit {
+                            overhead: overhead.into(),
+                            gas_for_pubdata: additional_gas_for_pubdata.into(),
+                            estimated_body_cost: tx_body_gas_limit.into(),
+                        },
+                    ),
+                };
+
+                match full_gas_limit {
+                    Ok(full_gas_limit) => {
+                        tracing::trace!("Gas Estimation Results");
+                        tracing::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
+                        tracing::trace!(
+                            "  additional_gas_for_pubdata: {}",
+                            additional_gas_for_pubdata
                         );
-                        tracing::info!("\tGas for pubdata: {}", additional_gas_for_pubdata);
-                        tracing::info!("\tOverhead: {}", overhead);
-
-                        return Err(Web3Error::SubmitTransactionError(
-                            "exceeds block gas limit".into(),
-                            Default::default(),
-                        ));
+                        tracing::trace!("  overhead: {}", overhead);
+                        tracing::trace!("  full_gas_limit: {}", full_gas_limit);
+                        let fee = Fee {
+                            max_fee_per_gas: base_fee.into(),
+                            max_priority_fee_per_gas: 0u32.into(),
+                            gas_limit: full_gas_limit.into(),
+                            gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
+                        };
+                        Ok(fee)
                     }
-                };
+                    Err(e) => Err(e),
+                }
+            }
+        };
 
-                tracing::trace!("Gas Estimation Results");
-                tracing::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
-                tracing::trace!(
-                    "  additional_gas_for_pubdata: {}",
-                    additional_gas_for_pubdata
-                );
-                tracing::trace!("  overhead: {}", overhead);
-                tracing::trace!("  full_gas_limit: {}", full_gas_limit);
-                let fee = Fee {
-                    max_fee_per_gas: base_fee.into(),
-                    max_priority_fee_per_gas: 0u32.into(),
-                    gas_limit: full_gas_limit.into(),
-                    gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
+        match result {
+            Ok(fee) => Ok(fee),
+            Err(e) => {
+                sh_println!("{}", EstimationErrorReport::new(&e, &tx),);
+                let error = TransactionGasEstimationFailed {
+                    inner: Box::new(e),
+                    transaction_data: tx.raw_bytes.clone().unwrap_or_default().0,
                 };
-                Ok(fee)
+                Err(error)
             }
         }
     }
@@ -873,7 +890,7 @@ impl InMemoryNodeInner {
         gas_per_pubdata_byte: u64,
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> Result<VmExecutionResultAndLogs, Web3Error> {
+    ) -> AnvilNodeResult<VmExecutionResultAndLogs> {
         let verbosity = get_shell().verbosity;
         let mut known_addresses = known_addresses_after_transaction(&tx);
         let BatchTransactionExecutionResult {
@@ -893,78 +910,67 @@ impl InMemoryNodeInner {
             true,
         );
 
-        let error = match tx_result.result {
-            ExecutionResult::Success { .. } => {
-                // Transaction is executable with max gas, proceed with gas estimation
-                return Ok(*tx_result);
-            }
-            ExecutionResult::Revert { ref output } => {
-                let message = output.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
-                let data = output.encoded_data();
-
-                if verbosity >= 1 {
+        let result: zksync_error::anvil_zksync::gas_estim::GasEstimationResult<()> =
+            match tx_result.result {
+                ExecutionResult::Success { .. } => {
+                    // Transaction is executable with max gas, proceed with gas estimation
+                    Ok(())
+                }
+                ExecutionResult::Revert { ref output } => {
                     let revert_reason: RevertError = output.clone().to_revert_reason().await;
-                    let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
-                    sh_println!(
-                        "{}: {}\n{}",
-                        "error".red().bold(),
-                        "Gas estimation encountered unexecutable transaction".red(),
-                        error_report
-                    );
-                }
 
-                Web3Error::SubmitTransactionError(pretty_message, data)
+                    Err(gas_estim::TransactionAlwaysReverts {
+                        inner: Box::new(revert_reason),
+                    })
+                }
+                ExecutionResult::Halt { ref reason } => {
+                    let halt_error: HaltError = reason.clone().to_halt_error().await;
+
+                    Err(gas_estim::TransactionAlwaysHalts {
+                        inner: Box::new(halt_error),
+                    })
+                }
+            };
+
+        if let Err(error) = result {
+            if verbosity >= 1 {
+                sh_println!("{}", EstimationErrorReport::new(&error, &tx),);
             }
-            ExecutionResult::Halt { ref reason } => {
-                let message = reason.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
+
+            if !call_traces.is_empty() && verbosity >= 2 {
+                let mut builder = CallTraceDecoderBuilder::default();
+
+                builder = builder.with_signature_identifier(
+                    SignaturesIdentifier::new(
+                        Some(self.config.get_cache_dir().into()),
+                        self.config.offline,
+                    )
+                    .map_err(|err| {
+                        zksync_error::anvil_zksync::node::generic_error!(
+                            "Failed to create SignaturesIdentifier: {err:#}"
+                        )
+                    })?,
                 );
 
-                if verbosity >= 1 {
-                    let halt_error: HaltError = reason.clone().to_halt_error().await;
-                    let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
-                    sh_println!(
-                        "{}: {}\n{}",
-                        "error".red().bold(),
-                        "Gas estimation encountered unexecutable transaction".red(),
-                        error_report
-                    );
+                let decoder = builder.build();
+                let mut arena = build_call_trace_arena(&call_traces, &tx_result);
+                decode_trace_arena(&mut arena, &decoder).await;
+
+                extract_addresses(&arena, &mut known_addresses);
+
+                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                if !trace_output.is_empty() {
+                    sh_println!("\nTraces:\n{}", trace_output);
                 }
-
-                Web3Error::SubmitTransactionError(pretty_message, vec![])
-            }
-        };
-
-        if !call_traces.is_empty() && verbosity >= 2 {
-            let mut builder = CallTraceDecoderBuilder::default();
-
-            builder = builder.with_signature_identifier(
-                SignaturesIdentifier::new(
-                    Some(self.config.get_cache_dir().into()),
-                    self.config.offline,
-                )
-                .map_err(|err| anyhow::anyhow!("Failed to create SignaturesIdentifier: {err:#}"))?,
-            );
-
-            let decoder = builder.build();
-            let mut arena = build_call_trace_arena(&call_traces, &tx_result);
-            decode_trace_arena(&mut arena, &decoder).await;
-
-            extract_addresses(&arena, &mut known_addresses);
-
-            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-            let trace_output = render_trace_arena_inner(&filtered_arena, false);
-            sh_println!("\nTraces:\n{}", trace_output);
+            };
+            Err(AnvilNodeError::TransactionGasEstimationFailed {
+                inner: Box::new(error),
+                transaction_data: tx.raw_bytes.clone().unwrap_or_default().0,
+            })
+        } else {
+            Ok(*tx_result)
         }
-        Err(error)
     }
 
     /// Creates a [Snapshot] of the current state of the node.

@@ -69,10 +69,30 @@ impl RpcErrorAdapter for StateLoaderError {
     }
 }
 
-/// All Anvil node errors are treated as internal errors.
 impl RpcErrorAdapter for AnvilNodeError {
     fn into(error: Self) -> ErrorObjectOwned {
-        to_rpc(Some(ErrorCode::InternalError.code()), error)
+        // Map the Web3Error to an appropriate RPC error code
+        match &error {
+            AnvilNodeError::TransactionGasEstimationFailed {
+                transaction_data, ..
+            } => {
+                // We keep previously used `Web3Error::SubmitTransactionError`
+                // for an outside user.
+                RpcErrorAdapter::into(Web3Error::SubmitTransactionError(
+                    error.to_unified().get_message(),
+                    transaction_data.clone(),
+                ))
+            }
+            AnvilNodeError::SerializationError { .. } => {
+                // We keep previously used `Web3Error::SubmitTransactionError`
+                // for an outside user.
+                RpcErrorAdapter::into(Web3Error::SubmitTransactionError(
+                    error.to_unified().get_message(),
+                    vec![],
+                ))
+            }
+            _ => to_rpc(Some(RpcErrorCode::InternalError.code()), error),
+        }
     }
 }
 

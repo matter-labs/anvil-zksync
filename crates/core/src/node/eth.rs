@@ -1,8 +1,9 @@
-use crate::formatter::ExecutionErrorReport;
+use crate::formatter::errors::view::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
 use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
 use std::collections::HashSet;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
@@ -79,7 +80,7 @@ impl InMemoryNode {
 
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 let tx = Transaction::from(tx);
-                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
+                let error_report = ExecutionErrorReport::new(&revert_reason, &tx);
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(
@@ -97,7 +98,7 @@ impl InMemoryNode {
 
                 let halt_error: HaltError = reason.clone().to_halt_error().await;
                 let tx = Transaction::from(tx);
-                let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
+                let error_report = ExecutionErrorReport::new(&halt_error, &tx);
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
@@ -324,7 +325,7 @@ impl InMemoryNode {
         req: zksync_types::transaction_request::CallRequest,
         // TODO: Support
         _block: Option<BlockNumber>,
-    ) -> Result<U256, Web3Error> {
+    ) -> AnvilNodeResult<U256> {
         let fee = self.inner.read().await.estimate_gas_impl(req).await?;
         Ok(fee.gas_limit)
     }

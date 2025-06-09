@@ -119,6 +119,20 @@
           }
         }
       },
+      "GasEstimation": {
+        "name": "GasEstimation",
+        "meta": {
+          "description": ""
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<GasEstimation>"
+          },
+          "typescript": {
+            "expression": "Box<GasEstimation>"
+          }
+        }
+      },
       "H160": {
         "name": "H160",
         "meta": {
@@ -420,6 +434,7 @@
           "AnvilEnvironment",
           "AnvilGeneric",
           "AnvilNode",
+          "GasEstimation",
           "Halt",
           "Revert",
           "StateLoader",
@@ -623,6 +638,20 @@
         "description": "Errors originating in the ZKsync codebase for Foundry.",
         "origins": [
           "<default zksync-root.json>"
+        ]
+      },
+      "GasEstimation": {
+        "name": "GasEstimation",
+        "code": 5,
+        "domain_name": "AnvilZKsync",
+        "bindings": {
+          "rust": "GasEstimation",
+          "typescript": "GasEstimation"
+        },
+        "identifier": "gas_estim",
+        "description": "",
+        "origins": [
+          "../../etc/errors/anvil.json"
         ]
       },
       "Halt": {
@@ -1027,7 +1056,7 @@
           }
         ],
         "documentation": {
-          "description": "Anvil-zksync starts the server and listens to requests on a specified host and port, 0.0.0.0:8011 by default. They are configurable using `--host` and `--port` command line arguments.\n\nThe host and port used by anvil-zksync are also displayed when you start anvil-zksync:\n\n```\n========================================\nListening on 0.0.0.0:8011\n========================================\n```\n\nThis error indicates that listening on the specified host and port failed.",
+          "description": "Anvil-zksync starts the server and listens to requests on a specified host and port, 0.0.0.0:8011 by default. They are configurable using `--host` and `--port` command line arguments.\n\nThe host and port used by anvil-zksync are also displayed when you start anvil-zksync:\n\n```text\n========================================\nListening on 0.0.0.0:8011\n========================================\n```\n\nThis error indicates that listening on the specified host and port failed.",
           "summary": "Failed to start the server and bind it to the requested host and port.",
           "likely_causes": [
             {
@@ -1058,6 +1087,314 @@
           },
           "typescript": {
             "expression": "ServerStartupFailed"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-gas_estim-0]": {
+        "domain": "AnvilZKsync",
+        "component": "GasEstimation",
+        "name": "GenericError",
+        "code": 0,
+        "identifier": "[anvil_zksync-gas_estim-0]",
+        "message": "Generic error: {message}",
+        "fields": [
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ],
+        "documentation": null,
+        "bindings": {
+          "rust": {
+            "expression": "GenericError"
+          },
+          "typescript": {
+            "expression": "GenericError"
+          }
+        },
+        "origins": []
+      },
+      "[anvil_zksync-gas_estim-10]": {
+        "domain": "AnvilZKsync",
+        "component": "GasEstimation",
+        "name": "TransactionHalt",
+        "code": 10,
+        "identifier": "[anvil_zksync-gas_estim-10]",
+        "message": "Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, burning all gas: {inner}",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "Halt"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction \nbut the estimation fails because the transaction reverts and burns all gas.\n\nBefore estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nIf the first run was successful, anvil-zksync proceeds with the estimation\nThe estimation algorithm looks for a minimum gas value that makes the transaction succeed.\nThis works if the transaction fails for all lower gas values and succeeds for all higher gas values.\nSome valid, but exotic transactions, resist estimation.\nTypically they depend on specific gas values, for example, they fail if `gasleft()` returned a value in a specific range.",
+          "summary": "Transaction execution reverts and burns all gas while estimating required gas in anvil-zksync.",
+          "likely_causes": [
+            {
+              "cause": "The transaction always reverts and burns all gas, so it can't be estimated.",
+              "fixes": [
+                "Inspect the source code of your contracts and debug the transaction to eliminate the cause of failure."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "TransactionHalt"
+          },
+          "typescript": {
+            "expression": "TransactionHalt"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-gas_estim-11]": {
+        "domain": "AnvilZKsync",
+        "component": "GasEstimation",
+        "name": "TransactionRevert",
+        "code": 11,
+        "identifier": "[anvil_zksync-gas_estim-11]",
+        "message": "Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, returning unspent gas: {inner}",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "Revert"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction \nbut the estimation fails because the transaction is reverted.\n\nBefore estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nIf the first run was successful, anvil-zksync proceeds with the estimation\nThe estimation algorithm looks for a minimum gas value that makes the transaction succeed.\nThis works if the transaction fails for all lower gas values and succeeds for all higher gas values.\nSome valid, but exotic transactions, resist estimation.\nTypically they depend on specific gas values, for example, they revert if `gasleft()` returned a value in a specific range.",
+          "summary": "Transaction execution reverted while estimating required gas in anvil-zksync.",
+          "likely_causes": [
+            {
+              "cause": "The transaction always reverts.",
+              "fixes": [
+                "Inspect the source code of your contracts and debug the transaction to eliminate the cause of revert."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "TransactionRevert"
+          },
+          "typescript": {
+            "expression": "TransactionRevert"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-gas_estim-1]": {
+        "domain": "AnvilZKsync",
+        "component": "GasEstimation",
+        "name": "ExceedsLimitForPublishedPubdata",
+        "code": 1,
+        "identifier": "[anvil_zksync-gas_estim-1]",
+        "message": "Transaction has published {pubdata_published} bytes which exceeds limit for published pubdata ({pubdata_limit}).",
+        "fields": [
+          {
+            "name": "pubdata_published",
+            "type": "uint"
+          },
+          {
+            "name": "pubdata_limit",
+            "type": "uint"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a transaction attempts to publish more pubdata than is allowed in a batch. Each transaction has a limit on how much pubdata it can publish to maintain network efficiency and prevent abuse.",
+          "summary": "Transaction exceeds the limit for published pubdata.",
+          "likely_causes": [
+            {
+              "cause": "The transaction requires too much gas to be executed. For example, it may contain an infinite loop.",
+              "fixes": [
+                "Debug the transaction to see why it consumes more gas than is allowed."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "The transaction is malformed.",
+              "fixes": [
+                "Check the nonce value provided in the RPC call that you are using (such as `eth_estimateGas`). If you do not care about the specific nonce for the transaction, do not provide any value for it.",
+                "Check all arguments of the RPC call (such as `eth_estimateGas`). Are the `from`, `to` addresses correct?"
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "ExceedsLimitForPublishedPubdata"
+          },
+          "typescript": {
+            "expression": "ExceedsLimitForPublishedPubdata"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-gas_estim-20]": {
+        "domain": "AnvilZKsync",
+        "component": "GasEstimation",
+        "name": "TransactionAlwaysHalts",
+        "code": 20,
+        "identifier": "[anvil_zksync-gas_estim-20]",
+        "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and returns unspent gas:\n{inner}",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "Halt"
+          }
+        ],
+        "documentation": {
+          "description": "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nThis error occurs when this initial run results in a revert and burns all gas, suggesting that \nno amount of gas will make this transaction executable.\n\nThere might be valid, but exotic transactions that fail when run with maximum gas provided,\nbut these are rare. Typically they depend on specific gas values.\nUsually, this error indicates either an unconditional revert or excessive gas consumption.",
+          "summary": "An attempt to run the transaction with maximum gas resulted in reverting the transaction and burning all gas.",
+          "likely_causes": [
+            {
+              "cause": "The transaction always reverts and burns gas.",
+              "fixes": [
+                "Inspect the source code of your contracts and debug the transaction to eliminate the cause of failure."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "The transaction is malformed.",
+              "fixes": [
+                "Check the transaction for nonce mismatches, signature issues, and possibly paymaster-related errors.",
+                "If transaction is expected to revert (e.g., for testing purposes), avoid estimating gas for it and provide gas limit manually.",
+                "Do not provide explicit nonce in your RPC request if you don't need it -- otherwise you risk triggering nonce mismatch."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "TransactionAlwaysHalts"
+          },
+          "typescript": {
+            "expression": "TransactionAlwaysHalts"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-gas_estim-21]": {
+        "domain": "AnvilZKsync",
+        "component": "GasEstimation",
+        "name": "TransactionAlwaysReverts",
+        "code": 21,
+        "identifier": "[anvil_zksync-gas_estim-21]",
+        "message": "Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and burns all gas:\n{inner}",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "Revert"
+          }
+        ],
+        "documentation": {
+          "description": "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.\nThis error occurs when this initial run results in a revert and returns unspent gas, suggesting that \nno amount of gas will make this transaction executable.\n\nThere might be valid, but exotic transactions that fail when run with maximum gas provided,\nbut these are rare. Typically they depend on specific gas values.\nUsually, this error indicates either an unconditional revert or excessive gas consumption.",
+          "summary": "An attempt to run the transaction with maximum gas resulted in reverting the transaction and returning unspent gas.",
+          "likely_causes": [
+            {
+              "cause": "The transaction always reverts, so it can't be estimated.",
+              "fixes": [
+                "Inspect the source code of your contracts and debug the transaction to eliminate the cause of revert.",
+                "If transaction is expected to revert (e.g., for testing purposes), avoid estimating gas for it and provide gas limit manually."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "TransactionAlwaysReverts"
+          },
+          "typescript": {
+            "expression": "TransactionAlwaysReverts"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
+      "[anvil_zksync-gas_estim-2]": {
+        "domain": "AnvilZKsync",
+        "component": "GasEstimation",
+        "name": "ExceedsBlockGasLimit",
+        "code": 2,
+        "identifier": "[anvil_zksync-gas_estim-2]",
+        "message": "Estimating full gas limit overflows while adding up additional gas ({gas_for_pubdata}), overhead ({overhead}), and estimated transaction body gas cost ({estimated_body_cost}).",
+        "fields": [
+          {
+            "name": "overhead",
+            "type": "u64"
+          },
+          {
+            "name": "gas_for_pubdata",
+            "type": "u64"
+          },
+          {
+            "name": "estimated_body_cost",
+            "type": "u64"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when the total gas required for a transaction exceeds the maximum allowed for a block.\nThe total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs,\nand the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown.",
+          "summary": "Transaction gas estimation exceeds the block gas limit.",
+          "likely_causes": [
+            {
+              "cause": "The transaction requires too much gas to be executed. For example, it may contain an infinite loop.",
+              "fixes": [
+                "Debug the transaction to see why it consumes more gas than is allowed."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "The transaction is malformed.",
+              "fixes": [
+                "Check the nonce value provided in the RPC call that you are using (such as `eth_estimateGas`). If you do not care about the specific nonce for the transaction, do not provide any value for it.",
+                "Check all arguments of the RPC call (such as `eth_estimateGas`). Are the `from`, `to` addresses correct?"
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "ExceedsBlockGasLimit"
+          },
+          "typescript": {
+            "expression": "ExceedsBlockGasLimit"
           }
         },
         "origins": [
@@ -1387,11 +1724,11 @@
           }
         ],
         "documentation": {
-          "description": "The system context call to record this transaction in the current L2 block failed. Common causes include invalid or corrupted L2 block data, insufficient gas, or unforeseen internal errors in the system context.",
+          "description": "The system context call to record this transaction in the current L2 block failed.",
           "summary": "Unable to append the transaction hash to the ongoing L2 block.",
           "likely_causes": [
             {
-              "cause": "System context call failure or an invalid L2 block state (e.g., corrupted data, insufficient resources).",
+              "cause": "System context call failure or an invalid L2 block state (e.g., corrupted data, insufficient resources, unforeseen internal errors in the system context).",
               "fixes": [
                 "Verify the system context call logs and ensure there is enough gas.",
                 "Check for any data inconsistencies or corrupt block information."
@@ -1942,7 +2279,7 @@
           }
         ],
         "documentation": {
-          "description": "This error is emitted when the system encounters an unspecified reason for halting.",
+          "description": "This error is emitted when the system encounters an unspecified reason for reverting and burning all gas.",
           "summary": "An unknown error occurred.",
           "likely_causes": [
             {
@@ -1998,7 +2335,7 @@
         "name": "TransactionValidationFailed",
         "code": 10,
         "identifier": "[anvil_zksync-node-10]",
-        "message": "Transaction {transaction_hash}: validation failed. Reason: {inner}",
+        "message": "Transaction {transaction_hash}: validation failed:\n{inner}",
         "fields": [
           {
             "name": "inner",
@@ -2010,7 +2347,7 @@
           }
         ],
         "documentation": {
-          "description": "This error occurs when a transaction validation is failed and it is not executed.\nThis is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of the halt.\n\nThe validation may for various reasons including:\n- Gas limit exceedance\n- Invalid gas limit value\n- maxFeePerGas exceeding maxPriorityFeePerGas, and so on.\n\nWhen using anvil-zksync for testing, these errors are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network.",
+          "description": "This error occurs when a transaction validation is failed and it is not executed.\nThis is a wrapper error that contains a more specific validation error inside it, which provides details about the cause of failure.\n\nThe validation may fail for various reasons including:\n- Gas limit exceedance\n- Invalid gas limit value\n- maxFeePerGas exceeding maxPriorityFeePerGas, and so on.\n\nWhen using anvil-zksync for testing, these errors are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network.",
           "summary": "Transaction validation failed in anvil-zksync.",
           "likely_causes": []
         },
@@ -2026,13 +2363,47 @@
           "../../etc/errors/anvil.json"
         ]
       },
+      "[anvil_zksync-node-11]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "TransactionGasEstimationFailed",
+        "code": 11,
+        "identifier": "[anvil_zksync-node-11]",
+        "message": "Gas estimation failed:\n{inner}",
+        "fields": [
+          {
+            "name": "inner",
+            "type": "GasEstimation"
+          },
+          {
+            "name": "transaction_data",
+            "type": "bytes"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when a gas estimation for transaction failed.\nThis is a wrapper error that contains a more specific gas estimation error inside it, which provides details about the cause of failure.",
+          "summary": "Transaction gas estimation failed in anvil-zksync.",
+          "likely_causes": []
+        },
+        "bindings": {
+          "rust": {
+            "expression": "TransactionGasEstimationFailed"
+          },
+          "typescript": {
+            "expression": "TransactionGasEstimationFailed"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
       "[anvil_zksync-node-1]": {
         "domain": "AnvilZKsync",
         "component": "AnvilNode",
         "name": "TransactionHalt",
         "code": 1,
         "identifier": "[anvil_zksync-node-1]",
-        "message": "Transaction {transaction_hash} execution halted, reason: {inner}",
+        "message": "Transaction {transaction_hash} execution reverted and gas was burned:\n{inner}",
         "fields": [
           {
             "name": "inner",
@@ -2044,15 +2415,15 @@
           }
         ],
         "documentation": {
-          "description": "This error occurs when a transaction execution is halted due to an error in the anvil-zksync virtual machine execution.\nThis is a wrapper error that contains a more specific halt error inside it, which provides details about the cause of the halt.\n\nThe VM may halt execution for various reasons including:\n- Account validation failures (signature issues, nonce mismatches)\n- Paymaster-related errors (when testing account abstraction features)\n- Gas limit exceedance\n- Storage access limitations\n- Contract execution failures\n\nWhen using anvil-zksync for testing, these halts are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network.",
-          "summary": "Transaction execution halted in anvil-zksync.",
+          "description": "This error occurs when a transaction execution is reverted due to an error in the anvil-zksync virtual machine execution and all gas is burned.\nThis is a wrapper error that contains a more specific error inside it.\n\nThe VM may fail for various reasons including:\n- Account validation failures (signature issues, nonce mismatches)\n- Paymaster-related errors (when testing account abstraction features)\n- Gas limit exceedance\n- Storage access limitations\n- Contract execution failures\n\nWhen using anvil-zksync for testing, these failures are valuable signals that help you identify issues with your contracts or transactions before deploying to the real ZKSync network.",
+          "summary": "Transaction execution reverted and gas was burned.",
           "likely_causes": [
             {
-              "cause": "Transaction execution in your test encountered a condition that forced it to halt prematurely.",
+              "cause": "Transaction execution in your test encountered a condition that forced it to fail prematurely.",
               "fixes": [
-                "Fix the underlying issue based on the specific halt reason provided in the inner error.",
+                "Fix the underlying issue based on the specific reason provided in the inner error.",
                 "Use anvil-zksync's debugging capabilities to trace the execution and identify the exact point of failure.",
-                "For account-related halts, check account balance, nonce, and signature in your test setup."
+                "For account-related failures, check account balance, nonce, and signature in your test setup."
               ],
               "report": "",
               "owner": null,
@@ -2176,6 +2547,79 @@
           "../../etc/errors/anvil.json"
         ]
       },
+      "[anvil_zksync-node-30]": {
+        "domain": "AnvilZKsync",
+        "component": "AnvilNode",
+        "name": "SerializationError",
+        "code": 30,
+        "identifier": "[anvil_zksync-node-30]",
+        "message": "Failed to parse a {transaction_type} transaction from request (from={from}, to={to}): {reason}.",
+        "fields": [
+          {
+            "name": "transaction_type",
+            "type": "string"
+          },
+          {
+            "name": "from",
+            "type": "H256"
+          },
+          {
+            "name": "to",
+            "type": "H256"
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ],
+        "documentation": {
+          "description": "This error occurs when anvil-zksync is unable to convert a transaction request into a properly formatted transaction object.\nThis typically happens during transaction creation or gas estimation when the request contains invalid or incompatible parameters.",
+          "summary": "Failed to serialize transaction request into a valid transaction.",
+          "likely_causes": [
+            {
+              "cause": "Malformed transaction data in the request.",
+              "fixes": [
+                "Verify that all transaction parameters are properly formatted and have valid values.",
+                "Check that addresses are valid Ethereum addresses.",
+                "Ensure that numeric values are within their allowed ranges."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Missing required transaction fields.",
+              "fixes": [
+                "Make sure all required fields for the transaction type are included in the request."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            },
+            {
+              "cause": "Incompatible transaction parameters.",
+              "fixes": [
+                "Check that the combination of parameters is valid for the transaction type being used.",
+                "Verify that gas-related parameters are consistent with each other."
+              ],
+              "report": "",
+              "owner": null,
+              "references": []
+            }
+          ]
+        },
+        "bindings": {
+          "rust": {
+            "expression": "SerializationError"
+          },
+          "typescript": {
+            "expression": "SerializationError"
+          }
+        },
+        "origins": [
+          "../../etc/errors/anvil.json"
+        ]
+      },
       "[anvil_zksync-revert-0]": {
         "domain": "AnvilZKsync",
         "component": "Revert",
@@ -2206,7 +2650,7 @@
         "name": "General",
         "code": 1,
         "identifier": "[anvil_zksync-revert-1]",
-        "message": "General revert error: {msg}",
+        "message": "Execution reverted with message: {msg}",
         "fields": [
           {
             "name": "msg",
@@ -2222,11 +2666,11 @@
           "summary": "Execution reverted due to a failure.",
           "likely_causes": [
             {
-              "cause": "The smart contract encountered a condition that triggered a revert. Common reasons include:",
+              "cause": "The smart contract encountered a condition that triggered a revert.",
               "fixes": [
                 "Check the transaction parameters, such as sender address, function inputs, and required permissions.",
                 "Ensure that the contract state allows the operation (e.g., the caller has the required role or balance).",
-                "Check the transaction logs and VM trace for deeper debugging."
+                "For further debugging, check the transaction logs and VM trace."
               ],
               "report": "",
               "owner": null,
@@ -2335,7 +2779,7 @@
           }
         ],
         "documentation": {
-          "description": "This error is emitted when the VM encounters a revert reason that is not recognized. In most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution.",
+          "description": "This error is emitted when the VM encounters a revert reason that is not recognized.\nIn most cases, this error may also indicate that the transaction exhausted all the gas allocated for its execution.",
           "summary": "An unknown VM revert reason was encountered.",
           "likely_causes": [
             {
@@ -2600,7 +3044,7 @@
         "name": "StateFileAccess",
         "code": 6,
         "identifier": "[anvil_zksync-state-6]",
-        "message": "Error while accessing the state located at `{path}`. Reason: {reason}.",
+        "message": "Error while accessing the state located at `{path}`: {reason}.",
         "fields": [
           {
             "name": "path",
