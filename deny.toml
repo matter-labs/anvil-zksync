@@ -36,6 +36,12 @@ allow = [
     "BSL-1.0",
     "Unicode-3.0"
 ]
+exceptions = [
+    # exceptions are in place due to https://github.com/matter-labs/zksync-os
+    # CC0 is a bit unclear about source code: https://tldrlegal.com/license/creative-commons-cc0-1.0-universal
+    { allow = ["CC0-1.0"], name = "tiny-keccak" },
+    { allow = ["OpenSSL"], crate = "ring" },
+]
 confidence-threshold = 0.8
 
 [[licenses.clarify]]
@@ -61,10 +67,6 @@ highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
 allow = []
-deny = [
-    { crate = "openssl", use-instead = "rustls" },
-    { crate = "openssl-sys", use-instead = "rustls" },
-]
 skip = []
 skip-tree = []
 
