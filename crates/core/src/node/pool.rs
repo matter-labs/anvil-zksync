@@ -1,14 +1,12 @@
 use crate::node::impersonate::ImpersonationManager;
 use crate::node::StorageKeyLayout;
-use alloy::serde::storage;
 use anvil_zksync_common::utils::numbers::h256_to_u64;
 use anvil_zksync_types::{TransactionOrder, TransactionPriority};
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard};
-use zksync_multivm::zk_evm_latest::opcodes::execution::add;
-use zksync_types::{Address, Transaction, H256, U256};
+use zksync_types::{Address, Transaction, H256};
 
 use super::inner::storage::ReadStorageDyn;
 

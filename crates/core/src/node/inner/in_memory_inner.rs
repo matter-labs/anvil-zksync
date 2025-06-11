@@ -525,6 +525,8 @@ impl InMemoryNodeInner {
     }
 
     async fn estimate_gas_inner(&self, mut tx: Transaction) -> Result<Fee, Web3Error> {
+        tracing::error!("Estimate gas for transaction: {:#?}", tx);
+
         let fee_input = {
             let fee_input = self.fee_input_provider.get_batch_fee_input_scaled();
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be

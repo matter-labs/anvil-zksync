@@ -272,10 +272,11 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         impersonation.set_auto_impersonation(true);
     }
 
-    let fee_input_provider = TestNodeFeeInputProvider::from_fork(
+    let mut fee_input_provider = TestNodeFeeInputProvider::from_fork(
         fork_client.as_ref().map(|f| &f.details),
         &config.base_token_config,
     );
+    fee_input_provider.estimate_gas_scale_factor = config.get_price_scale() as f32;
     let filters = Arc::new(RwLock::new(EthFilters::default()));
 
     // Build system contracts

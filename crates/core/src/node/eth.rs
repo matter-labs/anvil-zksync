@@ -255,6 +255,11 @@ impl InMemoryNode {
     ) -> anyhow::Result<Bytes> {
         let code_key = get_code_key(&address);
         match self.storage.read_value_alt(&code_key).await {
+            // TODO: refactor
+            Ok(code_hash) if code_hash.0[0] == 0x02 && code_hash.0[1] == 0x02 => {
+                // Code hash for 7702 delegation contains the bytecode starting from the 9th byte.
+                Ok(Bytes::from(&code_hash.0[9..]))
+            }
             Ok(code_hash) => match self.storage.load_factory_dep_alt(code_hash).await {
                 Ok(raw_code) => {
                     let code = raw_code.unwrap_or_default();
@@ -319,10 +324,16 @@ impl InMemoryNode {
 
     pub async fn estimate_gas_impl(
         &self,
-        req: zksync_types::transaction_request::CallRequest,
+        mut req: zksync_types::transaction_request::CallRequest,
         // TODO: Support
         _block: Option<BlockNumber>,
     ) -> Result<U256, Web3Error> {
+        if req.nonce.is_none() {
+            let from = req.from.unwrap_or_default();
+            // TODO: support block number
+            req.nonce = Some(self.get_transaction_count_impl(from, None).await?);
+        }
+
         let fee = self.inner.read().await.estimate_gas_impl(req).await?;
         Ok(fee.gas_limit)
     }
