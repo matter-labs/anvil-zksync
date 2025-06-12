@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.4](https://github.com/matter-labs/anvil-zksync/compare/v0.6.3...v0.6.4) (2025-06-12)
+
+
+### Features
+
+* increase max transaction size ([#720](https://github.com/matter-labs/anvil-zksync/issues/720)) ([2b15674](https://github.com/matter-labs/anvil-zksync/commit/2b156749c5c94694ecba6ec26a1db8f7ccc3dff8))
+
+
+### Bug Fixes
+
+* adjusts system contract deps to split out non-kernal contracts ([#721](https://github.com/matter-labs/anvil-zksync/issues/721)) ([fe38245](https://github.com/matter-labs/anvil-zksync/commit/fe38245e8f7e67732f11b30f86521ef9d1dd64fd))
+* correctly report halts and reverts during transaction cost estimation ([#716](https://github.com/matter-labs/anvil-zksync/issues/716)) ([e5bfb14](https://github.com/matter-labs/anvil-zksync/commit/e5bfb147f2db87fab1e0edfe9e4ae12661e788ea))
+* respect quiet param ([#728](https://github.com/matter-labs/anvil-zksync/issues/728)) ([3f19ed6](https://github.com/matter-labs/anvil-zksync/commit/3f19ed65669a97b9f1182d0890a4c7edf8255918))
+* return deployment nonce for contracts ([a88e17c](https://github.com/matter-labs/anvil-zksync/commit/a88e17c9324c94bbff7e602831dc2cd07e99e2c4))
+* return deployment nonce for contracts in `eth_getTransactionCount` ([#710](https://github.com/matter-labs/anvil-zksync/issues/710)) ([a88e17c](https://github.com/matter-labs/anvil-zksync/commit/a88e17c9324c94bbff7e602831dc2cd07e99e2c4))
+
 ## [0.6.3](https://github.com/matter-labs/anvil-zksync/compare/v0.6.2...v0.6.3) (2025-05-21)
 
 
