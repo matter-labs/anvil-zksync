@@ -97,7 +97,7 @@ impl NodeServerBuilder {
             )
             .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(100))
             .set_rpc_middleware(
-                RpcServiceBuilder::new().layer_fn(move |service| TelemetryReporter { service }),
+                RpcServiceBuilder::new().layer_fn(|svc| TelemetryReporter { service: svc }),
             );
 
         match server_builder.build(addr).await {
@@ -149,21 +149,22 @@ where
     type Future = BoxFuture<'a, MethodResponse>;
 
     fn call(&self, req: Request<'a>) -> Self::Future {
-        let service = self.service.clone();
-        let telemetry = get_telemetry().expect("telemetry is not initialized");
+        let svc = self.service.clone();
+        let telemetry_opt = get_telemetry();
 
         async move {
-            let method = req.method_name();
-            // Report only anvil and config API usage
-            if method.starts_with("anvil_") || method.starts_with("config_") {
-                let _ = telemetry
-                    .track_event(
-                        "rpc_call",
-                        TelemetryProps::new().insert("method", Some(method)).take(),
-                    )
-                    .await;
+            if let Some(tel) = telemetry_opt {
+                let method = req.method_name();
+                if method.starts_with("anvil_") || method.starts_with("config_") {
+                    let _ = tel
+                        .track_event(
+                            "rpc_call",
+                            TelemetryProps::new().insert("method", Some(method)).take(),
+                        )
+                        .await;
+                }
             }
-            service.call(req).await
+            svc.call(req).await
         }
         .boxed()
     }

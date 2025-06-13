@@ -54,11 +54,10 @@ mod utils;
 const POSTHOG_API_KEY: &str = "phc_TsD52JxwkT2OXPHA2oKX2Lc3mf30hItCBrE9s9g1MKe";
 const TELEMETRY_CONFIG_NAME: &str = "zksync-tooling";
 
-async fn start_program() -> Result<(), AnvilZksyncError> {
+async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
-    let opt = Cli::parse();
     if opt.silent.unwrap_or(false) {
         let mut shell = get_shell();
         shell.output_mode = OutputMode::Quiet;
@@ -68,19 +67,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
 
     let command = opt.command.clone();
 
-    // Track node start
-    let telemetry = get_telemetry().expect("telemetry is not initialized");
-    let cli_telemetry_props = opt.clone().into_telemetry_props();
-    let _ = telemetry
-        .track_event(
-            "node_started",
-            TelemetryProps::new()
-                .insert("params", Some(cli_telemetry_props))
-                .take(),
-        )
-        .await;
-
-    let mut config = opt.into_test_node_config().map_err(to_domain)?;
+    let mut config = opt.clone().into_test_node_config().map_err(to_domain)?;
     // Set verbosity level for the shell
     {
         let mut shell = get_shell();
@@ -389,9 +376,24 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         if let Err(err) = node_executor.run().await {
             sh_err!("{err}");
 
-            let _ = telemetry.track_error(Box::new(&err)).await;
+            if let Some(tel) = get_telemetry() {
+                let _ = tel.track_error(Box::new(&err)).await;
+            }
         }
     });
+
+    // track start of node if offline is false
+    if let Some(tel) = get_telemetry() {
+        let cli_telemetry_props = opt.clone().into_telemetry_props();
+        let _ = tel
+            .track_event(
+                "node_started",
+                TelemetryProps::new()
+                    .insert("params", Some(cli_telemetry_props))
+                    .take(),
+            )
+            .await;
+    }
 
     if config.use_evm_interpreter {
         // We need to enable EVM interpreter by setting `allowedBytecodeTypesToDeploy` in `ContractDeployer`
@@ -618,22 +620,29 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
 
 #[tokio::main]
 async fn main() -> Result<(), AnvilZksyncError> {
-    init_telemetry(
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION"),
-        TELEMETRY_CONFIG_NAME,
-        Some(POSTHOG_API_KEY.into()),
-        None,
-        None,
-    )
-    .await
-    .map_err(|inner| zksync_error::anvil_zksync::env::GenericError {
-        message: format!("Failed to initialize telemetry collection subsystem: {inner}."),
-    })?;
+    let cli = Cli::parse();
+    let offline = cli.offline;
 
-    if let Err(err) = start_program().await {
-        let telemetry = get_telemetry().expect("telemetry is not initialized");
-        let _ = telemetry.track_error(Box::new(&err.to_unified())).await;
+    if !offline {
+        init_telemetry(
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION"),
+            TELEMETRY_CONFIG_NAME,
+            Some(POSTHOG_API_KEY.into()),
+            None,
+            None,
+        )
+        .await
+        .map_err(|inner| zksync_error::anvil_zksync::env::GenericError {
+            message: format!("Failed to initialize telemetry collection subsystem: {inner}."),
+        })?;
+    }
+
+    if let Err(err) = start_program(cli).await {
+        // Track only if telemetry is active
+        if let Some(tel) = get_telemetry() {
+            let _ = tel.track_error(Box::new(&err.to_unified())).await;
+        }
         sh_eprintln!("{}", err.to_unified().get_message());
         return Err(err);
     }
