@@ -33,7 +33,7 @@ jobs:
           tar -xzf anvil-zksync-${{ matrix.os }}.tar.gz
           chmod +x anvil-zksync
           echo "Starting node in background"
-          ./anvil-zksync 2>&1 | tee anvil-zksync-output.log &
+          ./anvil-zksync --offline 2>&1 | tee anvil-zksync-output.log &
           echo "PID=$!" >> $GITHUB_ENV
 
       - name: Launch tests
