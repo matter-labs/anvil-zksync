@@ -194,7 +194,7 @@ impl VmRunner {
         let mut known_addresses = known_addresses_after_transaction(tx);
         let mut trace_output = None;
 
-        if !call_traces.is_empty() {
+        if !call_traces.is_empty() && !config.offline {
             let mut builder = CallTraceDecoderBuilder::default();
 
             builder = builder.with_signature_identifier(
@@ -307,7 +307,7 @@ impl VmRunner {
             // In such cases, we should not persist the VM data and should pretend that
             // the transaction never existed.
             return Err(anvil_zksync::node::TransactionHalt {
-                inner: Box::new(reason.to_halt_error().await),
+                inner: Box::new(reason.to_halt_error(config).await),
                 transaction_hash: Box::new(tx_hash),
             });
         }

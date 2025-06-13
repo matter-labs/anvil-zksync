@@ -711,13 +711,14 @@ impl InMemoryNodeInner {
 
         let result: Result<Fee, gas_estim::GasEstimationError> = match &estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
-                let revert_reason: RevertError = output.clone().to_revert_reason().await;
+                let revert_reason: RevertError =
+                    output.clone().to_revert_reason(&self.config).await;
                 Err(gas_estim::TransactionRevert {
                     inner: Box::new(revert_reason),
                 })
             }
             ExecutionResult::Halt { reason } => {
-                let halt_error: HaltError = reason.clone().to_halt_error().await;
+                let halt_error: HaltError = reason.clone().to_halt_error(&self.config).await;
 
                 Err(gas_estim::TransactionHalt {
                     inner: Box::new(halt_error),
@@ -917,14 +918,15 @@ impl InMemoryNodeInner {
                     Ok(())
                 }
                 ExecutionResult::Revert { ref output } => {
-                    let revert_reason: RevertError = output.clone().to_revert_reason().await;
+                    let revert_reason: RevertError =
+                        output.clone().to_revert_reason(&self.config).await;
 
                     Err(gas_estim::TransactionAlwaysReverts {
                         inner: Box::new(revert_reason),
                     })
                 }
                 ExecutionResult::Halt { ref reason } => {
-                    let halt_error: HaltError = reason.clone().to_halt_error().await;
+                    let halt_error: HaltError = reason.clone().to_halt_error(&self.config).await;
 
                     Err(gas_estim::TransactionAlwaysHalts {
                         inner: Box::new(halt_error),
@@ -937,7 +939,7 @@ impl InMemoryNodeInner {
                 sh_println!("{}", EstimationErrorReport::new(&error, &tx),);
             }
 
-            if !call_traces.is_empty() && verbosity >= 2 {
+            if !call_traces.is_empty() && verbosity >= 2 && !self.config.offline {
                 let mut builder = CallTraceDecoderBuilder::default();
 
                 builder = builder.with_signature_identifier(
