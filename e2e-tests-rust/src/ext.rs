@@ -68,7 +68,7 @@ pub trait ReceiptExt: ReceiptResponse {
     }
 
     /// Asserts that receipt is successful.
-    fn assert_reverted(&self, msg: &str) -> anyhow::Result<()> {
+    fn assert_reverted(&self) -> anyhow::Result<()> {
         if self.status() {
             anyhow::bail!(
                 "receipt (hash={}, block={:?}) is successful",

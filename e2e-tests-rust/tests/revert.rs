@@ -1,6 +1,6 @@
 use alloy::primitives::U256;
 use anvil_zksync_e2e_tests::test_contracts::Counter;
-use anvil_zksync_e2e_tests::{AnvilZksyncTesterBuilder, ReceiptExt};
+use anvil_zksync_e2e_tests::AnvilZksyncTesterBuilder;
 
 #[tokio::test]
 async fn revert_during_estimation() -> anyhow::Result<()> {
