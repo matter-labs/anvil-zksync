@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.5](https://github.com/matter-labs/anvil-zksync/compare/v0.6.4...v0.6.5) (2025-06-16)
+
+
+### Bug Fixes
+
+* linter warnings ([#733](https://github.com/matter-labs/anvil-zksync/issues/733)) ([aca4969](https://github.com/matter-labs/anvil-zksync/commit/aca496929564bea49f0d424e7b8846bedf323e7a))
+* revert reasons not communicated to hardhat ([#731](https://github.com/matter-labs/anvil-zksync/issues/731)) ([74fe1fb](https://github.com/matter-labs/anvil-zksync/commit/74fe1fbe35e03c309e41632e081270d75fdbe81b))
+
 ## [0.6.4](https://github.com/matter-labs/anvil-zksync/compare/v0.6.3...v0.6.4) (2025-06-12)
 
 
