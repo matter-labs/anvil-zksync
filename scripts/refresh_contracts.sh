@@ -19,7 +19,7 @@ case $PROTOCOL_VERSION in
     ERA_CONTRACTS_GIT_COMMIT=216c413ffe523186feb75263de3169cb38f7e93a
     ;;
   v30)
-    ERA_CONTRACTS_GIT_COMMIT=0f5f4b0b6055b0cb59de6176e80cdca9666d265b
+    ERA_CONTRACTS_GIT_COMMIT=5fc5ddc8b4ea765e2fbc71a7c8261ff1645c0e07
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"

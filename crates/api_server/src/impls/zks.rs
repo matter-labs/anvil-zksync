@@ -130,16 +130,6 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(RpcError::from)?)
     }
 
-    async fn get_l2_to_l1_msg_proof(
-        &self,
-        _block: L2BlockNumber,
-        _sender: Address,
-        _msg: H256,
-        _l2_log_position: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>> {
-        Err(RpcError::Unsupported.into())
-    }
-
     async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,

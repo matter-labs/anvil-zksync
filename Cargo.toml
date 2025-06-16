@@ -43,6 +43,14 @@ zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era", b
 zksync_types = { git = "http://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
+# zksync_mini_merkle_tree = { path = "../zksync-era2/core/lib/mini_merkle_tree" }
+# zksync_multivm = { path = "../zksync-era2/core/lib/multivm" }
+# zksync_contracts = { path = "../zksync-era2/core/lib/contracts" }
+# zksync_basic_types = { path = "../zksync-era2/core/lib/basic_types" }
+# zksync_system_constants = { path = "../zksync-era2/core/lib/constants" }
+# zksync_types = { path = "../zksync-era2/core/lib/types" }
+# zksync_vm_interface = { path = "../zksync-era2/core/lib/vm_interface" }
+# zksync_web3_decl = { path = "../zksync-era2/core/lib/web3_decl" }
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "fa6e84e06191a1b66323d69ab909fd83ae76e0d2", default-features = false }
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "fa6e84e06191a1b66323d69ab909fd83ae76e0d2" }

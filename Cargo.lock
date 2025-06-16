@@ -1447,9 +1447,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-kms"
-version = "1.69.0"
+version = "1.70.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c64c93b24f98760979113386e444886fc812632d4d84910b802d69a2bdbb5349"
+checksum = "e14903021031702916d9307e72b30c48c596737a45a6ed1f6e3ab8bb9d93ce4c"
 dependencies = [
  "aws-credential-types",
  "aws-runtime",
@@ -8482,9 +8482,9 @@ dependencies = [
 
 [[package]]
 name = "zk_evm"
-version = "0.151.7"
+version = "0.151.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78e54e9c5d566b4e0cefaf62507be89610ca7766dc3397e9222cbe433870b0df"
+checksum = "820fedbd066674163225e8c95ace92277002aaed2e0d18e1656702919fb8c42c"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8492,7 +8492,7 @@ dependencies = [
  "serde",
  "serde_json",
  "static_assertions",
- "zk_evm_abstractions 0.151.7",
+ "zk_evm_abstractions 0.151.8",
 ]
 
 [[package]]
@@ -8538,15 +8538,15 @@ dependencies = [
 
 [[package]]
 name = "zk_evm_abstractions"
-version = "0.151.7"
+version = "0.151.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a567541c98b85f29ccf06f63b96287c82ffb216706b84bb20ad083e4ee49b3d7"
+checksum = "dc75573623393d2a1fa0716ceed1c725a9e238d7eab2ddcc7e08d61c79e54cbd"
 dependencies = [
  "anyhow",
  "num_enum 0.6.1",
  "serde",
  "static_assertions",
- "zkevm_opcode_defs 0.151.7",
+ "zkevm_opcode_defs 0.151.8",
 ]
 
 [[package]]
@@ -8606,9 +8606,9 @@ dependencies = [
 
 [[package]]
 name = "zkevm_opcode_defs"
-version = "0.151.7"
+version = "0.151.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31e6cdb765d11ce237d7e7acd1589d523f186939acb8508f2443df66fd4f094a"
+checksum = "1e50a5bc9bfe4cdea8f057d77df5cd21bcf38e9044b36de3235fbf6e361de53a"
 dependencies = [
  "bitflags 2.9.1",
  "blake2",
@@ -8691,7 +8691,7 @@ dependencies = [
 [[package]]
 name = "zksync_basic_types"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8736,7 +8736,7 @@ dependencies = [
 [[package]]
 name = "zksync_contracts"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "envy",
  "hex",
@@ -8750,7 +8750,7 @@ dependencies = [
 [[package]]
 name = "zksync_crypto_primitives"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "anyhow",
  "blake2",
@@ -8809,7 +8809,7 @@ dependencies = [
 [[package]]
 name = "zksync_mini_merkle_tree"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8819,7 +8819,7 @@ dependencies = [
 [[package]]
 name = "zksync_multivm"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "anyhow",
  "circuit_sequencer_api",
@@ -8834,7 +8834,7 @@ dependencies = [
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
- "zk_evm 0.151.7",
+ "zk_evm 0.151.8",
  "zk_evm 0.152.3",
  "zksync_contracts",
  "zksync_mini_merkle_tree",
@@ -8860,7 +8860,7 @@ dependencies = [
 [[package]]
 name = "zksync_system_constants"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "once_cell",
  "zksync_basic_types",
@@ -8886,7 +8886,7 @@ dependencies = [
 [[package]]
 name = "zksync_types"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8912,7 +8912,7 @@ dependencies = [
 [[package]]
 name = "zksync_utils"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8945,7 +8945,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm_interface"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8962,7 +8962,7 @@ dependencies = [
 [[package]]
 name = "zksync_web3_decl"
 version = "28.2.1-non-semver-compat"
-source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#1cbda93b08e407007d47583689d2bf674afabf8b"
+source = "git+http://github.com/matter-labs/zksync-era?branch=kl%2Finterop-support#176cfa3cb35891c21227fa44f51035f07f0fb669"
 dependencies = [
  "anyhow",
  "async-trait",
