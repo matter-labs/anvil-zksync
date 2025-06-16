@@ -714,6 +714,7 @@ impl InMemoryNodeInner {
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 Err(gas_estim::TransactionRevert {
                     inner: Box::new(revert_reason),
+                    data: output.encoded_data(),
                 })
             }
             ExecutionResult::Halt { reason } => {
@@ -921,6 +922,7 @@ impl InMemoryNodeInner {
 
                     Err(gas_estim::TransactionAlwaysReverts {
                         inner: Box::new(revert_reason),
+                        data: output.encoded_data(),
                     })
                 }
                 ExecutionResult::Halt { ref reason } => {

@@ -156,8 +156,8 @@ impl PrettyFmt for EstimationErrorReport<'_> {
                 writeln!(w, "{}", DescriptionView(self.error))?;
             }
 
-            GasEstimationError::TransactionRevert { inner }
-            | GasEstimationError::TransactionAlwaysReverts { inner } => {
+            GasEstimationError::TransactionRevert { inner, data: _ }
+            | GasEstimationError::TransactionAlwaysReverts { inner, data: _ } => {
                 let revert = inner.as_ref();
                 writeln!(w, "{}", ErrorMessageView(self.error))?;
                 let mut w = IndentingWriter::new(w, Some("│ "));
