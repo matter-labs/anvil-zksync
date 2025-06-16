@@ -655,7 +655,7 @@ impl InMemoryNode {
             false,
         );
         let (node_executor, node_handle) =
-            NodeExecutor::new(inner.clone(), vm_runner, storage_key_layout);
+            NodeExecutor::new(inner.clone(), vm_runner, todo!(), storage_key_layout);
         let pool = TxPool::new(
             impersonation.clone(),
             anvil_zksync_types::TransactionOrder::Fifo,

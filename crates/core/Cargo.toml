@@ -36,7 +36,10 @@ rig.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
 futures.workspace = true
+futures-core = "0.3.31"
+dashmap = "6.1.0"
 once_cell.workspace = true
+vise = "0.2.0"
 
 alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "sol-types", "eip712"] }
 
