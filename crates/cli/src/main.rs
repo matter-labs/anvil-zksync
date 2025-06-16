@@ -16,6 +16,14 @@ use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::{ForkPrintInfo, L1Config};
 use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkClient;
+use anvil_zksync_core::node::zksync_os::storage::persistent_storage_map::{
+    PersistentStorageMap, StorageMapCF,
+};
+use anvil_zksync_core::node::zksync_os::storage::rocksdb_preimages::{
+    PreimagesCF, RocksDbPreimages,
+};
+use anvil_zksync_core::node::zksync_os::storage::StateHandle;
+use anvil_zksync_core::node::zksync_os::{PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH};
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
     NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
@@ -30,7 +38,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::fmt::Write;
 use std::fs::File;
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,6 +49,7 @@ use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
 use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::{ICustomError, IError as _};
+use zksync_storage::RocksDB;
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{
@@ -315,10 +324,34 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         // Only produce system logs if L1 is enabled
         config.l1_config.is_some(),
     );
+    drop(blockchain);
+
+    let mut state_db = RocksDB::<StorageMapCF>::new(Path::new(STATE_STORAGE_PATH))
+        .expect("Failed to open State DB");
+    state_db = state_db.with_sync_writes();
+    let persistent_storage_map = PersistentStorageMap::new(state_db);
+
+    let mut preimages_db = RocksDB::<PreimagesCF>::new(Path::new(PREIMAGES_STORAGE_PATH))
+        .expect("Failed to open Preimages DB");
+    preimages_db = preimages_db.with_sync_writes();
+    let rocks_db_preimages = RocksDbPreimages::new(preimages_db);
+
+    let state_db_block = persistent_storage_map.rocksdb_block_number();
+    let preimages_db_block = rocks_db_preimages.rocksdb_block_number();
+    assert!(
+        state_db_block <= preimages_db_block,
+        "State DB block number ({state_db_block}) is greater than Preimages DB block number ({preimages_db_block}). This is not allowed."
+    );
+    let state_handle =
+        StateHandle::empty(state_db_block, persistent_storage_map, rocks_db_preimages);
 
     let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
-    let (node_executor, node_handle) =
-        NodeExecutor::new(node_inner.clone(), vm_runner, storage_key_layout);
+    let (node_executor, node_handle) = NodeExecutor::new(
+        node_inner.clone(),
+        vm_runner,
+        state_handle.clone(),
+        storage_key_layout,
+    );
     let l1_sidecar = match config.l1_config.as_ref() {
         Some(_) if fork_print_info.is_some() => {
             return Err(zksync_error::anvil_zksync::env::InvalidArguments {
@@ -331,7 +364,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
             let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::process(
                 config.protocol_version(),
                 *port,
-                blockchain.clone(),
+                Box::new(state_handle.clone()),
                 node_handle.clone(),
                 pool.clone(),
                 config.auto_execute_l1,
@@ -345,7 +378,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
             let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::external(
                 config.protocol_version(),
                 address,
-                blockchain.clone(),
+                Box::new(state_handle.clone()),
                 node_handle.clone(),
                 pool.clone(),
                 config.auto_execute_l1,
@@ -370,7 +403,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
 
     let node: InMemoryNode = InMemoryNode::new(
         node_inner,
-        blockchain,
+        Box::new(state_handle),
         storage,
         fork,
         node_handle.clone(),

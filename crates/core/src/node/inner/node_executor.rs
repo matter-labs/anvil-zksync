@@ -1,15 +1,27 @@
 use super::InMemoryNodeInner;
+use crate::node::blockchain::{Blockchain, ReadBlockchain};
 use crate::node::fork::ForkConfig;
 use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::inner::vm_runner::VmRunner;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
+use crate::node::zksync_os;
+use crate::node::zksync_os::model::BlockCommand;
+use crate::node::zksync_os::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
+use crate::node::zksync_os::storage::rocksdb_preimages::{PreimagesCF, RocksDbPreimages};
+use crate::node::zksync_os::storage::StateHandle;
+use crate::node::zksync_os::{PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH};
+use anyhow::Context;
 use indicatif::ProgressBar;
+use std::path::Path;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, oneshot, RwLock};
 use url::Url;
+use zk_os_forward_system::run::BatchContext;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
+use zksync_storage::RocksDB;
 use zksync_types::bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker};
 use zksync_types::utils::nonces_to_full_nonce;
 use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
@@ -17,6 +29,7 @@ use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKe
 pub struct NodeExecutor {
     node_inner: Arc<RwLock<InMemoryNodeInner>>,
     vm_runner: VmRunner,
+    state_handle: StateHandle,
     command_receiver: mpsc::Receiver<Command>,
     storage_key_layout: StorageKeyLayout,
 }
@@ -25,12 +38,14 @@ impl NodeExecutor {
     pub fn new(
         node_inner: Arc<RwLock<InMemoryNodeInner>>,
         vm_runner: VmRunner,
+        state_handle: StateHandle,
         storage_key_layout: StorageKeyLayout,
     ) -> (Self, NodeExecutorHandle) {
         let (command_sender, command_receiver) = mpsc::channel(128);
         let this = Self {
             node_inner,
             vm_runner,
+            state_handle,
             command_receiver,
             storage_key_layout,
         };
@@ -100,6 +115,13 @@ impl NodeExecutor {
     }
 }
 
+pub fn millis_since_epoch() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Incorrect system time")
+        .as_millis()
+}
+
 impl NodeExecutor {
     async fn seal_block(
         &mut self,
@@ -107,12 +129,31 @@ impl NodeExecutor {
         reply_sender: Option<oneshot::Sender<AnvilNodeResult<L2BlockNumber>>>,
     ) -> AnvilNodeResult<()> {
         let mut node_inner = self.node_inner.write().await;
-        let tx_batch_execution_result = self
-            .vm_runner
-            .run_tx_batch(tx_batch, &mut node_inner)
-            .await?;
 
-        let result = node_inner.seal_block(tx_batch_execution_result).await;
+        let result = async {
+            let (batch_out, replay) = zksync_os::execution::block_executor::execute_block(
+                BlockCommand::Produce(BatchContext {
+                    chain_id: node_inner.config.chain_id.unwrap() as u64,
+                    block_number: (self.state_handle.current_block_number().await.0 + 1) as u64,
+                    block_hashes: Default::default(),
+                    timestamp: (millis_since_epoch() / 1000) as u64,
+                    eip1559_basefee: ruint::aliases::U256::from(1000),
+                    gas_per_pubdata: Default::default(),
+                    native_price: ruint::aliases::U256::from(1),
+                    coinbase: Default::default(),
+                    gas_limit: 100_000_000,
+                }),
+                tx_batch,
+                self.state_handle.clone(),
+            )
+            .await
+            .context("execute_block")?;
+
+            self.state_handle
+                .handle_block_output(batch_out.clone(), replay.transactions.clone());
+            Ok(L2BlockNumber(batch_out.header.number as u32))
+        }
+        .await;
         drop(node_inner);
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Some(reply_sender) = reply_sender {

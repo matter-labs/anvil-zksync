@@ -21,14 +21,24 @@ zksync_multivm.workspace = true
 zksync_contracts.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
-zksync_basic_types.workspace = true
+zksync_storage.workspace = true
+
+zk_os_forward_system.workspace = true
+zk_ee.workspace = true
+zk_os_basic_system.workspace = true
+system_hooks.workspace = true
+
 zksync_error.workspace = true
 zksync-error-description.workspace = true
 
 anyhow.workspace = true
 tokio.workspace = true
 futures.workspace = true
+futures-core = "0.3.31"
+dashmap = "6.1.0"
 once_cell.workspace = true
+vise = "0.2.0"
+ruint = "1.13.1"
 
 alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "sol-types", "eip712"] }
 
@@ -51,27 +61,6 @@ async-trait.workspace = true
 url.workspace = true
 indicatif.workspace = true
 tabled.workspace = true
-
-
-# ZK os dependencies
-
-forward_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
-basic_system = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
-zk_ee = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
-system_hooks = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main"}
-zkos_api = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main" }
-rig = { git = "https://github.com/matter-labs/zk_ee.git", branch = "main" }
-
-
-#forward_system = { path = "../../../zk_ee/forward_system" }
-#basic_system = { path = "../../../zk_ee/basic_system" }
-#zk_ee = { path = "../../../zk_ee/zk_ee" }
-#system_hooks = { path = "../../../zk_ee/system_hooks" }
-#zkos_api = { path = "../../../zk_ee/api" }
-#rig = { path = "../../../zk_ee/tests/rig"}
-
-
-ruint = { version = "1.12.3", default-features = false, features = ["alloc"]}
 
 [dev-dependencies]
 maplit.workspace = true
