@@ -64,4 +64,13 @@ impl<N: Network, P: Provider<N>> Counter<N, P> {
     ) -> SolCallBuilder<(), &P, private::Counter::incrementCall, N> {
         self.0.increment(x.try_into().unwrap())
     }
+
+    pub fn increment_with_revert(
+        &self,
+        x: impl TryInto<U256, Error = impl Debug>,
+        should_revert: bool,
+    ) -> SolCallBuilder<(), &P, private::Counter::incrementWithRevertCall, N> {
+        self.0
+            .incrementWithRevert(x.try_into().unwrap(), should_revert)
+    }
 }
