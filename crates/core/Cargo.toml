@@ -21,15 +21,18 @@ zksync_multivm.workspace = true
 zksync_contracts.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
-zksync_basic_types.workspace = true
+zksync_storage.workspace = true
+
+zksync_os_sequencer.workspace = true
+
 zksync_error.workspace = true
 zksync-error-description.workspace = true
 
 # ZK os dependencies
-forward_system.workspace = true
-basic_system.workspace = true
+zk_os_forward_system.workspace = true
+zk_os_basic_system.workspace = true
 zk_ee.workspace = true
-system_hooks.workspace = true
+zk_os_system_hooks.workspace = true
 zksync_os_api.workspace = true
 rig.workspace = true
 

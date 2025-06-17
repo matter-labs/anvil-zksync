@@ -21,6 +21,8 @@ anvil_zksync_types.workspace = true
 zksync_types.workspace = true
 zksync_storage.workspace = true
 
+zksync_os_sequencer.workspace = true
+
 zksync_telemetry.workspace = true
 zksync_error.workspace = true
 

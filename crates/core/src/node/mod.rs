@@ -20,7 +20,6 @@ mod storage_logs;
 mod traces;
 mod vm;
 mod zks;
-pub mod zksync_os;
 
 pub use self::{
     fee_model::TestNodeFeeInputProvider, impersonate::ImpersonationManager, keys::StorageKeyLayout,

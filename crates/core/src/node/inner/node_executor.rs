@@ -1,19 +1,12 @@
 use super::InMemoryNodeInner;
-use crate::node::blockchain::{Blockchain, ReadBlockchain};
+use crate::node::blockchain::ReadBlockchain;
 use crate::node::fork::ForkConfig;
 use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::inner::vm_runner::VmRunner;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
-use crate::node::zksync_os;
-use crate::node::zksync_os::model::BlockCommand;
-use crate::node::zksync_os::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
-use crate::node::zksync_os::storage::rocksdb_preimages::{PreimagesCF, RocksDbPreimages};
-use crate::node::zksync_os::storage::StateHandle;
-use crate::node::zksync_os::{PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH};
 use anyhow::Context;
 use indicatif::ProgressBar;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, oneshot, RwLock};
@@ -21,7 +14,8 @@ use url::Url;
 use zk_os_forward_system::run::BatchContext;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
-use zksync_storage::RocksDB;
+use zksync_os_sequencer::model::BlockCommand;
+use zksync_os_sequencer::storage::StateHandle;
 use zksync_types::bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker};
 use zksync_types::utils::nonces_to_full_nonce;
 use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
@@ -129,25 +123,25 @@ impl NodeExecutor {
         reply_sender: Option<oneshot::Sender<AnvilNodeResult<L2BlockNumber>>>,
     ) -> AnvilNodeResult<()> {
         let mut node_inner = self.node_inner.write().await;
-
         let result = async {
-            let (batch_out, replay) = zksync_os::execution::block_executor::execute_block(
-                BlockCommand::Produce(BatchContext {
-                    chain_id: node_inner.config.chain_id.unwrap() as u64,
-                    block_number: (self.state_handle.current_block_number().await.0 + 1) as u64,
-                    block_hashes: Default::default(),
-                    timestamp: (millis_since_epoch() / 1000) as u64,
-                    eip1559_basefee: ruint::aliases::U256::from(1000),
-                    gas_per_pubdata: Default::default(),
-                    native_price: ruint::aliases::U256::from(1),
-                    coinbase: Default::default(),
-                    gas_limit: 100_000_000,
-                }),
-                tx_batch,
-                self.state_handle.clone(),
-            )
-            .await
-            .context("execute_block")?;
+            let (batch_out, replay) =
+                zksync_os_sequencer::execution::block_executor::execute_block(
+                    BlockCommand::Produce(BatchContext {
+                        chain_id: node_inner.config.chain_id.unwrap() as u64,
+                        block_number: (self.state_handle.current_block_number().await.0 + 1) as u64,
+                        block_hashes: Default::default(),
+                        timestamp: (millis_since_epoch() / 1000) as u64,
+                        eip1559_basefee: ruint::aliases::U256::from(1000),
+                        gas_per_pubdata: Default::default(),
+                        native_price: ruint::aliases::U256::from(1),
+                        coinbase: Default::default(),
+                        gas_limit: 100_000_000,
+                    }),
+                    Box::pin(futures::stream::iter(tx_batch.txs)),
+                    self.state_handle.clone(),
+                )
+                .await
+                .context("execute_block")?;
 
             self.state_handle
                 .handle_block_output(batch_out.clone(), replay.transactions.clone());
@@ -155,6 +149,7 @@ impl NodeExecutor {
         }
         .await;
         drop(node_inner);
+
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Some(reply_sender) = reply_sender {
             if let Err(error_result) = reply_sender.send(result) {

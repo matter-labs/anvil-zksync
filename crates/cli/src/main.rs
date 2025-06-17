@@ -16,14 +16,6 @@ use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::{ForkPrintInfo, L1Config};
 use anvil_zksync_core::filters::EthFilters;
 use anvil_zksync_core::node::fork::ForkClient;
-use anvil_zksync_core::node::zksync_os::storage::persistent_storage_map::{
-    PersistentStorageMap, StorageMapCF,
-};
-use anvil_zksync_core::node::zksync_os::storage::rocksdb_preimages::{
-    PreimagesCF, RocksDbPreimages,
-};
-use anvil_zksync_core::node::zksync_os::storage::StateHandle;
-use anvil_zksync_core::node::zksync_os::{PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH};
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
     NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
@@ -49,6 +41,10 @@ use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
 use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::{ICustomError, IError as _};
+use zksync_os_sequencer::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
+use zksync_os_sequencer::storage::rocksdb_preimages::{PreimagesCF, RocksDbPreimages};
+use zksync_os_sequencer::storage::StateHandle;
+use zksync_os_sequencer::{PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH};
 use zksync_storage::RocksDB;
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};

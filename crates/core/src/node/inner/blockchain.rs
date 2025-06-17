@@ -1,7 +1,6 @@
 use crate::filters::LogFilter;
 use crate::node::inner::fork::ForkDetails;
 use crate::node::time::{ReadTime, Time};
-use crate::node::zksync_os::storage::StateHandle;
 use crate::node::{create_genesis, create_genesis_from_json, TransactionResult};
 use crate::utils::utc_datetime_from_epoch_ms;
 use anvil_zksync_config::types::Genesis;
@@ -18,6 +17,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::{FinishedL1Batch, L2Block, VmEvent};
 use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
+use zksync_os_sequencer::storage::StateHandle;
 use zksync_types::api::{
     Block, BlockDetails, BlockId, DebugCall, Log, Transaction, TransactionDetails,
     TransactionReceipt, TransactionVariant,
@@ -870,70 +870,70 @@ impl ReadBlockchain for StateHandle {
         )
     }
 
-    async fn get_block_by_hash(&self, hash: &H256) -> Option<Block<TransactionVariant>> {
+    async fn get_block_by_hash(&self, _hash: &H256) -> Option<Block<TransactionVariant>> {
         // TODO: proper implementation
         None
     }
 
     async fn get_block_by_number(
         &self,
-        number: L2BlockNumber,
+        _number: L2BlockNumber,
     ) -> Option<Block<TransactionVariant>> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_block_by_id(&self, block_id: BlockId) -> Option<Block<TransactionVariant>> {
+    async fn get_block_by_id(&self, _block_id: BlockId) -> Option<Block<TransactionVariant>> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_block_hash_by_number(&self, number: L2BlockNumber) -> Option<H256> {
+    async fn get_block_hash_by_number(&self, _number: L2BlockNumber) -> Option<H256> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_block_hash_by_id(&self, block_id: BlockId) -> Option<H256> {
+    async fn get_block_hash_by_id(&self, _block_id: BlockId) -> Option<H256> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_block_number_by_hash(&self, hash: &H256) -> Option<L2BlockNumber> {
+    async fn get_block_number_by_hash(&self, _hash: &H256) -> Option<L2BlockNumber> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_block_number_by_id(&self, block_id: BlockId) -> Option<L2BlockNumber> {
+    async fn get_block_number_by_id(&self, _block_id: BlockId) -> Option<L2BlockNumber> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_block_tx_hashes_by_number(&self, number: L2BlockNumber) -> Option<Vec<H256>> {
+    async fn get_block_tx_hashes_by_number(&self, _number: L2BlockNumber) -> Option<Vec<H256>> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_block_tx_hashes_by_id(&self, block_id: BlockId) -> Option<Vec<H256>> {
+    async fn get_block_tx_hashes_by_id(&self, _block_id: BlockId) -> Option<Vec<H256>> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_block_tx_by_id(&self, block_id: BlockId, index: usize) -> Option<Transaction> {
+    async fn get_block_tx_by_id(&self, _block_id: BlockId, _index: usize) -> Option<Transaction> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_block_tx_count_by_id(&self, block_id: BlockId) -> Option<usize> {
+    async fn get_block_tx_count_by_id(&self, _block_id: BlockId) -> Option<usize> {
         // TODO: proper implementation
         None
     }
 
     async fn get_block_details_by_number(
         &self,
-        number: L2BlockNumber,
-        l2_fair_gas_price: u64,
-        fair_pubdata_price: Option<u64>,
-        base_system_contracts_hashes: BaseSystemContractsHashes,
+        _number: L2BlockNumber,
+        _l2_fair_gas_price: u64,
+        _fair_pubdata_price: Option<u64>,
+        _base_system_contracts_hashes: BaseSystemContractsHashes,
     ) -> Option<BlockDetails> {
         // TODO: proper implementation
         None
@@ -943,7 +943,7 @@ impl ReadBlockchain for StateHandle {
         Some(self.0.in_memory_tx_receipts.get(&tx_hash.0.into())?.receipt)
     }
 
-    async fn get_tx_debug_info(&self, tx_hash: &H256, only_top: bool) -> Option<DebugCall> {
+    async fn get_tx_debug_info(&self, _tx_hash: &H256, _only_top: bool) -> Option<DebugCall> {
         // TODO: proper implementation
         None
     }
@@ -955,40 +955,40 @@ impl ReadBlockchain for StateHandle {
         Ok(Some(tx_api_data.transaction))
     }
 
-    async fn get_detailed_tx(&self, tx: Transaction) -> Option<DetailedTransaction> {
+    async fn get_detailed_tx(&self, _tx: Transaction) -> Option<DetailedTransaction> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_tx_details(&self, tx_hash: &H256) -> Option<TransactionDetails> {
+    async fn get_tx_details(&self, _tx_hash: &H256) -> Option<TransactionDetails> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_zksync_tx(&self, tx_hash: &H256) -> Option<zksync_types::Transaction> {
+    async fn get_zksync_tx(&self, _tx_hash: &H256) -> Option<zksync_types::Transaction> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_filter_logs(&self, log_filter: &LogFilter) -> Vec<Log> {
+    async fn get_filter_logs(&self, _log_filter: &LogFilter) -> Vec<Log> {
         // TODO: proper implementation
         vec![]
     }
 
-    async fn get_batch_header(&self, batch_number: L1BatchNumber) -> Option<L1BatchHeader> {
+    async fn get_batch_header(&self, _batch_number: L1BatchNumber) -> Option<L1BatchHeader> {
         // TODO: proper implementation
         None
     }
 
     async fn get_batch_state_diffs(
         &self,
-        batch_number: L1BatchNumber,
+        _batch_number: L1BatchNumber,
     ) -> Option<Vec<StateDiffRecord>> {
         // TODO: proper implementation
         None
     }
 
-    async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256> {
+    async fn get_batch_aggregation_root(&self, _batch_number: L1BatchNumber) -> Option<H256> {
         // TODO: proper implementation
         None
     }

@@ -3,18 +3,20 @@
 use std::{alloc::Global, collections::HashMap, vec};
 
 use anvil_zksync_config::types::BoojumConfig;
-use basic_system::system_implementation::flat_storage_model::{
+use rig::utils::evm_bytecode_into_account_properties;
+use ruint::aliases::B160;
+use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
+use zk_os_basic_system::system_implementation::flat_storage_model::{
     address_into_special_storage_key, AccountProperties, TestingTree,
     ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
 };
-use forward_system::run::{
+use zk_os_forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
     StorageCommitment,
 };
-use rig::utils::evm_bytecode_into_account_properties;
-use ruint::aliases::B160;
-use system_hooks::addresses_constants::{ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS, BASE_TOKEN_ADDRESS};
-use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
+use zk_os_system_hooks::addresses_constants::{
+    ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS, BASE_TOKEN_ADDRESS,
+};
 use zksync_multivm::{
     interface::{
         storage::{StoragePtr, WriteStorage},
@@ -371,7 +373,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
     let (output, dynamic_factory_deps, storage_logs) = if simulate_only {
         (
-            forward_system::run::simulate_tx(
+            zk_os_forward_system::run::simulate_tx(
                 tx_raw,
                 batch_context,
                 tree.clone(),
@@ -386,7 +388,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
             transactions: vec![tx_raw].into(),
         };
         let noop = NoopTxCallback {};
-        let batch_output = forward_system::run::run_batch(
+        let batch_output = zk_os_forward_system::run::run_batch(
             batch_context,
             // TODO: FIXME
             tree.clone(),
@@ -506,13 +508,15 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
     let (tx_output, gas_refunded) = match output.as_ref() {
         Ok(tx_output) => match &tx_output.execution_result {
-            forward_system::run::ExecutionResult::Success(output) => match &output {
-                forward_system::run::ExecutionOutput::Call(data) => (data, tx_output.gas_refunded),
-                forward_system::run::ExecutionOutput::Create(data, _) => {
+            zk_os_forward_system::run::ExecutionResult::Success(output) => match &output {
+                zk_os_forward_system::run::ExecutionOutput::Call(data) => {
+                    (data, tx_output.gas_refunded)
+                }
+                zk_os_forward_system::run::ExecutionOutput::Create(data, _) => {
                     (data, tx_output.gas_refunded)
                 }
             },
-            forward_system::run::ExecutionResult::Revert(data) => {
+            zk_os_forward_system::run::ExecutionResult::Revert(data) => {
                 return (
                     VmExecutionResultAndLogs {
                         result: ExecutionResult::Revert {
@@ -828,7 +832,7 @@ fn get_account_properties(
     preimage_source: &mut InMemoryPreimageSource,
     address: &B160,
 ) -> AccountProperties {
-    use forward_system::run::PreimageSource;
+    use zk_os_forward_system::run::PreimageSource;
     let key = address_into_special_storage_key(address);
     let flat_key = derive_flat_storage_key(&ACCOUNT_PROPERTIES_STORAGE_ADDRESS, &key);
     match state_tree.cold_storage.get(&flat_key) {
