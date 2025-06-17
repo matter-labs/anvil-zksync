@@ -7,7 +7,7 @@ use jsonrpsee::{
     types::{ErrorCode, ErrorObject, ErrorObjectOwned},
 };
 use zksync_error::{
-    anvil_zksync::{node::AnvilNodeError, state::StateLoaderError},
+    anvil_zksync::{gas_estim::GasEstimationError, node::AnvilNodeError, state::StateLoaderError},
     ICustomError, IError as _, ZksyncError,
 };
 use zksync_web3_decl::error::Web3Error;
@@ -73,14 +73,16 @@ impl RpcErrorAdapter for AnvilNodeError {
     fn into(error: Self) -> ErrorObjectOwned {
         // Map the Web3Error to an appropriate RPC error code
         match &error {
-            AnvilNodeError::TransactionGasEstimationFailed {
-                transaction_data, ..
-            } => {
+            AnvilNodeError::TransactionGasEstimationFailed { inner, .. } => {
                 // We keep previously used `Web3Error::SubmitTransactionError`
                 // for an outside user.
                 RpcErrorAdapter::into(Web3Error::SubmitTransactionError(
                     error.to_unified().get_message(),
-                    transaction_data.clone(),
+                    match &**inner {
+                        GasEstimationError::TransactionRevert { data, .. }
+                        | GasEstimationError::TransactionAlwaysReverts { data, .. } => data.clone(),
+                        _ => vec![],
+                    },
                 ))
             }
             AnvilNodeError::SerializationError { .. } => {
