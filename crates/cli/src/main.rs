@@ -3,7 +3,7 @@ use crate::cli::{BuiltinNetwork, Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
-use anvil_zksync_common::shell::get_shell;
+use anvil_zksync_common::shell::{get_shell, OutputMode};
 use anvil_zksync_common::utils::predeploys::PREDEPLOYS;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
 use anvil_zksync_config::constants::{
@@ -59,6 +59,10 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     Cli::deprecated_config_option();
 
     let opt = Cli::parse();
+    if opt.silent.unwrap_or(false) {
+        let mut shell = get_shell();
+        shell.output_mode = OutputMode::Quiet;
+    }
     // We keep a serialized version of the provided arguments to communicate them later if the arguments were incorrect.
     let debug_opt_string_repr = format!("{opt:#?}");
 
@@ -81,6 +85,11 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     {
         let mut shell = get_shell();
         shell.verbosity = config.verbosity;
+        shell.output_mode = if config.silent {
+            OutputMode::Quiet
+        } else {
+            OutputMode::Normal
+        };
     }
     let log_level_filter = LevelFilter::from(config.log_level);
     let log_file = File::create(&config.log_file_path).map_err(|inner| {

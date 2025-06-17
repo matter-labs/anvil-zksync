@@ -4,7 +4,6 @@ use crate::formatter::errors::view::ExecutionErrorReport;
 use crate::formatter::log::{compute_gas_details, Formatter};
 use crate::formatter::transaction::summary::TransactionSummary;
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
-use crate::node::diagnostics::account_has_code;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
 use crate::node::diagnostics::vm::balance_diff::extract_balance_diffs;
 use crate::node::diagnostics::vm::traces::extract_addresses;
@@ -21,7 +20,7 @@ use crate::node::{
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use anvil_zksync_common::shell::get_shell;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
@@ -173,8 +172,6 @@ impl VmRunner {
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
         let verbosity = get_shell().verbosity;
-
-        warn_if_tx_recipient_no_code(tx, &mut self.fork_storage);
 
         let BatchTransactionExecutionResult {
             tx_result,
@@ -646,17 +643,6 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
         }
     }
     None
-}
-
-fn warn_if_tx_recipient_no_code(tx: &Transaction, storage: &mut ForkStorage) {
-    if let Some(to_address) = tx.recipient_account() {
-        if !account_has_code(to_address, storage) {
-            sh_warn!(
-                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
-                    tx.hash()
-                );
-        }
-    }
 }
 
 #[cfg(test)]
