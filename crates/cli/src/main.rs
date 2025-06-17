@@ -41,10 +41,13 @@ use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
 use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::{ICustomError, IError as _};
+use zksync_os_sequencer::storage::block_replay_storage::{
+    BlockReplayColumnFamily, BlockReplayStorage,
+};
 use zksync_os_sequencer::storage::persistent_storage_map::{PersistentStorageMap, StorageMapCF};
 use zksync_os_sequencer::storage::rocksdb_preimages::{PreimagesCF, RocksDbPreimages};
 use zksync_os_sequencer::storage::StateHandle;
-use zksync_os_sequencer::{PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH};
+use zksync_os_sequencer::{BLOCK_REPLAY_WAL_PATH, PREIMAGES_STORAGE_PATH, STATE_STORAGE_PATH};
 use zksync_storage::RocksDB;
 use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
@@ -322,6 +325,12 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     );
     drop(blockchain);
 
+    let block_replay_storage_rocks_db =
+        RocksDB::<BlockReplayColumnFamily>::new(Path::new(BLOCK_REPLAY_WAL_PATH))
+            .expect("Failed to open BlockReplayWAL");
+
+    let block_replay_storage = BlockReplayStorage::new(block_replay_storage_rocks_db);
+
     let mut state_db = RocksDB::<StorageMapCF>::new(Path::new(STATE_STORAGE_PATH))
         .expect("Failed to open State DB");
     state_db = state_db.with_sync_writes();
@@ -346,6 +355,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         node_inner.clone(),
         vm_runner,
         state_handle.clone(),
+        block_replay_storage.clone(),
         storage_key_layout,
     );
     let l1_sidecar = match config.l1_config.as_ref() {
@@ -399,7 +409,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
 
     let node: InMemoryNode = InMemoryNode::new(
         node_inner,
-        Box::new(state_handle),
+        Box::new(state_handle.clone()),
         storage,
         fork,
         node_handle.clone(),
@@ -410,6 +420,8 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         block_sealer_state,
         system_contracts,
         storage_key_layout,
+        state_handle,
+        block_replay_storage,
     );
 
     // We start the node executor now so it can receive and handle commands

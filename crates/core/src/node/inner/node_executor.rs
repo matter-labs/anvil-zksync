@@ -22,6 +22,7 @@ use zk_os_forward_system::run::BatchContext;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
 use zksync_os_sequencer::model::BlockCommand;
+use zksync_os_sequencer::storage::block_replay_storage::BlockReplayStorage;
 use zksync_os_sequencer::storage::persistent_storage_map::StorageMapCF;
 use zksync_os_sequencer::storage::rocksdb_preimages::PreimagesCF;
 use zksync_os_sequencer::storage::StateHandle;
@@ -33,6 +34,7 @@ pub struct NodeExecutor {
     node_inner: Arc<RwLock<InMemoryNodeInner>>,
     vm_runner: VmRunner,
     state_handle: StateHandle,
+    block_replay_storage: BlockReplayStorage,
     command_receiver: mpsc::Receiver<Command>,
     storage_key_layout: StorageKeyLayout,
 }
@@ -42,6 +44,7 @@ impl NodeExecutor {
         node_inner: Arc<RwLock<InMemoryNodeInner>>,
         vm_runner: VmRunner,
         state_handle: StateHandle,
+        block_replay_storage: BlockReplayStorage,
         storage_key_layout: StorageKeyLayout,
     ) -> (Self, NodeExecutorHandle) {
         let (command_sender, command_receiver) = mpsc::channel(128);
@@ -49,6 +52,7 @@ impl NodeExecutor {
             node_inner,
             vm_runner,
             state_handle,
+            block_replay_storage,
             command_receiver,
             storage_key_layout,
         };
@@ -154,6 +158,17 @@ impl NodeExecutor {
 
             self.state_handle
                 .handle_block_output(batch_out.clone(), replay.transactions.clone());
+
+            let bn = batch_out.header.number;
+            tracing::info!(block = bn, "▶ append_replay");
+            self.block_replay_storage
+                .append_replay(batch_out.clone(), replay)
+                .await;
+
+            tracing::info!(block = bn, "▶ advance_canonized_block");
+            self.state_handle.advance_canonized_block(bn);
+            tracing::info!(block = bn, "✔ done");
+
             Ok(L2BlockNumber(batch_out.header.number as u32))
         }
         .await;
@@ -170,6 +185,7 @@ impl NodeExecutor {
         } else {
             result
         };
+
         // Not much we can do with an error at this level so we just print it
         if let Err(err) = result {
             tracing::error!("failed to seal a block: {:#?}", err);

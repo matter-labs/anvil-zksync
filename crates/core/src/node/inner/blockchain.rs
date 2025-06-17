@@ -19,7 +19,7 @@ use zksync_multivm::interface::{FinishedL1Batch, L2Block, VmEvent};
 use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
 use zksync_os_sequencer::storage::StateHandle;
 use zksync_types::api::{
-    Block, BlockDetails, BlockId, DebugCall, Log, Transaction, TransactionDetails,
+    Block, BlockDetails, BlockId, BlockNumber, DebugCall, Log, Transaction, TransactionDetails,
     TransactionReceipt, TransactionVariant,
 };
 use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
@@ -871,21 +871,58 @@ impl ReadBlockchain for StateHandle {
     }
 
     async fn get_block_by_hash(&self, _hash: &H256) -> Option<Block<TransactionVariant>> {
-        // TODO: proper implementation
-        None
+        unimplemented!()
     }
 
     async fn get_block_by_number(
         &self,
-        _number: L2BlockNumber,
+        number: L2BlockNumber,
     ) -> Option<Block<TransactionVariant>> {
-        // TODO: proper implementation
-        None
+        let block_output = self.0.in_memory_block_receipts.get(number.0 as u64)?;
+        Some(Block {
+            hash: Default::default(),
+            parent_hash: Default::default(),
+            uncles_hash: Default::default(),
+            author: Default::default(),
+            state_root: Default::default(),
+            transactions_root: Default::default(),
+            receipts_root: Default::default(),
+            number: U64::from(block_output.header.number),
+            l1_batch_number: None,
+            gas_used: Default::default(),
+            gas_limit: Default::default(),
+            base_fee_per_gas: Default::default(),
+            extra_data: Default::default(),
+            logs_bloom: Default::default(),
+            timestamp: Default::default(),
+            l1_batch_timestamp: None,
+            difficulty: Default::default(),
+            total_difficulty: Default::default(),
+            seal_fields: vec![],
+            uncles: vec![],
+            transactions: vec![],
+            size: Default::default(),
+            mix_hash: Default::default(),
+            nonce: Default::default(),
+        })
     }
 
-    async fn get_block_by_id(&self, _block_id: BlockId) -> Option<Block<TransactionVariant>> {
-        // TODO: proper implementation
-        None
+    async fn get_block_by_id(&self, block_id: BlockId) -> Option<Block<TransactionVariant>> {
+        let block_number = match block_id {
+            BlockId::Hash(hash) => return self.get_block_by_hash(&hash).await,
+            BlockId::Number(
+                BlockNumber::Committed
+                | BlockNumber::Finalized
+                | BlockNumber::Latest
+                | BlockNumber::L1Committed
+                | BlockNumber::Pending,
+            ) => self.current_block_number().await,
+            BlockId::Number(BlockNumber::Earliest) => unimplemented!(),
+            BlockId::Number(BlockNumber::Number(block_number)) => {
+                L2BlockNumber(block_number.as_u32())
+            }
+        };
+        self.get_block_by_number(block_number).await
     }
 
     async fn get_block_hash_by_number(&self, _number: L2BlockNumber) -> Option<H256> {

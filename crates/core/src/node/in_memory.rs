@@ -62,6 +62,8 @@ use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
+use zksync_os_sequencer::storage::block_replay_storage::BlockReplayStorage;
+use zksync_os_sequencer::storage::StateHandle;
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
 use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
 use zksync_types::fee_model::BatchFeeInput;
@@ -301,6 +303,8 @@ pub struct InMemoryNode {
     pub(crate) sealer_state: BlockSealerState,
     pub(crate) system_contracts: SystemContracts,
     pub(crate) storage_key_layout: StorageKeyLayout,
+    pub(crate) state_handle: StateHandle,
+    pub(crate) block_replay_storage: BlockReplayStorage,
 }
 
 impl InMemoryNode {
@@ -318,6 +322,8 @@ impl InMemoryNode {
         sealer_state: BlockSealerState,
         system_contracts: SystemContracts,
         storage_key_layout: StorageKeyLayout,
+        state_handle: StateHandle,
+        block_replay_storage: BlockReplayStorage,
     ) -> Self {
         InMemoryNode {
             inner,
@@ -333,6 +339,8 @@ impl InMemoryNode {
             sealer_state,
             system_contracts,
             storage_key_layout,
+            state_handle,
+            block_replay_storage,
         }
     }
 
@@ -654,8 +662,13 @@ impl InMemoryNode {
             storage_key_layout,
             false,
         );
-        let (node_executor, node_handle) =
-            NodeExecutor::new(inner.clone(), vm_runner, todo!(), storage_key_layout);
+        let (node_executor, node_handle) = NodeExecutor::new(
+            inner.clone(),
+            vm_runner,
+            todo!(),
+            todo!(),
+            storage_key_layout,
+        );
         let pool = TxPool::new(
             impersonation.clone(),
             anvil_zksync_types::TransactionOrder::Fifo,
@@ -681,6 +694,8 @@ impl InMemoryNode {
             block_sealer_state,
             system_contracts,
             storage_key_layout,
+            todo!(),
+            todo!(),
         )
     }
 

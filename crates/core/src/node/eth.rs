@@ -3,10 +3,13 @@ use crate::node::error::{ToHaltError, ToRevertReason};
 use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
 use std::collections::HashSet;
+use zk_os_forward_system::run::{ExecutionOutput, ExecutionResult};
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
-use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
+use zksync_os_sequencer::api::resolve_block_id;
+use zksync_os_sequencer::execution::sandbox::execute;
+use zksync_os_sequencer::DEFAULT_ETH_CALL_GAS;
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::utils::decompose_full_nonce;
 use zksync_types::{
@@ -27,82 +30,75 @@ use zksync_web3_decl::{
     types::{FeeHistory, Filter, FilterChanges, SyncState},
 };
 
+use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
+use crate::node::StorageKeyLayout;
 use crate::{
     filters::{FilterType, LogFilter},
     node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
     utils::TransparentError,
 };
 
-use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
-
 impl InMemoryNode {
     pub async fn call_impl(
         &self,
-        req: zksync_types::transaction_request::CallRequest,
+        mut req: zksync_types::transaction_request::CallRequest,
+        block: Option<BlockIdVariant>,
         state_override: Option<StateOverride>,
     ) -> Result<Bytes, Web3Error> {
-        let system_contracts = self.system_contracts.contracts_for_l2_call().clone();
-        let mut tx = L2Tx::from_request(
-            req.into(),
-            MAX_TX_SIZE,
-            self.system_contracts.allow_no_target(),
-        )?;
-
-        // Warn if target address has no code
-        if let Some(to_address) = tx.execute.contract_address {
-            let code_key = get_code_key(&to_address);
-            if self.storage.read_value_alt(&code_key).await?.is_zero() {
-                sh_warn!(
-                    "Read only call to address {to_address}, which is not associated with any contract."
-                )
-            }
+        if state_override.is_some() {
+            return Err(Web3Error::InternalError(anyhow::anyhow!(
+                "state override in eth_call is not supported yet"
+            )));
         }
 
-        if self.system_contracts.boojum.use_boojum {
-            tx.common_data.fee.gas_limit = BOOJUM_CALL_GAS_LIMIT.into();
+        if req.gas.is_none() {
+            req.gas = Some(DEFAULT_ETH_CALL_GAS.into());
+        }
+
+        let block_id =
+            api::BlockId::from(block.unwrap_or(BlockIdVariant::BlockNumber(BlockNumber::Latest)));
+        let block_number = if let Some(block) = self.blockchain.get_block_by_id(block_id).await {
+            block.number.as_u64()
         } else {
-            tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+            self.fork
+                .get_block_by_id(block_id)
+                .await?
+                .context("no block found in fork")?
+                .number
+                .as_u64()
+        };
+        // todo: doing `+ 1` to make sure eth_calls are done on top of the current chain
+        // consider legacy logic - perhaps differentiate Latest/Commiteetd etc
+        let block_number = block_number + 1;
+
+        tracing::info!("block {:?} resolved to: {:?}", block, block_number);
+
+        let mut tx =
+            L2Tx::from_request(req.clone().into(), zksync_os_sequencer::MAX_TX_SIZE, true)?;
+
+        // otherwise it's not parsed properly in VM
+        if tx.common_data.signature.is_empty() {
+            tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
         }
-        let call_result = self
-            .run_l2_call(tx.clone(), system_contracts, state_override)
-            .await
-            .context("Invalid data due to invalid name")?;
 
-        match call_result {
-            ExecutionResult::Success { output } => Ok(output.into()),
-            ExecutionResult::Revert { output } => {
-                let message = output.to_user_friendly_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
+        // using previous block context
+        let block_context = self
+            .block_replay_storage
+            .get_replay_record(block_number - 1)
+            .context("Failed to get block context")?
+            .context;
 
-                let revert_reason: RevertError = output.clone().to_revert_reason().await;
-                let tx = Transaction::from(tx);
-                let error_report = ExecutionErrorReport::new(&revert_reason, &tx);
-                sh_println!("{}", error_report);
+        let storage_view = self.state_handle.view_at(block_number)?;
 
-                Err(Web3Error::SubmitTransactionError(
-                    pretty_message,
-                    output.encoded_data(),
-                ))
-            }
-            ExecutionResult::Halt { reason } => {
-                let message = reason.to_string();
-                let pretty_message = format!(
-                    "execution halted {}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
+        let tx_output = dbg!(execute(tx, block_context, storage_view)?);
 
-                let halt_error: HaltError = reason.clone().to_halt_error().await;
-                let tx = Transaction::from(tx);
-                let error_report = ExecutionErrorReport::new(&halt_error, &tx);
-                sh_println!("{}", error_report);
-
-                Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
-            }
+        match tx_output.execution_result {
+            ExecutionResult::Success(ExecutionOutput::Call(output)) => Ok(output.into()),
+            ExecutionResult::Success(ExecutionOutput::Create(output, _)) => Ok(output.into()),
+            ExecutionResult::Revert(output) => Err(Web3Error::SubmitTransactionError(
+                "execution reverted".to_string(),
+                output,
+            )),
         }
     }
 
@@ -121,7 +117,7 @@ impl InMemoryNode {
             return Err(err.into());
         };
 
-        self.pool.add_tx(l2_tx.into());
+        self.pool.add_tx(dbg!(l2_tx.into()));
         Ok(hash)
     }
 
@@ -189,6 +185,7 @@ impl InMemoryNode {
             tracing::error!("\n{err}");
             return Err(TransparentError(err).into());
         }
+        tracing::info!("send transaction???");
 
         self.pool.add_tx(l2_tx.into());
         Ok(hash)
@@ -279,6 +276,16 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
+        if matches!(self.storage_key_layout, StorageKeyLayout::BoojumOs) {
+            return Ok(U256::from(
+                self.state_handle
+                    .0
+                    .account_property_history
+                    .get_latest(&address)
+                    .map(|account_properties| account_properties.nonce)
+                    .unwrap_or_default(),
+            ));
+        }
         let nonce_key = self.storage_key_layout.get_nonce_key(&address);
         let code_key = get_code_key(&address);
         let is_account_key = get_is_account_key(&address);
