@@ -19,6 +19,7 @@ anvil_zksync_traces.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_multivm.workspace = true
 zksync_contracts.workspace = true
+zksync_basic_types.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
 zksync_storage.workspace = true
@@ -26,7 +27,9 @@ zksync_storage.workspace = true
 zk_os_forward_system.workspace = true
 zk_ee.workspace = true
 zk_os_basic_system.workspace = true
+zksync_os_api.workspace = true
 system_hooks.workspace = true
+rig.workspace = true
 
 zksync_error.workspace = true
 zksync-error-description.workspace = true
@@ -38,7 +41,6 @@ futures-core = "0.3.31"
 dashmap = "6.1.0"
 once_cell.workspace = true
 vise = "0.2.0"
-ruint = "1.13.1"
 
 alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "sol-types", "eip712"] }
 
@@ -61,6 +63,8 @@ async-trait.workspace = true
 url.workspace = true
 indicatif.workspace = true
 tabled.workspace = true
+
+ruint = { version = "1.12.3", default-features = false, features = ["alloc"]}
 
 [dev-dependencies]
 maplit.workspace = true

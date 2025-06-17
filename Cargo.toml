@@ -50,6 +50,8 @@ zksync_storage = { git = "https://github.com/matter-labs/zksync-era", rev = "cor
 zk_os_forward_system = { package = "forward_system", path = "../zksync-os/forward_system", features = ["evm-compatibility", "unlimited_native", "no_print"] }
 zk_ee = { package = "zk_ee", path = "../zksync-os/zk_ee" }
 zk_os_basic_system = { package = "basic_system", path = "../zksync-os/basic_system" }
+zksync_os_api = { package = "zksync_os_api", path = "../zksync-os/api" }
+rig = { package = "rig", path = "../zksync-os/tests/rig" }
 system_hooks = { package = "system_hooks", path = "../zksync-os/system_hooks" }
 
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }

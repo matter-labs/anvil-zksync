@@ -2,20 +2,23 @@
 //! This is still experimental code.
 use std::{alloc::Global, collections::HashMap, vec};
 
+use crate::deps::InMemoryStorage;
 use anvil_zksync_config::types::BoojumConfig;
-use basic_system::system_implementation::io::{
+use once_cell::sync::Lazy;
+use rig::utils::evm_bytecode_into_account_properties;
+use ruint::aliases::B160;
+use std::sync::Mutex;
+use system_hooks::addresses_constants::{ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS, BASE_TOKEN_ADDRESS};
+use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
+use zk_os_basic_system::system_implementation::flat_storage_model::{
     address_into_special_storage_key, AccountProperties, TestingTree,
     ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
 };
-//use basic_system::basic_system::simple_growable_storage::TestingTree;
-use forward_system::run::{
+use zk_os_forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
     StorageCommitment,
 };
-use rig::utils::evm_bytecode_into_account_properties;
-use ruint::aliases::B160;
-use system_hooks::addresses_constants::{ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS, BASE_TOKEN_ADDRESS};
-use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
+use zksync_multivm::MultiVmTracerPointer;
 use zksync_multivm::{
     interface::{
         storage::{StoragePtr, WriteStorage},
@@ -27,17 +30,11 @@ use zksync_multivm::{
     vm_latest::TracerPointer,
     HistoryMode,
 };
-
-use zksync_multivm::MultiVmTracerPointer;
 use zksync_types::{
     address_to_h256, get_code_key, u256_to_h256, web3::keccak256, AccountTreeId, Address,
     ExecuteTransactionCommon, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction,
     H160, H256, U256,
 };
-
-use crate::deps::InMemoryStorage;
-use once_cell::sync::Lazy;
-use std::sync::Mutex;
 
 pub const BOOJUM_CALL_GAS_LIMIT: u64 = 100_000_000;
 
@@ -340,6 +337,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         block_hashes: Default::default(),
         coinbase: B160::ZERO,
         gas_limit: 100_000_000,
+        native_price: ruint::aliases::U256::from(1),
     };
 
     let storage_commitment = StorageCommitment {
@@ -368,7 +366,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
     let (output, dynamic_factory_deps, storage_logs) = if simulate_only {
         (
-            forward_system::run::simulate_tx(
+            zk_os_forward_system::run::simulate_tx(
                 tx_raw,
                 batch_context,
                 tree.clone(),
@@ -383,7 +381,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
             transactions: vec![tx_raw].into(),
         };
         let noop = NoopTxCallback {};
-        let batch_output = forward_system::run::run_batch(
+        let batch_output = zk_os_forward_system::run::run_batch(
             batch_context,
             // FIXME
             tree.clone(),
@@ -394,7 +392,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         .unwrap();
 
         if let Some(zkos_path) = zkos_path {
-            let result = zkos_api::run_batch_generate_witness(
+            let result = zksync_os_api::run_batch_generate_witness(
                 batch_context,
                 tree.clone(),
                 preimage_source.clone(),
@@ -442,9 +440,8 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                     if preimage.0 == write.value {
                         found = true;
                         let account_properties =
-                            AccountProperties::decode(preimage.1.clone().try_into().unwrap())
-                                .unwrap();
-                        let balance = account_properties.nominal_token_balance;
+                            AccountProperties::decode(preimage.1.clone().try_into().unwrap());
+                        let balance = account_properties.balance;
                         let nonce = account_properties.nonce;
                         let bytecode_hash = account_properties.bytecode_hash;
 
@@ -498,13 +495,15 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
     let (tx_output, gas_refunded) = match output.as_ref() {
         Ok(tx_output) => match &tx_output.execution_result {
-            forward_system::run::ExecutionResult::Success(output) => match &output {
-                forward_system::run::ExecutionOutput::Call(data) => (data, tx_output.gas_refunded),
-                forward_system::run::ExecutionOutput::Create(data, _) => {
+            zk_os_forward_system::run::ExecutionResult::Success(output) => match &output {
+                zk_os_forward_system::run::ExecutionOutput::Call(data) => {
+                    (data, tx_output.gas_refunded)
+                }
+                zk_os_forward_system::run::ExecutionOutput::Create(data, _) => {
                     (data, tx_output.gas_refunded)
                 }
             },
-            forward_system::run::ExecutionResult::Revert(data) => {
+            zk_os_forward_system::run::ExecutionResult::Revert(data) => {
                 return (
                     VmExecutionResultAndLogs {
                         result: ExecutionResult::Revert {
@@ -813,7 +812,7 @@ fn get_account_properties(
     preimage_source: &mut InMemoryPreimageSource,
     address: &B160,
 ) -> AccountProperties {
-    use forward_system::run::PreimageSource;
+    use zk_os_forward_system::run::PreimageSource;
     let key = address_into_special_storage_key(address);
     let flat_key = derive_flat_storage_key(&ACCOUNT_PROPERTIES_STORAGE_ADDRESS, &key);
     match state_tree.cold_storage.get(&flat_key) {
@@ -828,7 +827,6 @@ fn get_account_properties(
                     .get_preimage(*account_hash)
                     .unwrap_or_default();
                 AccountProperties::decode(encoded.try_into().unwrap())
-                    .expect("Failed to decode account properties")
             }
         }
     }
@@ -852,7 +850,7 @@ pub fn set_account_properties(
             .insert(account_properties.bytecode_hash, bytecode);
     }
     if let Some(nominal_token_balance) = balance {
-        account_properties.nominal_token_balance = nominal_token_balance;
+        account_properties.balance = nominal_token_balance;
     }
     if let Some(nonce) = nonce {
         account_properties.nonce = nonce;

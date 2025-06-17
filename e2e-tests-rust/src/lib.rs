@@ -1,4 +1,13 @@
 #![allow(async_fn_in_trait)]
+#![feature(allocator_api)]
+#![feature(const_trait_impl)]
+#![allow(incomplete_features)]
+#![feature(generic_const_exprs)]
+#![feature(array_chunks)]
+#![feature(get_mut_unchecked)]
+#![feature(const_type_id)]
+#![feature(vec_push_within_capacity)]
+#![feature(iter_array_chunks)]
 
 pub mod contracts;
 mod ext;

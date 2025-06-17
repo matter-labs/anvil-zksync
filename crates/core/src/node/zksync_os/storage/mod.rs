@@ -24,7 +24,9 @@ use zk_os_basic_system::system_implementation::flat_storage_model::{
     AccountProperties, ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
 };
 use zk_os_forward_system::run::output::TxResult;
-use zk_os_forward_system::run::{BatchOutput, PreimageSource, ReadStorage, ReadStorageTree};
+use zk_os_forward_system::run::{
+    BatchOutput, LeafProof, PreimageSource, ReadStorage, ReadStorageTree,
+};
 use zksync_storage::RocksDB;
 use zksync_types::{api, h256_to_address, Address, Transaction};
 use zksync_web3_decl::types::U256;
@@ -351,12 +353,12 @@ impl PreimageSource for StorageView {
 /* ------------------------------------------------------------------ */
 impl ReadStorageTree for StorageView {
     fn tree_index(&mut self, _key: Bytes32) -> Option<u64> {
-        unimplemented!()
+        None
     }
-    fn merkle_proof(&mut self, _idx: u64) -> zk_os_forward_system::run::LeafProof {
-        unimplemented!()
+    fn merkle_proof(&mut self, _idx: u64) -> LeafProof {
+        panic!("poof")
     }
     fn prev_tree_index(&mut self, _key: Bytes32) -> u64 {
-        unimplemented!()
+        0
     }
 }
