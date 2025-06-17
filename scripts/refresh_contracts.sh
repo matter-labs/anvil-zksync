@@ -19,7 +19,7 @@ case $PROTOCOL_VERSION in
     ERA_CONTRACTS_GIT_COMMIT=216c413ffe523186feb75263de3169cb38f7e93a
     ;;
   v30)
-    ERA_CONTRACTS_GIT_COMMIT=5fc5ddc8b4ea765e2fbc71a7c8261ff1645c0e07
+    ERA_CONTRACTS_GIT_COMMIT=7d9275f48be1e31c26186b8149db28fbd63bb43c
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
@@ -52,7 +52,7 @@ system_contracts_sol=(
   "AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount"
   "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken"
   "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" "Create2Factory" "L2GenesisUpgrade"
-  "SloadContract" "L2InteropRootStorage" "InteropAccount" "StandardTriggerAccount"
+  "SloadContract" "L2InteropRootStorage"
   "DefaultAccountNoSecurity"
 )
 system_contracts_yul=("EventWriter")
