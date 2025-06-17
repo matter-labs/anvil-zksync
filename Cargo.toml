@@ -49,12 +49,12 @@ zksync-error-description = { git = "https://github.com/matter-labs/zksync-error"
 #########################
 # ZKsyncOs dependencies  #
 #########################
-forward_system = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
-basic_system = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
-zk_ee = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
-system_hooks = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
-zksync_os_api = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
-rig = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
+forward_system = { git = "https://github.com/matter-labs/zksync-os.git", rev = "778bfc2289f14166bc72923146fc88d55949fa56" }
+basic_system = { git = "https://github.com/matter-labs/zksync-os.git", rev = "778bfc2289f14166bc72923146fc88d55949fa56" }
+zk_ee = { git = "https://github.com/matter-labs/zksync-os.git", rev = "778bfc2289f14166bc72923146fc88d55949fa56" }
+system_hooks = { git = "https://github.com/matter-labs/zksync-os.git", rev = "778bfc2289f14166bc72923146fc88d55949fa56" }
+zksync_os_api = { git = "https://github.com/matter-labs/zksync-os.git", rev = "778bfc2289f14166bc72923146fc88d55949fa56" }
+rig = { git = "https://github.com/matter-labs/zksync-os.git", rev = "778bfc2289f14166bc72923146fc88d55949fa56" }
 
 #########################
 # External dependencies #
