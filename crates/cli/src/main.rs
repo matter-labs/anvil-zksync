@@ -532,7 +532,9 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     )
     .collect::<Vec<_>>();
     for address in rich_addresses {
-        node.set_rich_account(address, config.genesis_balance).await;
+        node_handle
+            .set_balance_sync(address, config.genesis_balance)
+            .await?;
     }
 
     let mut server_builder = NodeServerBuilder::new(

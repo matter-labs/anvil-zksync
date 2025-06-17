@@ -212,9 +212,9 @@ pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
         zksync_types::l2::TransactionType::LegacyTransaction => 0u8,
         zksync_types::l2::TransactionType::EIP2930Transaction => 1u8,
         zksync_types::l2::TransactionType::EIP1559Transaction => 2u8,
-        zksync_types::l2::TransactionType::EIP712Transaction => todo!(),
-        zksync_types::l2::TransactionType::PriorityOpTransaction => todo!(),
-        zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => todo!(),
+        zksync_types::l2::TransactionType::EIP712Transaction => 0x71,
+        zksync_types::l2::TransactionType::PriorityOpTransaction => 0xfe,
+        zksync_types::l2::TransactionType::ProtocolUpgradeTransaction => 0xff,
     };
     let common_data = match &tx.common_data {
         zksync_types::ExecuteTransactionCommon::L1(_) => todo!(),
@@ -333,8 +333,8 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
         block_hashes: Default::default(),
         coinbase: B160::ZERO,
         // TODO: investigate
-        native_price: ruint::aliases::U256::from(10u64),
-        gas_limit: 100_000_000,
+        native_price: ruint::aliases::U256::from(1u64),
+        gas_limit: 80_000_000_000,
     };
 
     let storage_commitment = StorageCommitment {

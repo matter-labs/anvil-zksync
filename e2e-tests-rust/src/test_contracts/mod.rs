@@ -1,5 +1,5 @@
 use alloy::contract::SolCallBuilder;
-use alloy::network::{Ethereum, Network, ReceiptResponse};
+use alloy::network::{Ethereum, Network, ReceiptResponse, TransactionBuilder};
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy_zksync::network::transaction_request::TransactionRequest;
@@ -24,11 +24,12 @@ pub struct Counter<N: Network, P: Provider<N>>(private::Counter::CounterInstance
 
 impl<P: Provider<Zksync> + Clone> Counter<Zksync, P> {
     pub async fn deploy(provider: P) -> anyhow::Result<Self> {
-        let tx = TransactionRequest::default().with_create_params(
-            private::Counter::BYTECODE.clone().into(),
-            vec![],
-            vec![],
-        )?;
+        let tx = TransactionRequest::default()
+            .with_create_params(private::Counter::BYTECODE.clone().into(), vec![], vec![])?
+            .with_gas_limit(100_000)
+            .with_gas_per_pubdata(U256::from(100))
+            .with_max_fee_per_gas(1000)
+            .with_max_priority_fee_per_gas(1000);
         let receipt = provider.send_transaction(tx).await?.get_receipt().await?;
         let contract_address = receipt
             .contract_address()

@@ -302,7 +302,9 @@ impl InMemoryNode {
         hash: H256,
     ) -> anyhow::Result<Option<api::TransactionReceipt>> {
         // TODO: Call fork if not found
-        Ok(self.blockchain.get_tx_receipt(&hash).await)
+        let tx_receipt = dbg!(self.blockchain.get_tx_receipt(&hash).await);
+        dbg!(serde_json::to_string(&tx_receipt)?);
+        Ok(tx_receipt)
     }
 
     pub async fn get_transaction_by_hash_impl(

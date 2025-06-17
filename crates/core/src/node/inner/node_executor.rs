@@ -1,5 +1,6 @@
 use super::InMemoryNodeInner;
 use crate::node::blockchain::ReadBlockchain;
+use crate::node::boojumos::h160_to_b160;
 use crate::node::fork::ForkConfig;
 use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::inner::vm_runner::VmRunner;
@@ -7,14 +8,22 @@ use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
 use anyhow::Context;
 use indicatif::ProgressBar;
+use ruint::aliases::B160;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, oneshot, RwLock};
 use url::Url;
+use zk_ee::common_structs::derive_flat_storage_key;
+use zk_os_basic_system::system_implementation::flat_storage_model::{
+    address_into_special_storage_key, ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
+};
 use zk_os_forward_system::run::BatchContext;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
 use zksync_os_sequencer::model::BlockCommand;
+use zksync_os_sequencer::storage::persistent_storage_map::StorageMapCF;
+use zksync_os_sequencer::storage::rocksdb_preimages::PreimagesCF;
 use zksync_os_sequencer::storage::StateHandle;
 use zksync_types::bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker};
 use zksync_types::utils::nonces_to_full_nonce;
@@ -135,7 +144,7 @@ impl NodeExecutor {
                         gas_per_pubdata: Default::default(),
                         native_price: ruint::aliases::U256::from(1),
                         coinbase: Default::default(),
-                        gas_limit: 100_000_000,
+                        gas_limit: 80_000_000_000,
                     }),
                     Box::pin(futures::stream::iter(tx_batch.txs)),
                     self.state_handle.clone(),
@@ -258,15 +267,48 @@ impl NodeExecutor {
     }
 
     async fn set_balance(&mut self, address: Address, balance: U256, reply: oneshot::Sender<()>) {
-        let balance_key = self
-            .storage_key_layout
-            .get_storage_key_for_base_token(&address);
-        // TODO: Likely fork_storage can be moved to `NodeExecutor` instead
-        self.node_inner
-            .read()
-            .await
-            .fork_storage
-            .set_value(balance_key, u256_to_h256(balance));
+        // 1. update account property history
+        let mut account_properties = self
+            .state_handle
+            .0
+            .account_property_history
+            .base_state
+            .entry(address)
+            .or_default();
+        account_properties.balance = ruint::aliases::U256::from_limbs(balance.0);
+        let encoding = account_properties.encoding();
+        let properties_hash = account_properties.compute_hash();
+        drop(account_properties);
+
+        // 2. update preimages
+        let preimage_rocks = &self.state_handle.0.rocks_db_preimages.rocks;
+        let mut batch = preimage_rocks.new_write_batch();
+        batch.put_cf(
+            PreimagesCF::Storage,
+            properties_hash.as_u8_array_ref(),
+            &encoding,
+        );
+        preimage_rocks.write(batch).expect("RocksDB write failed");
+
+        // 3. update tree
+        let tree_rocks = &self
+            .state_handle
+            .0
+            .in_memory_storage
+            .persistent_storage_map
+            .rocks;
+        let key = address_into_special_storage_key(&h160_to_b160(&address));
+        let flat_key = derive_flat_storage_key(&ACCOUNT_PROPERTIES_STORAGE_ADDRESS, &key);
+        let mut batch = tree_rocks.new_write_batch();
+        batch.put_cf(
+            StorageMapCF::Storage,
+            flat_key.as_u8_array_ref(),
+            properties_hash.as_u8_array_ref(),
+        );
+        tree_rocks.write(batch).expect("RocksDB write failed");
+
+        tracing::info!(?address, %balance, "set balance");
+
         // Reply to sender if we can
         if reply.send(()).is_err() {
             tracing::info!("failed to reply as receiver has been dropped");
