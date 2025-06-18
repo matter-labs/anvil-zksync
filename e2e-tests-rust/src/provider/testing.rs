@@ -116,6 +116,8 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
                 anvil
                     .port(l1_locked_port.port)
                     .arg("--no-request-size-limit")
+                    .arg("--chain-id")
+                    .arg("9")
             })?;
             let l1_address = format!("http://localhost:{}", l1_locked_port.port);
             (Some(DynProvider::new(l1_provider)), Some(l1_address))
@@ -124,6 +126,7 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
         };
 
         let locked_port = LockedPort::acquire_unused().await?;
+        println!("Locked port: {}", locked_port.port);
         let node_layer = AnvilZKsyncLayer::from(node_fn({
             let mut node = AnvilZKsync::new()
                 .path(get_node_binary_path())

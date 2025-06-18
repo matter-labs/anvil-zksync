@@ -118,11 +118,7 @@ pub async fn spawn_process(
     let anvil_state_path = tmpdir.path().join("l1-state.json");
     let mut anvil_state_file = tokio::fs::File::create(&anvil_state_path).await?;
     anvil_state_file
-        .write_all(
-            L1_STATES
-                .get(&zkstack_config.genesis.genesis_protocol_version)
-                .expect("zkstack config refers to an unsupported protocol version"),
-        )
+        .write_all(include_bytes!("../../../l1-setup/state/zkos-l1-state.json").as_slice())
         .await?;
     anvil_state_file.flush().await?;
     drop(anvil_state_file);
@@ -231,10 +227,8 @@ async fn inject_l1_state(
     provider: &impl Provider,
 ) -> anyhow::Result<()> {
     // Trim trailing EOL and drop the `0x` prefix
-    let state_payload = &L1_PAYLOADS
-        .get(&protocol_version)
-        .expect("zkstack config refers to an unsupported protocol version")
-        .trim()[2..];
+    let state_payload =
+        &include_str!("../../../l1-setup/state/zkos-l1-state-payload.txt").trim()[2..];
     let state_payload = Bytes::from(hex::decode(state_payload)?);
     match provider.anvil_load_state(state_payload).await {
         Ok(true) => Ok(()),

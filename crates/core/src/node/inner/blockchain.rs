@@ -850,20 +850,25 @@ impl ReadBlockchain for StateHandle {
     }
 
     async fn current_batch(&self) -> L1BatchNumber {
-        L1BatchNumber(self.last_canonized_block_number() as u32 + 1)
+        tracing::info!("current_batch");
+        L1BatchNumber(self.last_canonized_block_number() as u32)
     }
 
     async fn current_block_number(&self) -> L2BlockNumber {
-        L2BlockNumber(self.last_canonized_block_number() as u32 + 1)
+        let res = self.last_canonized_block_number() as u32;
+        tracing::info!("current_block_number {res}");
+        L2BlockNumber(res)
     }
 
     async fn current_block_hash(&self) -> H256 {
+        tracing::info!("current_block_hash");
         let current_block_number = self.current_block_number().await;
         H256::from(
             self.0
                 .in_memory_block_receipts
                 .get(current_block_number.0 as u64)
                 .unwrap()
+                .0
                 .header
                 .hash(),
         )
@@ -877,8 +882,9 @@ impl ReadBlockchain for StateHandle {
         &self,
         number: L2BlockNumber,
     ) -> Option<Block<TransactionVariant>> {
-        let block_output = self.0.in_memory_block_receipts.get(number.0 as u64)?;
-        Some(Block {
+        tracing::info!("get_block_by_number start {number:?}");
+        let (block_output, tx_hashes) = self.0.in_memory_block_receipts.get(number.0 as u64)?;
+        let res = Some(Block {
             hash: Default::default(),
             parent_hash: Default::default(),
             uncles_hash: Default::default(),
@@ -899,14 +905,20 @@ impl ReadBlockchain for StateHandle {
             total_difficulty: Default::default(),
             seal_fields: vec![],
             uncles: vec![],
-            transactions: vec![],
+            transactions: tx_hashes
+                .into_iter()
+                .map(TransactionVariant::Hash)
+                .collect(),
             size: Default::default(),
             mix_hash: Default::default(),
             nonce: Default::default(),
-        })
+        });
+        tracing::info!("get_block_by_number end");
+        res
     }
 
     async fn get_block_by_id(&self, block_id: BlockId) -> Option<Block<TransactionVariant>> {
+        tracing::info!("get_block_by_id start {block_id:?}");
         let block_number = match block_id {
             BlockId::Hash(hash) => return self.get_block_by_hash(&hash).await,
             BlockId::Number(
@@ -921,7 +933,9 @@ impl ReadBlockchain for StateHandle {
                 L2BlockNumber(block_number.as_u32())
             }
         };
-        self.get_block_by_number(block_number).await
+        let res = self.get_block_by_number(block_number).await;
+        tracing::info!("get_block_by_id end");
+        res
     }
 
     async fn get_block_hash_by_number(&self, _number: L2BlockNumber) -> Option<H256> {
@@ -976,6 +990,7 @@ impl ReadBlockchain for StateHandle {
     }
 
     async fn get_tx_receipt(&self, tx_hash: &H256) -> Option<TransactionReceipt> {
+        tracing::info!("get_tx_receipt");
         Some(self.0.in_memory_tx_receipts.get(&tx_hash.0.into())?.receipt)
     }
 
@@ -985,6 +1000,7 @@ impl ReadBlockchain for StateHandle {
     }
 
     async fn get_tx_api(&self, tx_hash: &H256) -> anyhow::Result<Option<Transaction>> {
+        tracing::info!("get_tx_api");
         let Some(tx_api_data) = self.0.in_memory_tx_receipts.get(&tx_hash.0.into()) else {
             return Ok(None);
         };

@@ -663,7 +663,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 64)]
 async fn main() -> Result<(), AnvilZksyncError> {
     init_telemetry(
         env!("CARGO_PKG_NAME"),

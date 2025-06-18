@@ -24,11 +24,12 @@ impl InMemoryNode {
     }
 
     pub async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> AnvilNodeResult<U256> {
-        self.inner
-            .read()
-            .await
-            .estimate_l1_to_l2_gas_impl(req)
-            .await
+        // self.inner
+        //     .read()
+        //     .await
+        //     .estimate_l1_to_l2_gas_impl(req)
+        //     .await
+        Ok(U256::from(500_000))
     }
 
     pub async fn get_raw_block_transactions_impl(

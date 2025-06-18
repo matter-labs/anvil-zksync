@@ -25,23 +25,29 @@ case $PROTOCOL_VERSION in
     # HEAD of draft-v28
     ERA_TAG=core-v28.0.0
     ;;
+  zkos)
+    # HEAD of anvil-zksync-0.4.x-release-v28
+    ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
+    # HEAD of draft-v28
+    ERA_TAG=core-v28.0.0
+    ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
     exit 1
     ;;
 esac
 
-# Checkout the right revision of contracts
-cd ../contracts
-echo "Using era-contracts commit: $ERA_CONTRACTS_GIT_COMMIT"
-git fetch && git checkout $ERA_CONTRACTS_GIT_COMMIT
-cd ../l1-setup
+## Checkout the right revision of contracts
+#cd ../contracts
+#echo "Using era-contracts commit: $ERA_CONTRACTS_GIT_COMMIT"
+#git fetch && git checkout $ERA_CONTRACTS_GIT_COMMIT
+#cd ../l1-setup
 
 # Kill all child processes on exit
 trap 'pkill --signal SIGTERM --parent $$' EXIT
 
 # Spawn anvil in background
-anvil --port 8545  --dump-state "state/$PROTOCOL_VERSION-l1-state.json" &
+anvil --port 8545 --chain-id 9 --dump-state "state/$PROTOCOL_VERSION-l1-state.json" &
 ANVIL_STATE_PAYLOAD_PATH="${BASH_SOURCE%/*}/state/$PROTOCOL_VERSION-l1-state-payload.txt"
 ANVIL_UPGRADE_TX_PATH="${BASH_SOURCE%/*}/state/$PROTOCOL_VERSION-l2-upgrade-tx.json"
 
@@ -88,63 +94,74 @@ done
 
 echo "* Reading chain accounts from $WALLETS_PATH..."
 DEPLOYER_ACCOUNT="$(yq -r '.deployer.address' "$WALLETS_PATH")"
+OPERATOR_ACCOUNT="$(yq -r '.operator.address' "$WALLETS_PATH")"
 BLOB_OPERATOR_ACCOUNT="$(yq -r '.blob_operator.address' "$WALLETS_PATH")"
 GOVERNOR_ACCOUNT="$(yq -r '.governor.address' "$WALLETS_PATH")"
 echo "* Done (deployer='$DEPLOYER_ACCOUNT', blob_operator='$BLOB_OPERATOR_ACCOUNT', governor='$GOVERNOR_ACCOUNT')"
 
 echo "* Funding accounts..."
 fund_account "$DEPLOYER_ACCOUNT"
+fund_account "$OPERATOR_ACCOUNT"
 fund_account "$BLOB_OPERATOR_ACCOUNT"
 fund_account "$GOVERNOR_ACCOUNT"
 echo "* Done"
 
 # Create a new ecosystem in `./anvil_ecosystem_<protocol_version>` with cloned `zksync-era`
-zkstack ecosystem create \
-  --ecosystem-name "anvil-ecosystem-$PROTOCOL_VERSION" --l1-network localhost --chain-name "anvil-$PROTOCOL_VERSION" \
-  --chain-id 260 --wallet-creation in-file --wallet-path ../wallets.yaml \
-  --prover-mode no-proofs --l1-batch-commit-data-generator-mode rollup --evm-emulator false --start-containers false \
-  --base-token-address "0x0000000000000000000000000000000000000001"  --base-token-price-nominator 1 --base-token-price-denominator 1 \
-  --link-to-code "" # Indicates that `zksync-era` needs to be cloned
+cd ../../zksync-era
+zkstack ecosystem init --deploy-paymaster --deploy-erc20 \
+          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_era \
+          --ignore-prerequisites --verbose \
+          --observability=false
+cd ../anvil-zksync/l1-setup
 
-ECOSYSTEM_DIR="anvil_ecosystem_$PROTOCOL_VERSION"
-ECOSYSTEM_ERA_DIR="$ECOSYSTEM_DIR/zksync-era"
-
-echo "* Patching ecosystem..."
-# Checkout correct version of zksync-era
-pushd "./$ECOSYSTEM_ERA_DIR" > /dev/null
-echo "Using zksync-era tag: $ERA_TAG"
-git fetch && git checkout $ERA_TAG
-popd > /dev/null
-# Substitute zksync-era's contracts with anvil-zksync's version
-rm -rf "./$ECOSYSTEM_ERA_DIR/contracts"
-ln -s ../../../contracts  "./$ECOSYSTEM_ERA_DIR/contracts"
-# Patch `genesis.yaml` with anvil-zksync's parameters
-patched_genesis=$(yq ". * load(\"patches/$PROTOCOL_VERSION-genesis-patch.yaml\")" "./$ECOSYSTEM_ERA_DIR/etc/env/file_based/genesis.yaml")
-echo "$patched_genesis" > "./$ECOSYSTEM_ERA_DIR/etc/env/file_based/genesis.yaml"
-echo "* Done"
-
-# Initialize ecosystem
-# Note: this requires a running postgres container and builds zksync-era server; neither is needed for us but there is
-#       no current way to turn off this behavior in zkstack
-pushd "./$ECOSYSTEM_DIR" > /dev/null
-zkstack ecosystem init \
-  --deploy-paymaster --deploy-erc20 --deploy-ecosystem \
-  --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 --server-db-name=zksync_server_localhost_era \
-  --l1-rpc-url=http://localhost:8545 --observability false --update-submodules false
-popd > /dev/null
-
-GENESIS_PROTOCOL_VERSION="$(yq -r '.genesis_protocol_version' "$ECOSYSTEM_DIR/chains/anvil_$PROTOCOL_VERSION/configs/genesis.yaml")"
-if [[ "v$GENESIS_PROTOCOL_VERSION" != "$PROTOCOL_VERSION" ]]; then
-  echo "ERROR: Ecosystem was initialized with protocol version v$GENESIS_PROTOCOL_VERSION when we expected $PROTOCOL_VERSION"
-  echo "Make sure you are using correct version of zkstack and clean ecosystem directory ($ECOSYSTEM_DIR)"
-  exit 1
-fi
-
-# Persist resulting configuration files in anvil-zksync's source control
-echo "* Copying resulting config files..."
-cp "./$ECOSYSTEM_DIR/chains/anvil_$PROTOCOL_VERSION/configs/contracts.yaml" "./configs/$PROTOCOL_VERSION-contracts.yaml"
-cp "./$ECOSYSTEM_DIR/chains/anvil_$PROTOCOL_VERSION/configs/genesis.yaml" "./configs/$PROTOCOL_VERSION-genesis.yaml"
-echo "* Done"
+#zkstack ecosystem create \
+#  --ecosystem-name "anvil-ecosystem-$PROTOCOL_VERSION" --l1-network localhost --chain-name "anvil-$PROTOCOL_VERSION" \
+#  --chain-id 260 --wallet-creation in-file --wallet-path ../wallets.yaml \
+#  --prover-mode no-proofs --l1-batch-commit-data-generator-mode rollup --evm-emulator false --start-containers false \
+#  --base-token-address "0x0000000000000000000000000000000000000001"  --base-token-price-nominator 1 --base-token-price-denominator 1 \
+#  --link-to-code "" # Indicates that `zksync-era` needs to be cloned
+#
+#ECOSYSTEM_DIR="anvil_ecosystem_$PROTOCOL_VERSION"
+#ECOSYSTEM_ERA_DIR="$ECOSYSTEM_DIR/zksync-era"
+#
+#echo "* Patching ecosystem..."
+## Checkout correct version of zksync-era
+#pushd "./$ECOSYSTEM_ERA_DIR" > /dev/null
+#echo "Using zksync-era tag: $ERA_TAG"
+#git fetch && git checkout $ERA_TAG
+#popd > /dev/null
+## Substitute zksync-era's contracts with anvil-zksync's version
+#rm -rf "./$ECOSYSTEM_ERA_DIR/contracts"
+#ln -s ../../../contracts  "./$ECOSYSTEM_ERA_DIR/contracts"
+## Patch `genesis.yaml` with anvil-zksync's parameters
+#patched_genesis=$(yq ". * load(\"patches/$PROTOCOL_VERSION-genesis-patch.yaml\")" "./$ECOSYSTEM_ERA_DIR/etc/env/file_based/genesis.yaml")
+#echo "$patched_genesis" > "./$ECOSYSTEM_ERA_DIR/etc/env/file_based/genesis.yaml"
+#echo "* Done"
+#
+## Initialize ecosystem
+## Note: this requires a running postgres container and builds zksync-era server; neither is needed for us but there is
+##       no current way to turn off this behavior in zkstack
+#pushd "./$ECOSYSTEM_DIR" > /dev/null
+#zkstack ecosystem init \
+#  --deploy-paymaster --deploy-erc20 --deploy-ecosystem \
+#  --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 --server-db-name=zksync_server_localhost_era \
+#  --l1-rpc-url=http://localhost:8545 --observability false --update-submodules false
+#popd > /dev/null
+#
+#GENESIS_PROTOCOL_VERSION="$(yq -r '.genesis_protocol_version' "$ECOSYSTEM_DIR/chains/anvil_$PROTOCOL_VERSION/configs/genesis.yaml")"
+#if [[ "v$GENESIS_PROTOCOL_VERSION" != "$PROTOCOL_VERSION" ]]; then
+#  echo "ERROR: Ecosystem was initialized with protocol version v$GENESIS_PROTOCOL_VERSION when we expected $PROTOCOL_VERSION"
+#  echo "Make sure you are using correct version of zkstack and clean ecosystem directory ($ECOSYSTEM_DIR)"
+#  exit 1
+#fi
+#
+## Persist resulting configuration files in anvil-zksync's source control
+#echo "* Copying resulting config files..."
+#cp "./$ECOSYSTEM_DIR/chains/anvil_$PROTOCOL_VERSION/configs/contracts.yaml" "./configs/$PROTOCOL_VERSION-contracts.yaml"
+#cp "./$ECOSYSTEM_DIR/chains/anvil_$PROTOCOL_VERSION/configs/genesis.yaml" "./configs/$PROTOCOL_VERSION-genesis.yaml"
+#echo "* Done"
 
 echo "* Dumping mandatory upgrade transaction..."
 psql postgres://postgres:notsecurepassword@localhost:5432/zksync_server_localhost_era -t -c \

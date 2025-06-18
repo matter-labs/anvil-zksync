@@ -80,7 +80,8 @@ impl L1Sidecar {
                 zkstack_config,
             }),
         };
-        let upgrade_handle = tokio::spawn(Self::upgrade(protocol_version, node_handle));
+        // let upgrade_handle = tokio::spawn(Self::upgrade(protocol_version, node_handle));
+        let upgrade_handle = tokio::spawn(async { anyhow::Ok(()) });
         let runner = L1SidecarRunner {
             anvil_handle,
             l1_sender,

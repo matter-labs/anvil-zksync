@@ -29,6 +29,7 @@ impl Canonisator {
 
     pub async fn run(mut self) -> anyhow::Result<()> {
         while let Some(command) = self.command_receiver.recv().await {
+            tracing::info!("canonise loop start");
             match command {
                 Command::Canonise(batch_output, replay) => {
                     let bn = batch_output.header.number;
@@ -42,6 +43,7 @@ impl Canonisator {
                     tracing::info!(block = bn, "✔ done");
                 }
             }
+            tracing::info!("canonise loop end");
         }
 
         tracing::trace!("channel has been closed; stopping canonisator");

@@ -67,9 +67,17 @@ pub struct ZkstackConfig {
 
 impl ZkstackConfig {
     pub fn builtin(protocol_version: ProtocolVersionId) -> Self {
-        BUILTIN_ZKSTACK_CONFIGS
-            .get(&protocol_version)
-            .expect("unsupported protocol version")
-            .clone()
+        ZkstackConfig {
+            contracts: serde_yaml::from_slice(include_bytes!(
+                "../../../../l1-setup/configs/zkos-contracts.yaml"
+            ))
+            .unwrap(),
+            genesis: serde_yaml::from_slice(include_bytes!(
+                "../../../../l1-setup/configs/zkos-genesis.yaml"
+            ))
+            .unwrap(),
+            wallets: serde_yaml::from_slice(include_bytes!("../../../../l1-setup/wallets.yaml"))
+                .unwrap(),
+        }
     }
 }

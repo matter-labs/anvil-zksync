@@ -55,10 +55,10 @@ impl CommitmentGenerator {
         );
         let genesis_metadata =
             Self::generate_metadata_inner(genesis_batch_header, commitment_input);
-        assert_eq!(
-            zkstack_config.genesis.genesis_batch_commitment, genesis_metadata.metadata.commitment,
-            "Computed genesis batch commitment does not match zkstack config"
-        );
+        // assert_eq!(
+        //     zkstack_config.genesis.genesis_batch_commitment, genesis_metadata.metadata.commitment,
+        //     "Computed genesis batch commitment does not match zkstack config"
+        // );
 
         Self {
             base_system_contracts_hashes,

@@ -63,6 +63,7 @@ impl NodeExecutor {
 
     pub async fn run(mut self) -> AnvilNodeResult<()> {
         while let Some(command) = self.command_receiver.recv().await {
+            tracing::info!("node executor loop start");
             match command {
                 Command::SealBlock(tx_batch, reply) => {
                     self.seal_block(tx_batch, reply).await?;
@@ -116,6 +117,7 @@ impl NodeExecutor {
                     self.vm_runner.set_progress_report(bar);
                 }
             }
+            tracing::info!("node executor loop end");
         }
 
         tracing::trace!("channel has been closed; stopping node executor");
@@ -167,16 +169,18 @@ impl NodeExecutor {
             for (tx_result, tx) in batch_out.tx_results.iter().zip(&replay.transactions) {
                 match tx_result {
                     Ok(tx_output) => match &tx_output.execution_result {
-                        ExecutionResult::Success(_) => {}
+                        ExecutionResult::Success(output) => {
+                            tracing::info!("Tx {:?} succeded: {output:?}", tx.hash(),);
+                        }
                         ExecutionResult::Revert(revert_data) => {
                             let revert_reason = VmRevertReason::from(revert_data.as_slice())
                                 .to_revert_reason()
                                 .await;
-                            sh_println!("Tx {:?} reverted: {revert_reason:?}", tx.hash(),);
+                            tracing::info!("Tx {:?} reverted: {revert_reason:?}", tx.hash(),);
                         }
                     },
                     Err(err) => {
-                        sh_println!("Tx {:?} rejected: {err:?}", tx.hash())
+                        tracing::info!("Tx {:?} rejected: {err:?}", tx.hash())
                     }
                 }
             }
