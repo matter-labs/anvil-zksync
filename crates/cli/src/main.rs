@@ -3,6 +3,7 @@ use crate::cli::{BuiltinNetwork, Cli, Command, ForkUrl, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
+use anvil_zksync_common::resolver::function_selector_mode;
 use anvil_zksync_common::shell::{get_shell, OutputMode};
 use anvil_zksync_common::utils::predeploys::PREDEPLOYS;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
@@ -68,6 +69,10 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
     let command = opt.command.clone();
 
     let mut config = opt.clone().into_test_node_config().map_err(to_domain)?;
+
+    // Sets the function selector mode based on the offline flag
+    function_selector_mode(config.offline);
+
     // Set verbosity level for the shell
     {
         let mut shell = get_shell();

@@ -450,7 +450,7 @@ impl InMemoryNode {
             .unwrap_or_default();
 
         let verbosity = get_shell().verbosity;
-        if !call_traces.is_empty() && verbosity >= 2 && !inner.config.offline {
+        if !call_traces.is_empty() && verbosity >= 2 {
             let tx_result_for_arena = tx_result.clone();
             let mut builder = CallTraceDecoderBuilder::default();
             builder = builder.with_signature_identifier(

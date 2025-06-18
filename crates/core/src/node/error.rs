@@ -1,15 +1,11 @@
 use alloy::hex::ToHexExt;
 use anvil_zksync_common::resolver::decode_function_selector;
-use anvil_zksync_config::TestNodeConfig;
 use async_trait::async_trait;
 use zksync_error::anvil_zksync::halt::HaltError;
 use zksync_error::anvil_zksync::revert::RevertError;
 use zksync_multivm::interface::{Halt, VmRevertReason};
 
-async fn handle_vm_revert_reason<'a>(
-    reason: &'a VmRevertReason,
-    config: &TestNodeConfig,
-) -> (String, &'a [u8]) {
+async fn handle_vm_revert_reason(reason: &VmRevertReason) -> (String, &[u8]) {
     match reason {
         VmRevertReason::General { msg, data } => (msg.to_string(), data),
         VmRevertReason::InnerTxError => ("Inner transaction error".to_string(), &[]),
@@ -18,12 +14,6 @@ async fn handle_vm_revert_reason<'a>(
             function_selector,
             data,
         } => {
-            if config.offline {
-                return (
-                    "Error: no function selector available in offline mode".to_string(),
-                    data,
-                );
-            }
             if function_selector.is_empty() {
                 ("Error: no function selector available".to_string(), &[])
             } else {
@@ -63,13 +53,13 @@ fn revert_reason(halt: &Halt) -> Option<&VmRevertReason> {
 
 #[async_trait]
 pub trait ToRevertReason {
-    async fn to_revert_reason(self, config: &TestNodeConfig) -> RevertError;
+    async fn to_revert_reason(self) -> RevertError;
 }
 
 #[async_trait]
 impl ToRevertReason for VmRevertReason {
-    async fn to_revert_reason(self, config: &TestNodeConfig) -> RevertError {
-        let (message, data) = handle_vm_revert_reason(&self, config).await;
+    async fn to_revert_reason(self) -> RevertError {
+        let (message, data) = handle_vm_revert_reason(&self).await;
 
         match self {
             VmRevertReason::General { .. } => RevertError::General {
@@ -92,14 +82,14 @@ impl ToRevertReason for VmRevertReason {
 
 #[async_trait]
 pub trait ToHaltError {
-    async fn to_halt_error(self, config: &TestNodeConfig) -> HaltError;
+    async fn to_halt_error(self) -> HaltError;
 }
 
 #[async_trait]
 impl ToHaltError for Halt {
-    async fn to_halt_error(self, config: &TestNodeConfig) -> HaltError {
+    async fn to_halt_error(self) -> HaltError {
         let (msg_opt, data_opt) = if let Some(reason) = revert_reason(&self) {
-            let (msg, data) = handle_vm_revert_reason(reason, config).await;
+            let (msg, data) = handle_vm_revert_reason(reason).await;
             (Some(msg), Some(data.encode_hex()))
         } else {
             (None, None)

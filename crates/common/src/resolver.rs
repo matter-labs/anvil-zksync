@@ -1,6 +1,7 @@
 //! Resolving the selectors (both method & event) with external database.
 use super::{cache::Cache, cache::CacheConfig, sh_warn};
 use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::Deserialize;
 use std::iter::FromIterator;
@@ -21,6 +22,15 @@ const REQ_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// How many request can time out before we decide this is a spurious connection
 const MAX_TIMEDOUT_REQ: usize = 4usize;
+
+static GLOBAL_CLIENT: Lazy<RwLock<Option<SignEthClient>>> = Lazy::new(|| RwLock::new(None));
+static OFFLINE_MODE: AtomicBool = AtomicBool::new(false);
+
+/// Sets the mode for selector decoding.
+/// When `offline` is `true`, network requests will be skipped.
+pub fn function_selector_mode(offline: bool) {
+    OFFLINE_MODE.store(offline, Ordering::Relaxed);
+}
 
 /// A client that can request API data from `https://api.openchain.xyz`
 #[derive(Debug, Clone)]
@@ -316,79 +326,96 @@ pub enum SelectorType {
 }
 /// Fetches a function signature given the selector using api.openchain.xyz
 pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<String>> {
-    let client = SignEthClient::new();
-    {
-        // Check cache
-        if let Some(resolved_selector) = client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .read()
-            .await
-            .get_resolver_selector(&(selector.to_string()))
-        {
-            tracing::debug!("Using cached function selector for {selector}");
-            return Ok(Some(resolved_selector.clone()));
+    let offline = OFFLINE_MODE.load(Ordering::Relaxed);
+
+    let client = {
+        let guard = GLOBAL_CLIENT.read().await;
+        guard.clone()
+    };
+    let client = if let Some(c) = client {
+        c
+    } else if offline {
+        // no client and offline mode -> no network request
+        return Ok(None);
+    } else {
+        let mut guard = GLOBAL_CLIENT.write().await;
+        if guard.is_none() {
+            *guard = Some(SignEthClient::new().expect("failed to create client"));
         }
+        guard.as_ref().unwrap().clone()
+    };
+
+    // Check cache
+    if let Some(resolved_selector) = client
+        .cache
+        .read()
+        .await
+        .get_resolver_selector(&(selector.to_string()))
+    {
+        tracing::debug!("Using cached function selector for {selector}");
+        return Ok(Some(resolved_selector.clone()));
     }
 
+    if offline {
+        tracing::debug!("Offline mode: skipping network request for {selector}");
+        return Ok(None);
+    }
     tracing::debug!("Making external request to resolve function selector for {selector}");
-    let result = client
-        .as_ref()
-        .unwrap() // Safe to do as client is created within this function
-        .decode_function_selector(selector)
-        .await;
+    let result = client.decode_function_selector(selector).await;
 
     if let Ok(result) = &result {
-        client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .write()
-            .await
-            .insert_resolver_selector(
-                selector.to_string(),
-                result.clone().unwrap_or_else(|| "".to_string()),
-            );
+        client.cache.write().await.insert_resolver_selector(
+            selector.to_string(),
+            result.clone().unwrap_or_else(|| "".to_string()),
+        );
     }
     result
 }
 
 pub async fn decode_event_selector(selector: &str) -> eyre::Result<Option<String>> {
-    let client = SignEthClient::new();
-    {
-        // Check cache
-        if let Some(resolved_selector) = client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .read()
-            .await
-            .get_resolver_selector(&(selector.to_string()))
-        {
-            tracing::debug!("Using cached event selector for {selector}");
-            return Ok(Some(resolved_selector.clone()));
+    let offline = OFFLINE_MODE.load(Ordering::Relaxed);
+
+    let client = {
+        let guard = GLOBAL_CLIENT.read().await;
+        guard.clone()
+    };
+    let client = if let Some(c) = client {
+        c
+    } else if offline {
+        // no client and offline mode -> no network request
+        return Ok(None);
+    } else {
+        let mut guard = GLOBAL_CLIENT.write().await;
+        if guard.is_none() {
+            *guard = Some(SignEthClient::new().expect("failed to create client"));
         }
+        guard.as_ref().unwrap().clone()
+    };
+
+    // Check cache
+    if let Some(resolved_selector) = client
+        .cache
+        .read()
+        .await
+        .get_resolver_selector(&(selector.to_string()))
+    {
+        tracing::debug!("Using cached event selector for {selector}");
+        return Ok(Some(resolved_selector.clone()));
+    }
+
+    if offline {
+        tracing::debug!("Offline mode: skipping network request for {selector}");
+        return Ok(None);
     }
 
     tracing::debug!("Making external request to resolve event selector for {selector}");
-    let result = client
-        .as_ref()
-        .unwrap()
-        .decode_selector(selector, SelectorType::Event)
-        .await;
+    let result = client.decode_selector(selector, SelectorType::Event).await;
 
     if let Ok(result) = &result {
-        client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .write()
-            .await
-            .insert_resolver_selector(
-                selector.to_string(),
-                result.clone().unwrap_or_else(|| "".to_string()),
-            );
+        client.cache.write().await.insert_resolver_selector(
+            selector.to_string(),
+            result.clone().unwrap_or_else(|| "".to_string()),
+        );
     }
     result
 }

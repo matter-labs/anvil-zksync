@@ -78,10 +78,7 @@ impl InMemoryNode {
                     message
                 );
 
-                let revert_reason: RevertError = output
-                    .clone()
-                    .to_revert_reason(&self.inner.read().await.config)
-                    .await;
+                let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 let tx = Transaction::from(tx);
                 let error_report = ExecutionErrorReport::new(&revert_reason, &tx);
                 sh_println!("{}", error_report);
@@ -99,10 +96,7 @@ impl InMemoryNode {
                     message
                 );
 
-                let halt_error: HaltError = reason
-                    .clone()
-                    .to_halt_error(&self.inner.read().await.config)
-                    .await;
+                let halt_error: HaltError = reason.clone().to_halt_error().await;
                 let tx = Transaction::from(tx);
                 let error_report = ExecutionErrorReport::new(&halt_error, &tx);
                 sh_println!("{}", error_report);
