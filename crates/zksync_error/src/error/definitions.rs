@@ -498,6 +498,7 @@ pub enum GasEstimation {
     #[doc = "Typically they depend on specific gas values, for example, they revert if `gasleft()` returned a value in a specific range."]
     TransactionRevert {
         inner: Box<Revert>,
+        data: Vec<u8>,
     } = 11u32,
     #[doc = "# Summary "]
     #[doc = "An attempt to run the transaction with maximum gas resulted in reverting the transaction and burning all gas."]
@@ -526,6 +527,7 @@ pub enum GasEstimation {
     #[doc = "Usually, this error indicates either an unconditional revert or excessive gas consumption."]
     TransactionAlwaysReverts {
         inner: Box<Revert>,
+        data: Vec<u8>,
     } = 21u32,
     GenericError {
         message: String,
@@ -596,13 +598,13 @@ impl CustomErrorMessage for GasEstimation {
             GasEstimation::TransactionHalt { inner } => {
                 format ! ("[anvil_zksync-gas_estim-10] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, burning all gas: {inner}")
             }
-            GasEstimation::TransactionRevert { inner } => {
+            GasEstimation::TransactionRevert { inner, data } => {
                 format ! ("[anvil_zksync-gas_estim-11] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, returning unspent gas: {inner}")
             }
             GasEstimation::TransactionAlwaysHalts { inner } => {
                 format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and returns unspent gas:\n{inner}")
             }
-            GasEstimation::TransactionAlwaysReverts { inner } => {
+            GasEstimation::TransactionAlwaysReverts { inner, data } => {
                 format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and burns all gas:\n{inner}")
             }
             GasEstimation::GenericError { message } => {
