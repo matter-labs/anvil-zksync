@@ -18,6 +18,11 @@ mod private {
         CounterEvm,
         "src/test_contracts/evm-artifacts/Counter.json"
     );
+    alloy::sol!(
+        #[sol(rpc)]
+        SimpleErc20Evm,
+        "src/test_contracts/evm-artifacts/SimpleERC20.json"
+    );
 }
 
 pub struct Counter<N: Network, P: Provider<N>>(private::Counter::CounterInstance<(), P, N>);
@@ -64,5 +69,46 @@ impl<N: Network, P: Provider<N>> Counter<N, P> {
         x: impl TryInto<U256, Error = impl Debug>,
     ) -> SolCallBuilder<(), &P, private::Counter::incrementCall, N> {
         self.0.increment(x.try_into().unwrap())
+    }
+}
+
+pub struct SimpleErc20<N: Network, P: Provider<N>>(
+    private::SimpleErc20Evm::SimpleErc20EvmInstance<(), P, N>,
+);
+
+impl<P: Provider<Ethereum> + Clone> SimpleErc20<Ethereum, P> {
+    pub async fn deploy_evm(provider: P, name: String, symbol: String) -> anyhow::Result<Self> {
+        let evm_contract = private::SimpleErc20Evm::deploy(provider.clone(), name, symbol).await?;
+
+        Ok(Self(private::SimpleErc20Evm::new(
+            *evm_contract.address(),
+            provider,
+        )))
+    }
+}
+
+impl<N: Network, P: Provider<N>> SimpleErc20<N, P> {
+    pub fn address(&self) -> &Address {
+        self.0.address()
+    }
+
+    pub async fn balance_of(&self, address: Address) -> alloy::contract::Result<U256> {
+        Ok(self.0.balanceOf(address).call().await?._0)
+    }
+
+    pub fn transfer(
+        &self,
+        to: Address,
+        amount: U256,
+    ) -> SolCallBuilder<(), &P, private::SimpleErc20Evm::transferCall, N> {
+        self.0.transfer(to, amount)
+    }
+
+    pub fn mint(
+        &self,
+        to: Address,
+        amount: U256,
+    ) -> SolCallBuilder<(), &P, private::SimpleErc20Evm::mintCall, N> {
+        self.0.mint(to, amount)
     }
 }

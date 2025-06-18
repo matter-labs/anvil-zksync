@@ -10,6 +10,7 @@
 //! FIXME: The above is not 100% true yet (there are some internal parts of InMemoryNodeInner that
 //!        are available outside of this module)
 pub mod blockchain;
+pub mod canonisator;
 pub mod fork;
 mod fork_storage;
 mod in_memory_inner;

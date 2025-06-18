@@ -1,16 +1,12 @@
-use crate::formatter::errors::view::ExecutionErrorReport;
-use crate::node::error::{ToHaltError, ToRevertReason};
-use anvil_zksync_common::{sh_err, sh_println, sh_warn};
+use anvil_zksync_common::sh_err;
 use anyhow::Context as _;
 use std::collections::HashSet;
 use zk_os_forward_system::run::{ExecutionOutput, ExecutionResult};
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
-use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
-use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
-use zksync_os_sequencer::api::resolve_block_id;
 use zksync_os_sequencer::execution::sandbox::execute;
 use zksync_os_sequencer::DEFAULT_ETH_CALL_GAS;
 use zksync_types::api::state_override::StateOverride;
+use zksync_types::h256_to_u256;
 use zksync_types::utils::decompose_full_nonce;
 use zksync_types::{
     api,
@@ -20,7 +16,6 @@ use zksync_types::{
     transaction_request::TransactionRequest,
     PackedEthSignature, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
-use zksync_types::{h256_to_u256, Transaction};
 use zksync_types::{
     web3::{self, Bytes},
     Address, H160, H256, U256, U64,
@@ -30,7 +25,6 @@ use zksync_web3_decl::{
     types::{FeeHistory, Filter, FilterChanges, SyncState},
 };
 
-use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
 use crate::node::StorageKeyLayout;
 use crate::{
     filters::{FilterType, LogFilter},
@@ -90,7 +84,7 @@ impl InMemoryNode {
 
         let storage_view = self.state_handle.view_at(block_number)?;
 
-        let tx_output = dbg!(execute(tx, block_context, storage_view)?);
+        let tx_output = execute(tx, block_context, storage_view)?;
 
         match tx_output.execution_result {
             ExecutionResult::Success(ExecutionOutput::Call(output)) => Ok(output.into()),
@@ -117,7 +111,9 @@ impl InMemoryNode {
             return Err(err.into());
         };
 
-        self.pool.add_tx(dbg!(l2_tx.into()));
+        tracing::info!("before adding to pool");
+        self.pool.add_tx(l2_tx.into());
+        tracing::info!("after adding to pool");
         Ok(hash)
     }
 
@@ -199,6 +195,17 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockIdVariant>,
     ) -> anyhow::Result<U256> {
+        if matches!(self.storage_key_layout, StorageKeyLayout::BoojumOs) {
+            return Ok(U256::from(
+                self.state_handle
+                    .0
+                    .account_property_history
+                    .get_latest(&address)
+                    .map(|account_properties| account_properties.balance)
+                    .unwrap_or_default()
+                    .to_be_bytes(),
+            ));
+        }
         let balance_key = self
             .storage_key_layout
             .get_storage_key_for_base_token(&address);
@@ -309,8 +316,7 @@ impl InMemoryNode {
         hash: H256,
     ) -> anyhow::Result<Option<api::TransactionReceipt>> {
         // TODO: Call fork if not found
-        let tx_receipt = dbg!(self.blockchain.get_tx_receipt(&hash).await);
-        dbg!(serde_json::to_string(&tx_receipt)?);
+        let tx_receipt = self.blockchain.get_tx_receipt(&hash).await;
         Ok(tx_receipt)
     }
 
@@ -335,8 +341,9 @@ impl InMemoryNode {
         // TODO: Support
         _block: Option<BlockNumber>,
     ) -> AnvilNodeResult<U256> {
-        let fee = self.inner.read().await.estimate_gas_impl(req).await?;
-        Ok(fee.gas_limit)
+        // let fee = self.inner.read().await.estimate_gas_impl(req).await?;
+        // Ok(fee.gas_limit)
+        Ok(U256::from(500_000))
     }
 
     pub async fn gas_price_impl(&self) -> anyhow::Result<U256> {

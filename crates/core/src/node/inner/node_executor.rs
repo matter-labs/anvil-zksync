@@ -1,15 +1,16 @@
 use super::InMemoryNodeInner;
-use crate::node::blockchain::ReadBlockchain;
 use crate::node::boojumos::h160_to_b160;
+use crate::node::error::ToRevertReason;
 use crate::node::fork::ForkConfig;
+use crate::node::inner::canonisator::CanonisatorHandle;
 use crate::node::inner::fork::{ForkClient, ForkSource};
 use crate::node::inner::vm_runner::VmRunner;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
+use anvil_zksync_common::sh_println;
 use anyhow::Context;
 use indicatif::ProgressBar;
-use ruint::aliases::B160;
-use std::ops::Deref;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, oneshot, RwLock};
@@ -18,11 +19,11 @@ use zk_ee::common_structs::derive_flat_storage_key;
 use zk_os_basic_system::system_implementation::flat_storage_model::{
     address_into_special_storage_key, ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
 };
-use zk_os_forward_system::run::BatchContext;
+use zk_os_forward_system::run::{BatchContext, ExecutionResult};
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
+use zksync_multivm::interface::VmRevertReason;
 use zksync_os_sequencer::model::BlockCommand;
-use zksync_os_sequencer::storage::block_replay_storage::BlockReplayStorage;
 use zksync_os_sequencer::storage::persistent_storage_map::StorageMapCF;
 use zksync_os_sequencer::storage::rocksdb_preimages::PreimagesCF;
 use zksync_os_sequencer::storage::StateHandle;
@@ -34,7 +35,7 @@ pub struct NodeExecutor {
     node_inner: Arc<RwLock<InMemoryNodeInner>>,
     vm_runner: VmRunner,
     state_handle: StateHandle,
-    block_replay_storage: BlockReplayStorage,
+    canonisator_handle: CanonisatorHandle,
     command_receiver: mpsc::Receiver<Command>,
     storage_key_layout: StorageKeyLayout,
 }
@@ -44,7 +45,7 @@ impl NodeExecutor {
         node_inner: Arc<RwLock<InMemoryNodeInner>>,
         vm_runner: VmRunner,
         state_handle: StateHandle,
-        block_replay_storage: BlockReplayStorage,
+        canonisator_handle: CanonisatorHandle,
         storage_key_layout: StorageKeyLayout,
     ) -> (Self, NodeExecutorHandle) {
         let (command_sender, command_receiver) = mpsc::channel(128);
@@ -52,7 +53,7 @@ impl NodeExecutor {
             node_inner,
             vm_runner,
             state_handle,
-            block_replay_storage,
+            canonisator_handle,
             command_receiver,
             storage_key_layout,
         };
@@ -135,16 +136,23 @@ impl NodeExecutor {
         tx_batch: TxBatch,
         reply_sender: Option<oneshot::Sender<AnvilNodeResult<L2BlockNumber>>>,
     ) -> AnvilNodeResult<()> {
-        let mut node_inner = self.node_inner.write().await;
+        let node_inner = self.node_inner.read().await;
+        let chain_id = node_inner.config.chain_id.unwrap() as u64;
+        drop(node_inner);
         let result = async {
             let (batch_out, replay) =
                 zksync_os_sequencer::execution::block_executor::execute_block(
                     BlockCommand::Produce(BatchContext {
-                        chain_id: node_inner.config.chain_id.unwrap() as u64,
-                        block_number: (self.state_handle.current_block_number().await.0 + 1) as u64,
+                        chain_id,
+                        block_number: self
+                            .state_handle
+                            .0
+                            .last_pending_block_number
+                            .load(Ordering::Relaxed)
+                            + 1,
                         block_hashes: Default::default(),
                         timestamp: (millis_since_epoch() / 1000) as u64,
-                        eip1559_basefee: ruint::aliases::U256::from(1000),
+                        eip1559_basefee: ruint::aliases::U256::from(10),
                         gas_per_pubdata: Default::default(),
                         native_price: ruint::aliases::U256::from(1),
                         coinbase: Default::default(),
@@ -156,23 +164,31 @@ impl NodeExecutor {
                 .await
                 .context("execute_block")?;
 
+            for (tx_result, tx) in batch_out.tx_results.iter().zip(&replay.transactions) {
+                match tx_result {
+                    Ok(tx_output) => match &tx_output.execution_result {
+                        ExecutionResult::Success(_) => {}
+                        ExecutionResult::Revert(revert_data) => {
+                            let revert_reason = VmRevertReason::from(revert_data.as_slice())
+                                .to_revert_reason()
+                                .await;
+                            sh_println!("Tx {:?} reverted: {revert_reason:?}", tx.hash(),);
+                        }
+                    },
+                    Err(err) => {
+                        sh_println!("Tx {:?} rejected: {err:?}", tx.hash())
+                    }
+                }
+            }
+
             self.state_handle
                 .handle_block_output(batch_out.clone(), replay.transactions.clone());
+            let block_number = L2BlockNumber(batch_out.header.number as u32);
+            self.canonisator_handle.canonise(batch_out, replay).await?;
 
-            let bn = batch_out.header.number;
-            tracing::info!(block = bn, "▶ append_replay");
-            self.block_replay_storage
-                .append_replay(batch_out.clone(), replay)
-                .await;
-
-            tracing::info!(block = bn, "▶ advance_canonized_block");
-            self.state_handle.advance_canonized_block(bn);
-            tracing::info!(block = bn, "✔ done");
-
-            Ok(L2BlockNumber(batch_out.header.number as u32))
+            Ok(block_number)
         }
         .await;
-        drop(node_inner);
 
         // Reply to sender if we can, otherwise hold result for further processing
         let result = if let Some(reply_sender) = reply_sender {
@@ -188,7 +204,7 @@ impl NodeExecutor {
 
         // Not much we can do with an error at this level so we just print it
         if let Err(err) = result {
-            tracing::error!("failed to seal a block: {:#?}", err);
+            tracing::error!("failed to seal a block: {:?}", err);
         }
         Ok(())
     }

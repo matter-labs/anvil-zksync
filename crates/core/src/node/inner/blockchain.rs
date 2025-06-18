@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use zksync_contracts::BaseSystemContractsHashes;
@@ -851,11 +850,11 @@ impl ReadBlockchain for StateHandle {
     }
 
     async fn current_batch(&self) -> L1BatchNumber {
-        L1BatchNumber(self.0.last_pending_block_number.load(Ordering::Relaxed) as u32)
+        L1BatchNumber(self.last_canonized_block_number() as u32 + 1)
     }
 
     async fn current_block_number(&self) -> L2BlockNumber {
-        L2BlockNumber(self.0.last_pending_block_number.load(Ordering::Relaxed) as u32)
+        L2BlockNumber(self.last_canonized_block_number() as u32 + 1)
     }
 
     async fn current_block_hash(&self) -> H256 {
@@ -916,7 +915,7 @@ impl ReadBlockchain for StateHandle {
                 | BlockNumber::Latest
                 | BlockNumber::L1Committed
                 | BlockNumber::Pending,
-            ) => self.current_block_number().await,
+            ) => L2BlockNumber(self.last_canonized_block_number() as u32),
             BlockId::Number(BlockNumber::Earliest) => unimplemented!(),
             BlockId::Number(BlockNumber::Number(block_number)) => {
                 L2BlockNumber(block_number.as_u32())

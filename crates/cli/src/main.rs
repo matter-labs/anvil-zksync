@@ -15,6 +15,7 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::{ForkPrintInfo, L1Config};
 use anvil_zksync_core::filters::EthFilters;
+use anvil_zksync_core::node::canonisator::Canonisator;
 use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
@@ -351,11 +352,14 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         StateHandle::empty(state_db_block, persistent_storage_map, rocks_db_preimages);
 
     let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();
+    let (canonisator, canonisator_handle) =
+        Canonisator::new(state_handle.clone(), block_replay_storage.clone());
+    node_service_tasks.push(Box::pin(canonisator.run()));
     let (node_executor, node_handle) = NodeExecutor::new(
         node_inner.clone(),
         vm_runner,
         state_handle.clone(),
-        block_replay_storage.clone(),
+        canonisator_handle,
         storage_key_layout,
     );
     let l1_sidecar = match config.l1_config.as_ref() {

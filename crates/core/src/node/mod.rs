@@ -29,4 +29,4 @@ pub use self::{
 pub use boojumos::boojumos_get_batch_witness;
 pub use in_memory::*;
 pub use inner::InMemoryNodeInner;
-pub use inner::{blockchain, fork, node_executor, time};
+pub use inner::{blockchain, canonisator, fork, node_executor, time};
