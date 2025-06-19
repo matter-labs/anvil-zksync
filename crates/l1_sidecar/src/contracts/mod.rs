@@ -1,7 +1,7 @@
 // Hide ugly auto-generated alloy structs outside of this module.
 mod private {
-    use zksync_types::commitment::L1BatchWithMetadata;
     use crate::contracts::private::IZKChain::L2Log;
+    use zksync_types::commitment::L1BatchWithMetadata;
 
     // Macros that hide non-trivial implementations are not great. One considered alternative was to
     // use `alloy_sol_macro_expander` directly from `build.rs`, prettify generated code with
@@ -31,7 +31,9 @@ mod private {
                 alloy::primitives::FixedBytes::<32>::from(value.metadata.root_hash.0),
                 value.metadata.rollup_last_leaf_index,
                 alloy::primitives::U256::from(value.header.l1_tx_count),
-                alloy::primitives::FixedBytes::<32>::from(value.header.priority_ops_onchain_data_hash().0),
+                alloy::primitives::FixedBytes::<32>::from(
+                    value.header.priority_ops_onchain_data_hash().0,
+                ),
                 alloy::primitives::FixedBytes::<32>::from(value.metadata.l2_l1_merkle_root.0),
                 alloy::primitives::FixedBytes::<32>::from(value.metadata.commitment.0),
                 alloy::primitives::U256::from(value.header.timestamp),
