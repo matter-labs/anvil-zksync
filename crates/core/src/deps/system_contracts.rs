@@ -17,11 +17,11 @@ use zksync_types::{
     EVM_HASHES_STORAGE_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, IDENTITY_ADDRESS,
     IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BASE_TOKEN_ADDRESS, L2_BRIDGEHUB_ADDRESS,
-    L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
-    L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS,
-    MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
-    SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS,
-    SYSTEM_CONTEXT_ADDRESS,
+    L2_CHAIN_ASSET_HANDLER_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS, L2_INTEROP_ROOT_STORAGE_ADDRESS,
+    L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
+    NONCE_HOLDER_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
+    SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{AccountTreeId, Address, H160};
 
@@ -96,7 +96,19 @@ pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
 }
 
 pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name: &str) -> Vec<u8> {
-    let artifact_path = format!("{artifact_name}.json");
+    let artifact_path = format!(
+        "{}.json",
+        if artifact_name == "proved_batch"
+            || artifact_name == "proved_batch_impersonating"
+            || artifact_name == "playground_batch"
+            || artifact_name == "fee_estimate"
+            || artifact_name == "fee_estimate_impersonating"
+        {
+            "Bootloader"
+        } else {
+            artifact_name
+        }
+    );
     bytecode_from_slice(
         artifact_name,
         BUILTIN_CONTRACT_ARTIFACTS
@@ -115,7 +127,7 @@ const V28: ProtocolVersionId = ProtocolVersionId::Version28;
 const V29: ProtocolVersionId = ProtocolVersionId::Version29;
 
 /// Triple containing a name of a contract, its L2 address and minimum supported protocol version
-static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 39] = [
+static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 41] = [
     // *************************************************
     // *     Kernel contracts (base offset 0x8000)     *
     // *************************************************
@@ -155,6 +167,12 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 39] = [
     ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
     ("SloadContract", SLOAD_CONTRACT_ADDRESS, V26),
     ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
+    ("L2InteropRootStorage", L2_INTEROP_ROOT_STORAGE_ADDRESS, V29),
+    (
+        "L2MessageVerification",
+        L2_MESSAGE_VERIFICATION_ADDRESS,
+        V29,
+    ),
     ("ChainAssetHandler", L2_CHAIN_ASSET_HANDLER_ADDRESS, V29),
     // *************************************************
     // *                 Precompiles                   *

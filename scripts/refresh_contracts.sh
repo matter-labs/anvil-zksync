@@ -28,10 +28,13 @@ esac
 # Checkout the right revision of contracts and compile them
 cd contracts
 echo "Using era-contracts commit: $ERA_CONTRACTS_GIT_COMMIT"
+git fetch
 git checkout $ERA_CONTRACTS_GIT_COMMIT
-cd system-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
+yarn install
+cd da-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
 cd l1-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
 cd l2-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
+cd system-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
 cd ..
 
 BUILTIN_CONTRACTS_OUTPUT_PATH="crates/core/src/deps/contracts/builtin-contracts-$PROTOCOL_VERSION.tar.gz"
@@ -41,13 +44,14 @@ L1_ARTIFACTS_SRC_DIR=contracts/l1-contracts/zkout
 L2_ARTIFACTS_SRC_DIR=contracts/l2-contracts/zkout
 SYSTEM_ARTIFACTS_SRC_DIR=contracts/system-contracts/zkout
 
-l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "L2NativeTokenVault" "L2WrappedBaseToken")
+l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "L2NativeTokenVault" "L2WrappedBaseToken" "L2MessageVerification")
 l2_artifacts=("TimestampAsserter")
 system_contracts_sol=(
   "AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount"
-  "DefaultAccountNoSecurity" "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken"
+  "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken"
   "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" "Create2Factory" "L2GenesisUpgrade"
-  "SloadContract"
+  "SloadContract" "L2InteropRootStorage"
+  "DefaultAccountNoSecurity"
 )
 system_contracts_yul=("EventWriter")
 precompiles=("EcAdd" "EcMul" "Ecrecover" "Keccak256" "SHA256" "EcPairing" "CodeOracle" "P256Verify")
@@ -57,7 +61,7 @@ bootloaders=(
 
 # zksolc 1.5.11 changed where yul artifacts' path
 # TODO: Check is this was intended and get rid of this workaround if not
-if [[ $PROTOCOL_VERSION == v28 ]]; then
+if [[ ! $PROTOCOL_VERSION < v28 ]]; then
   for bootloader in "${bootloaders[@]}"; do
     cp "$SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/Bootloader.json" "$SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/$bootloader.json"
   done
@@ -102,7 +106,7 @@ for precompile in "${precompiles[@]}"; do
 done
 
 for bootloader in "${bootloaders[@]}"; do
-  FILES="$FILES $SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/$bootloader.json"
+  FILES="$FILES $SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/Bootloader.json"
 done
 
 # Make sure we are using GNU tar

@@ -3,7 +3,7 @@ use anvil_zksync_core::node::InMemoryNode;
 use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::api::{BlockNumber, CallTracerBlockResult, CallTracerResult, TracerConfig};
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::{api, H256};
+use zksync_types::{api, api::BlockId, web3::Bytes, H256};
 
 use crate::error::RpcErrorAdapter;
 
@@ -60,6 +60,20 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<Option<CallTracerResult>> {
         self.node
             .trace_transaction_impl(tx_hash, options)
+            .await
+            .map_err(RpcErrorAdapter::into)
+    }
+
+    async fn get_raw_transaction(&self, tx_hash: H256) -> RpcResult<Option<Bytes>> {
+        self.node
+            .get_raw_transaction_impl(tx_hash)
+            .await
+            .map_err(RpcErrorAdapter::into)
+    }
+
+    async fn get_raw_transactions(&self, block_number: BlockId) -> RpcResult<Vec<Bytes>> {
+        self.node
+            .get_raw_transactions_impl(block_number)
             .await
             .map_err(RpcErrorAdapter::into)
     }

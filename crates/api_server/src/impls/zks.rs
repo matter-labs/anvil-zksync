@@ -6,7 +6,7 @@ use jsonrpsee::core::{async_trait, RpcResult};
 use std::collections::HashMap;
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::api::{
-    BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, LogProofTarget, Proof,
+    BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails, L2ToL1LogProof, Proof,
     ProtocolVersion, TransactionDetails,
 };
 use zksync_types::fee::Fee;
@@ -110,28 +110,11 @@ impl ZksNamespaceServer for ZksNamespace {
         ))
     }
 
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
-        self.node
-            .get_confirmed_tokens_impl(from, limit)
-            .await
-            .map_err(RpcErrorAdapter::into)
-    }
-
-    async fn get_all_account_balances(
-        &self,
-        address: Address,
-    ) -> RpcResult<HashMap<Address, U256>> {
-        self.node
-            .get_all_account_balances_impl(address)
-            .await
-            .map_err(RpcErrorAdapter::into)
-    }
-
     async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,
         index: Option<usize>,
-        _l2_log_position: Option<LogProofTarget>,
+        _interop_mode: Option<InteropMode>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
         self.node
             .get_l2_to_l1_log_proof_impl(tx_hash, index)
