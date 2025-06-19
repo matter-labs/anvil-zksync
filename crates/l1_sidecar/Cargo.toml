@@ -19,7 +19,12 @@ zksync_contracts.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_types.workspace = true
 
-alloy = { workspace = true, default-features = false, features = ["sol-types", "rpc-types", "providers", "kzg", "provider-anvil-api"] }
+# ZK os dependencies
+zk_os_forward_system.workspace = true
+zk_os_basic_system.workspace = true
+zk_ee.workspace = true
+
+alloy = { workspace = true, default-features = false, features = ["sol-types", "rpc-types", "providers", "kzg", "provider-anvil-api", "provider-debug-api"] }
 anyhow.workspace = true
 hex.workspace = true
 tempfile.workspace = true
@@ -31,6 +36,8 @@ serde_yaml.workspace = true
 serde_with.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+
+ruint = { version = "1.12.3", default-features = false, features = ["alloc"]}
 
 [dev-dependencies]
 async-trait.workspace = true

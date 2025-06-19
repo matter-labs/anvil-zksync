@@ -7,7 +7,7 @@ use crate::upgrade_tx::UpgradeTx;
 use crate::zkstack_config::contracts::ContractsConfig;
 use crate::zkstack_config::genesis::GenesisConfig;
 use crate::zkstack_config::ZkstackConfig;
-use alloy::providers::Provider;
+use alloy::providers::{DynProvider, Provider};
 use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use anvil_zksync_core::node::node_executor::NodeExecutorHandle;
 use anvil_zksync_core::node::{TxBatch, TxPool};
@@ -51,7 +51,7 @@ impl L1Sidecar {
         pool: TxPool,
         zkstack_config: ZkstackConfig,
         anvil_handle: AnvilHandle,
-        anvil_provider: Arc<dyn Provider + 'static>,
+        anvil_provider: DynProvider,
         auto_execute_l1: bool,
     ) -> anyhow::Result<(Self, L1SidecarRunner)> {
         let commitment_generator = CommitmentGenerator::new(&zkstack_config, blockchain);
@@ -226,34 +226,36 @@ impl L1Sidecar {
     }
 
     pub async fn prove_batch(&self, batch_number: L1BatchNumber) -> anyhow::Result<H256> {
-        let Some(inner) = self.inner.as_ref() else {
-            return Err(anyhow::anyhow!(
-                "cannot prove a batch as there is no L1 configured"
-            ));
-        };
-        let batch_with_metadata = inner
-            .commitment_generator
-            .get_or_generate_metadata(batch_number)
-            .await
-            .ok_or_else(|| anyhow::anyhow!("batch #{batch_number} does not exist"))?;
-        inner.l1_sender_handle.prove_sync(batch_with_metadata).await
+        // let Some(inner) = self.inner.as_ref() else {
+        //     return Err(anyhow::anyhow!(
+        //         "cannot prove a batch as there is no L1 configured"
+        //     ));
+        // };
+        // let batch_with_metadata = inner
+        //     .commitment_generator
+        //     .get_or_generate_metadata(batch_number)
+        //     .await
+        //     .ok_or_else(|| anyhow::anyhow!("batch #{batch_number} does not exist"))?;
+        // inner.l1_sender_handle.prove_sync(batch_with_metadata).await
+        todo!()
     }
 
     pub async fn execute_batch(&self, batch_number: L1BatchNumber) -> anyhow::Result<H256> {
-        let Some(inner) = self.inner.as_ref() else {
-            return Err(anyhow::anyhow!(
-                "cannot execute a batch as there is no L1 configured"
-            ));
-        };
-        let batch_with_metadata = inner
-            .commitment_generator
-            .get_or_generate_metadata(batch_number)
-            .await
-            .ok_or_else(|| anyhow::anyhow!("batch #{batch_number} does not exist"))?;
-        inner
-            .l1_sender_handle
-            .execute_sync(batch_with_metadata)
-            .await
+        // let Some(inner) = self.inner.as_ref() else {
+        //     return Err(anyhow::anyhow!(
+        //         "cannot execute a batch as there is no L1 configured"
+        //     ));
+        // };
+        // let batch_with_metadata = inner
+        //     .commitment_generator
+        //     .get_or_generate_metadata(batch_number)
+        //     .await
+        //     .ok_or_else(|| anyhow::anyhow!("batch #{batch_number} does not exist"))?;
+        // inner
+        //     .l1_sender_handle
+        //     .execute_sync(batch_with_metadata)
+        //     .await
+        todo!()
     }
 
     pub fn contracts_config(&self) -> anyhow::Result<&ContractsConfig> {

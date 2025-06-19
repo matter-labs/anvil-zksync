@@ -2,7 +2,7 @@ use crate::zkstack_config::ZkstackConfig;
 use alloy::network::EthereumWallet;
 use alloy::primitives::{Address, Bytes, U256};
 use alloy::providers::ext::AnvilApi;
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::providers::{DynProvider, Provider, ProviderBuilder};
 use alloy::rpc::types::TransactionRequest;
 use alloy::transports::RpcError;
 use anvil_zksync_common::sh_println;
@@ -109,7 +109,7 @@ async fn ensure_anvil_1_x_x() -> anyhow::Result<()> {
 pub async fn spawn_process(
     port: u16,
     zkstack_config: &ZkstackConfig,
-) -> anyhow::Result<(AnvilHandle, Arc<dyn Provider + 'static>)> {
+) -> anyhow::Result<(AnvilHandle, DynProvider)> {
     ensure_anvil_1_x_x().await?;
 
     let tmpdir = tempfile::Builder::new()
@@ -144,16 +144,18 @@ pub async fn spawn_process(
     });
     let provider = setup_provider(&format!("http://localhost:{port}"), zkstack_config).await?;
 
-    Ok((AnvilHandle { env }, Arc::new(provider)))
+    Ok((AnvilHandle { env }, DynProvider::new(provider)))
 }
 
 pub async fn external(
     address: &str,
     zkstack_config: &ZkstackConfig,
-) -> anyhow::Result<(AnvilHandle, Arc<dyn Provider + 'static>)> {
+) -> anyhow::Result<(AnvilHandle, DynProvider)> {
     let env = L1AnvilEnv::External;
     let provider = setup_provider(address, zkstack_config).await?;
     inject_l1_state(zkstack_config.genesis.genesis_protocol_version, &provider).await?;
+    drop(provider);
+    let provider = setup_provider(address, zkstack_config).await?;
 
     // Submit a transaction with very high gas to refresh anvil's fee estimator. Seems like some
     // >=1.0.0 versions are still affected by this bug.
@@ -170,7 +172,7 @@ pub async fn external(
         .get_receipt()
         .await?;
 
-    Ok((AnvilHandle { env }, Arc::new(provider)))
+    Ok((AnvilHandle { env }, DynProvider::new(provider)))
 }
 
 /// An environment that holds live resources that were used to spawn an anvil node.
@@ -230,6 +232,10 @@ async fn inject_l1_state(
     let state_payload =
         &include_str!("../../../l1-setup/state/zkos-l1-state-payload.txt").trim()[2..];
     let state_payload = Bytes::from(hex::decode(state_payload)?);
+    tracing::info!(
+        payload_size = state_payload.len(),
+        "injecting anvil L1 state"
+    );
     match provider.anvil_load_state(state_payload).await {
         Ok(true) => Ok(()),
         Ok(false) => Err(anyhow::anyhow!(

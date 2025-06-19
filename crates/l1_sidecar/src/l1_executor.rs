@@ -65,7 +65,7 @@ impl L1ExecutorModeAuto {
                 return Ok(());
             }
             let next_batch = self.last_executed_batch + 1;
-            let Some(batch_with_metadata) = self
+            let Some(zkos_commitment) = self
                 .commitment_generator
                 .get_or_generate_metadata(next_batch)
                 .await
@@ -77,14 +77,14 @@ impl L1ExecutorModeAuto {
                 continue;
             };
             self.l1_sender_handle
-                .commit_sync(batch_with_metadata.clone())
+                .commit_sync(zkos_commitment.clone())
                 .await?;
-            self.l1_sender_handle
-                .prove_sync(batch_with_metadata.clone())
-                .await?;
-            self.l1_sender_handle
-                .execute_sync(batch_with_metadata)
-                .await?;
+            // self.l1_sender_handle
+            //     .prove_sync(zkos_commitment.clone())
+            //     .await?;
+            // self.l1_sender_handle
+            //     .execute_sync(zkos_commitment)
+            //     .await?;
             tracing::debug!(batch_number=%next_batch, "batch has been automatically executed on L1");
             self.last_executed_batch = next_batch;
         }

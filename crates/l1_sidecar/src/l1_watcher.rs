@@ -1,7 +1,7 @@
 use crate::contracts::NewPriorityRequest;
 use crate::zkstack_config::ZkstackConfig;
 use alloy::eips::BlockId;
-use alloy::providers::Provider;
+use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Filter;
 use alloy::sol_types::SolEvent;
 use anvil_zksync_core::node::TxPool;
@@ -13,7 +13,7 @@ use zksync_types::{PriorityOpId, L2_MESSAGE_ROOT_ADDRESS};
 
 /// Node component responsible for saving new priority L1 transactions to transaction pool.
 pub struct L1Watcher {
-    provider: Arc<dyn Provider + 'static>,
+    provider: DynProvider,
     pool: TxPool,
     addresses: Vec<alloy::primitives::Address>,
 
@@ -22,11 +22,7 @@ pub struct L1Watcher {
 }
 
 impl L1Watcher {
-    pub fn new(
-        zkstack_config: &ZkstackConfig,
-        provider: Arc<dyn Provider + 'static>,
-        pool: TxPool,
-    ) -> Self {
+    pub fn new(zkstack_config: &ZkstackConfig, provider: DynProvider, pool: TxPool) -> Self {
         let addresses = vec![
             alloy::primitives::Address::from(zkstack_config.contracts.l1.diamond_proxy_addr.0),
             alloy::primitives::Address::from(zkstack_config.contracts.l1.governance_addr.0),
@@ -66,7 +62,7 @@ impl L1Watcher {
             .get_block(BlockId::latest())
             .await?
             .context("L1 does not have any block")?;
-        let to_block = latest_block.header.number;
+        let to_block = latest_block.header.number.min(self.from_block + 49);
         if self.from_block > to_block {
             return Ok(());
         }
@@ -75,7 +71,9 @@ impl L1Watcher {
             .to_block(to_block)
             .event_signature(NewPriorityRequest::SIGNATURE_HASH)
             .address(self.addresses.clone());
+        tracing::info!(self.from_block, to_block, "getting L1 logs");
         let events = self.provider.get_logs(&filter).await?;
+        tracing::info!(events = events.len(), "received L1 events");
         let mut priority_txs = Vec::new();
         for event in events {
             let zksync_log: zksync_types::web3::Log =
@@ -83,8 +81,13 @@ impl L1Watcher {
             let tx = L1Tx::try_from(zksync_log)?;
             priority_txs.push(tx);
         }
+        tracing::info!(
+            priority_txs = priority_txs.len(),
+            "received L1 priority txs"
+        );
 
         if priority_txs.is_empty() {
+            self.from_block = to_block + 1;
             return Ok(());
         }
         // unwraps are safe because the vec is not empty
@@ -107,6 +110,7 @@ impl L1Watcher {
             .collect();
 
         if new_txs.is_empty() {
+            self.from_block = to_block + 1;
             return Ok(());
         }
         let first = new_txs.first().unwrap();

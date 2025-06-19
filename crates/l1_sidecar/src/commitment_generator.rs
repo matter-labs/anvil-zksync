@@ -1,13 +1,16 @@
 use crate::zkstack_config::ZkstackConfig;
 use anvil_zksync_core::node::blockchain::ReadBlockchain;
+use ruint::aliases::{B160, U256};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use zk_ee::utils::Bytes32;
+use zk_os_basic_system::system_implementation::system::BatchOutput;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::blob::num_blobs_required;
 use zksync_types::block::{L1BatchHeader, L1BatchTreeData};
 use zksync_types::commitment::{
     AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment, L1BatchMetadata,
-    L1BatchWithMetadata,
+    L1BatchWithMetadata, ZkosCommitment,
 };
 use zksync_types::writes::StateDiffRecord;
 use zksync_types::L1BatchNumber;
@@ -22,7 +25,29 @@ pub struct CommitmentGenerator {
     fee_address: Address,
     blockchain: Box<dyn ReadBlockchain>,
     /// Batches with already known metadata.
-    batches: Arc<RwLock<HashMap<L1BatchNumber, L1BatchWithMetadata>>>,
+    batches: Arc<RwLock<HashMap<L1BatchNumber, ZkosCommitment>>>,
+}
+
+pub fn h256_to_bytes32(input: H256) -> Bytes32 {
+    let mut new = Bytes32::zero();
+    new.as_u8_array_mut().copy_from_slice(input.as_bytes());
+    new
+}
+
+pub fn zkos_commitment_to_vm_batch_output(commitment: &ZkosCommitment) -> BatchOutput {
+    let (_, operator_da_input_header_hash) = commitment.calculate_operator_da_input();
+
+    BatchOutput {
+        chain_id: U256::from(commitment.chain_id),
+        first_block_timestamp: commitment.block_timestamp,
+        last_block_timestamp: commitment.block_timestamp,
+        used_l2_da_validator_address: B160::default(),
+        pubdata_commitment: h256_to_bytes32(operator_da_input_header_hash),
+        number_of_layer_1_txs: U256::from(commitment.number_of_layer1_txs),
+        priority_operations_hash: h256_to_bytes32(commitment.priority_operations_hash()),
+        l2_logs_tree_root: h256_to_bytes32(commitment.l2_to_l1_logs_root_hash),
+        upgrade_tx_hash: Bytes32::zero(),
+    }
 }
 
 impl CommitmentGenerator {
@@ -55,10 +80,16 @@ impl CommitmentGenerator {
         );
         let genesis_metadata =
             Self::generate_metadata_inner(genesis_batch_header, commitment_input);
-        // assert_eq!(
-        //     zkstack_config.genesis.genesis_batch_commitment, genesis_metadata.metadata.commitment,
-        //     "Computed genesis batch commitment does not match zkstack config"
-        // );
+        let mut genesis_block_commitment: ZkosCommitment = (&genesis_metadata).into();
+        genesis_block_commitment.tree_next_free_index -= 1; // TODO: really needed?
+        let batch_output: BatchOutput =
+            zkos_commitment_to_vm_batch_output(&genesis_block_commitment);
+        let commitment = zksync_types::H256::from(batch_output.hash());
+
+        assert_eq!(
+            zkstack_config.genesis.genesis_batch_commitment, commitment,
+            "Computed genesis batch commitment does not match zkstack config"
+        );
 
         Self {
             base_system_contracts_hashes,
@@ -66,7 +97,7 @@ impl CommitmentGenerator {
             blockchain,
             batches: Arc::new(RwLock::new(HashMap::from_iter([(
                 L1BatchNumber(0),
-                genesis_metadata,
+                genesis_block_commitment,
             )]))),
         }
     }
@@ -76,7 +107,7 @@ impl CommitmentGenerator {
     pub async fn get_or_generate_metadata(
         &self,
         batch_number: L1BatchNumber,
-    ) -> Option<L1BatchWithMetadata> {
+    ) -> Option<ZkosCommitment> {
         if let Some(metadata) = self.batches.read().unwrap().get(&batch_number) {
             return Some(metadata.clone());
         }
@@ -84,28 +115,47 @@ impl CommitmentGenerator {
         // Fetch batch header from storage and patch its fee_address/base_system_contract_hashes as
         // those might be different from what L1 expects (e.g. impersonated execution, custom
         // user-supplied contracts etc).
-        let mut header = self.blockchain.get_batch_header(batch_number).await?;
-        header.fee_address = self.fee_address;
-        header.base_system_contracts_hashes = self.base_system_contracts_hashes;
+        // let mut header = self.blockchain.get_batch_header(batch_number).await?;
+        // header.fee_address = self.fee_address;
+        // header.base_system_contracts_hashes = self.base_system_contracts_hashes;
+        //
+        // let state_diffs = self.blockchain.get_batch_state_diffs(batch_number).await?;
+        // let aggregation_root = self
+        //     .blockchain
+        //     .get_batch_aggregation_root(batch_number)
+        //     .await?;
+        //
+        // // anvil-zksync does not store batches right now so we just generate dummy commitment input.
+        // // Root hash is random purely so that different batches have different commitments.
+        // let tree_data = L1BatchTreeData {
+        //     hash: H256::random(),
+        //     rollup_last_leaf_index: 42,
+        // };
+        // let metadata = self.generate_metadata(header, state_diffs, aggregation_root, tree_data);
 
-        let state_diffs = self.blockchain.get_batch_state_diffs(batch_number).await?;
-        let aggregation_root = self
-            .blockchain
-            .get_batch_aggregation_root(batch_number)
-            .await?;
-
-        // anvil-zksync does not store batches right now so we just generate dummy commitment input.
-        // Root hash is random purely so that different batches have different commitments.
-        let tree_data = L1BatchTreeData {
-            hash: H256::random(),
-            rollup_last_leaf_index: 42,
+        let header = self.blockchain.get_batch_header(batch_number).await?;
+        let zkos_commitment = ZkosCommitment {
+            batch_number: header.number.0,
+            block_timestamp: header.timestamp,
+            // Tree root hash is random purely so that different batches have different commitments.
+            tree_root_hash: H256::random(),
+            // Fake value
+            tree_next_free_index: 42,
+            number_of_layer1_txs: header.l1_tx_count,
+            number_of_layer2_txs: header.l2_tx_count,
+            priority_ops_onchain_data: header.priority_ops_onchain_data,
+            l2_to_l1_logs_root_hash: Default::default(),
+            pubdata: header
+                .pubdata_input
+                .expect("Block pubdata must be set for sealed zkos blocks"),
+            // TODO: make dynamic
+            chain_id: 271,
         };
-        let metadata = self.generate_metadata(header, state_diffs, aggregation_root, tree_data);
         self.batches
             .write()
             .unwrap()
-            .insert(batch_number, metadata.clone());
-        Some(metadata)
+            .insert(batch_number, zkos_commitment.clone());
+        Some(zkos_commitment)
     }
 
     fn generate_metadata(

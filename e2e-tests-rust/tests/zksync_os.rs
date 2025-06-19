@@ -109,11 +109,14 @@ async fn erc20() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 16)]
 async fn zksync_os_commit_batch_to_l1() -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.timeout(60_000).args(["--log", "info", "--use-boojum"]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--chain-id", "271", "--log", "trace", "--use-boojum"])
+        })
         .build()
         .await?;
 

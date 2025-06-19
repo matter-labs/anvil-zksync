@@ -89,9 +89,7 @@ rig = { path = "../zksync-os/tests/rig" }
 # External dependencies #
 #########################
 anyhow = "1.0"
-alloy = { version = "0.12.5", default-features = false }
-foundry-common-fmt = { git = "https://github.com/foundry-rs/foundry", rev = "v1.0.0", package = "foundry-common-fmt" }
-foundry-macros = { git = "https://github.com/foundry-rs/foundry", rev = "v1.0.0", package = "foundry-macros" }
+alloy = { version = "1.0.12", default-features = false }
 async-trait = "0.1.85"
 chrono = { version = "0.4.31", default-features = false }
 clap = { version = "4.2.4", features = ["derive", "env"] }

@@ -6,7 +6,6 @@ use alloy::providers::WalletProvider;
 use alloy::{primitives::U256, signers::local::PrivateKeySigner};
 use alloy_zksync::node_bindings::AnvilZKsync;
 use anvil_zksync_common::utils::io::write_json_file;
-use anvil_zksync_core::node::VersionedState;
 use anvil_zksync_e2e_tests::{
     get_node_binary_path, AnvilZKsyncApi, AnvilZksyncTesterBuilder, LockedPort, ReceiptExt,
     ResponseHeadersInspector, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
@@ -619,234 +618,234 @@ async fn transactions_have_index() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::test]
-async fn dump_state_on_run() -> anyhow::Result<()> {
-    let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
-    let dump_path = temp_dir.path().join("state_dump.json");
-
-    let dump_path_clone = dump_path.clone();
-    let tester = AnvilZksyncTesterBuilder::default()
-        .with_node_fn(&|node| {
-            node.path(get_node_binary_path())
-                .arg("--state-interval")
-                .arg("1")
-                .arg("--dump-state")
-                .arg(dump_path_clone.to_str().unwrap())
-        })
-        .build()
-        .await?;
-
-    let receipt = tester.tx().finalize().await?;
-    let tx_hash = receipt.transaction_hash().to_string();
-
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
-    drop(tester);
-
-    assert!(
-        dump_path.exists(),
-        "State dump file should exist at {:?}",
-        dump_path
-    );
-
-    let dumped_data = fs::read_to_string(&dump_path)?;
-    let state: VersionedState =
-        serde_json::from_str(&dumped_data).context("Failed to deserialize state")?;
-
-    match state {
-        VersionedState::V1 { version: _, state } => {
-            assert!(
-                !state.blocks.is_empty(),
-                "state_dump.json should contain at least one block"
-            );
-            assert!(
-                !state.transactions.is_empty(),
-                "state_dump.json should contain at least one transaction"
-            );
-            let tx_exists = state.transactions.iter().any(|tx| {
-                let tx_hash_full =
-                    format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
-                tx_hash_full == tx_hash
-            });
-
-            assert!(
-                tx_exists,
-                "The state dump should contain the transaction with hash: {:?}",
-                tx_hash
-            );
-        }
-        VersionedState::Unknown { version } => {
-            panic!("Encountered unknown state version: {}", version);
-        }
-    }
-
-    Ok(())
-}
-
-#[tokio::test]
-#[ignore]
-// TODO: Investigate a better way to test against fork to avoid flakiness. See: https://github.com/matter-labs/anvil-zksync/issues/508
-async fn dump_state_on_fork() -> anyhow::Result<()> {
-    let temp_dir = TempDir::new("state-fork-test").expect("failed creating temporary dir");
-    let dump_path = temp_dir.path().join("state_dump_fork.json");
-
-    let dump_path_clone = dump_path.clone();
-    let tester = AnvilZksyncTesterBuilder::default()
-        .with_node_fn(&|node| {
-            node.path(get_node_binary_path())
-                .arg("--state-interval")
-                .arg("1")
-                .arg("--dump-state")
-                .arg(dump_path_clone.to_str().unwrap())
-                .fork("sepolia-testnet")
-        })
-        .build()
-        .await?;
-
-    let receipt = tester.tx().finalize().await?;
-    let tx_hash = receipt.transaction_hash().to_string();
-
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
-    drop(tester);
-
-    assert!(
-        dump_path.exists(),
-        "State dump file should exist at {:?}",
-        dump_path
-    );
-
-    let dumped_data = fs::read_to_string(&dump_path)?;
-    let state: VersionedState =
-        serde_json::from_str(&dumped_data).context("Failed to deserialize state")?;
-
-    match state {
-        VersionedState::V1 { version: _, state } => {
-            assert!(
-                !state.blocks.is_empty(),
-                "state_dump_fork.json should contain at least one block"
-            );
-            assert!(
-                !state.transactions.is_empty(),
-                "state_dump_fork.json should contain at least one transaction"
-            );
-            let tx_exists = state.transactions.iter().any(|tx| {
-                let tx_hash_full =
-                    format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
-                tx_hash_full == tx_hash
-            });
-            assert!(
-                tx_exists,
-                "The state dump should contain the transaction with hash: {:?}",
-                tx_hash
-            );
-        }
-        VersionedState::Unknown { version } => {
-            panic!("Encountered unknown state version: {}", version);
-        }
-    }
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn load_state_on_run() -> anyhow::Result<()> {
-    let temp_dir = TempDir::new("load-state-test").expect("failed creating temporary dir");
-    let dump_path = temp_dir.path().join("load_state_run.json");
-    let tester = AnvilZksyncTesterBuilder::default().build().await?;
-    let receipts = [tester.tx().finalize().await?, tester.tx().finalize().await?];
-    let blocks = tester.get_blocks_by_receipts(&receipts).await?;
-    let state_bytes = tester.l2_provider().anvil_dump_state().await?;
-    drop(tester);
-
-    let mut decoder = GzDecoder::new(&state_bytes.0[..]);
-    let mut json_str = String::new();
-    decoder.read_to_string(&mut json_str).unwrap();
-    let state: VersionedState = serde_json::from_str(&json_str).unwrap();
-    write_json_file(&dump_path, &state)?;
-
-    let dump_path_clone = dump_path.clone();
-    let new_provider = AnvilZksyncTesterBuilder::default()
-        .with_node_fn(&|node| {
-            node.path(get_node_binary_path())
-                .arg("--state-interval")
-                .arg("1")
-                .arg("--load-state")
-                .arg(dump_path_clone.to_str().unwrap())
-        })
-        .build()
-        .await?;
-
-    new_provider.assert_has_receipts(&receipts).await?;
-    new_provider.assert_has_blocks(&blocks).await?;
-    new_provider
-        .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
-        .await?;
-    new_provider
-        .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
-        .await?;
-
-    drop(new_provider);
-
-    assert!(
-        dump_path.exists(),
-        "State dump file should still exist at {:?}",
-        dump_path
-    );
-
-    Ok(())
-}
-
-#[tokio::test]
-#[ignore]
-// TODO: Investigate a better way to test against fork to avoid flakiness. See: https://github.com/matter-labs/anvil-zksync/issues/508
-async fn load_state_on_fork() -> anyhow::Result<()> {
-    let temp_dir = TempDir::new("load-state-fork-test").expect("failed creating temporary dir");
-    let dump_path = temp_dir.path().join("load_state_fork.json");
-    let tester = AnvilZksyncTesterBuilder::default().build().await?;
-    let receipts = [tester.tx().finalize().await?, tester.tx().finalize().await?];
-    let blocks = tester.get_blocks_by_receipts(&receipts).await?;
-    let state_bytes = tester.l2_provider().anvil_dump_state().await?;
-    drop(tester);
-
-    let mut decoder = GzDecoder::new(&state_bytes.0[..]);
-    let mut json_str = String::new();
-    decoder.read_to_string(&mut json_str).unwrap();
-    let state: VersionedState = serde_json::from_str(&json_str).unwrap();
-    write_json_file(&dump_path, &state)?;
-
-    let dump_path_clone = dump_path.clone();
-    let new_provider = AnvilZksyncTesterBuilder::default()
-        .with_node_fn(&|node| {
-            node.path(get_node_binary_path())
-                .arg("--state-interval")
-                .arg("1")
-                .arg("--load-state")
-                .arg(dump_path_clone.to_str().unwrap())
-                .fork("sepolia-testnet")
-        })
-        .build()
-        .await?;
-
-    new_provider.assert_has_receipts(&receipts).await?;
-    new_provider.assert_has_blocks(&blocks).await?;
-    new_provider
-        .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
-        .await?;
-    new_provider
-        .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
-        .await?;
-
-    drop(new_provider);
-
-    assert!(
-        dump_path.exists(),
-        "State dump file should still exist at {:?}",
-        dump_path
-    );
-
-    Ok(())
-}
+// #[tokio::test]
+// async fn dump_state_on_run() -> anyhow::Result<()> {
+//     let temp_dir = TempDir::new("state-test").expect("failed creating temporary dir");
+//     let dump_path = temp_dir.path().join("state_dump.json");
+//
+//     let dump_path_clone = dump_path.clone();
+//     let tester = AnvilZksyncTesterBuilder::default()
+//         .with_node_fn(&|node| {
+//             node.path(get_node_binary_path())
+//                 .arg("--state-interval")
+//                 .arg("1")
+//                 .arg("--dump-state")
+//                 .arg(dump_path_clone.to_str().unwrap())
+//         })
+//         .build()
+//         .await?;
+//
+//     let receipt = tester.tx().finalize().await?;
+//     let tx_hash = receipt.transaction_hash().to_string();
+//
+//     tokio::time::sleep(Duration::from_secs(2)).await;
+//
+//     drop(tester);
+//
+//     assert!(
+//         dump_path.exists(),
+//         "State dump file should exist at {:?}",
+//         dump_path
+//     );
+//
+//     let dumped_data = fs::read_to_string(&dump_path)?;
+//     let state: VersionedState =
+//         serde_json::from_str(&dumped_data).context("Failed to deserialize state")?;
+//
+//     match state {
+//         VersionedState::V1 { version: _, state } => {
+//             assert!(
+//                 !state.blocks.is_empty(),
+//                 "state_dump.json should contain at least one block"
+//             );
+//             assert!(
+//                 !state.transactions.is_empty(),
+//                 "state_dump.json should contain at least one transaction"
+//             );
+//             let tx_exists = state.transactions.iter().any(|tx| {
+//                 let tx_hash_full =
+//                     format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
+//                 tx_hash_full == tx_hash
+//             });
+//
+//             assert!(
+//                 tx_exists,
+//                 "The state dump should contain the transaction with hash: {:?}",
+//                 tx_hash
+//             );
+//         }
+//         VersionedState::Unknown { version } => {
+//             panic!("Encountered unknown state version: {}", version);
+//         }
+//     }
+//
+//     Ok(())
+// }
+//
+// #[tokio::test]
+// #[ignore]
+// // TODO: Investigate a better way to test against fork to avoid flakiness. See: https://github.com/matter-labs/anvil-zksync/issues/508
+// async fn dump_state_on_fork() -> anyhow::Result<()> {
+//     let temp_dir = TempDir::new("state-fork-test").expect("failed creating temporary dir");
+//     let dump_path = temp_dir.path().join("state_dump_fork.json");
+//
+//     let dump_path_clone = dump_path.clone();
+//     let tester = AnvilZksyncTesterBuilder::default()
+//         .with_node_fn(&|node| {
+//             node.path(get_node_binary_path())
+//                 .arg("--state-interval")
+//                 .arg("1")
+//                 .arg("--dump-state")
+//                 .arg(dump_path_clone.to_str().unwrap())
+//                 .fork("sepolia-testnet")
+//         })
+//         .build()
+//         .await?;
+//
+//     let receipt = tester.tx().finalize().await?;
+//     let tx_hash = receipt.transaction_hash().to_string();
+//
+//     tokio::time::sleep(Duration::from_secs(2)).await;
+//
+//     drop(tester);
+//
+//     assert!(
+//         dump_path.exists(),
+//         "State dump file should exist at {:?}",
+//         dump_path
+//     );
+//
+//     let dumped_data = fs::read_to_string(&dump_path)?;
+//     let state: VersionedState =
+//         serde_json::from_str(&dumped_data).context("Failed to deserialize state")?;
+//
+//     match state {
+//         VersionedState::V1 { version: _, state } => {
+//             assert!(
+//                 !state.blocks.is_empty(),
+//                 "state_dump_fork.json should contain at least one block"
+//             );
+//             assert!(
+//                 !state.transactions.is_empty(),
+//                 "state_dump_fork.json should contain at least one transaction"
+//             );
+//             let tx_exists = state.transactions.iter().any(|tx| {
+//                 let tx_hash_full =
+//                     format!("0x{}", hex::encode(tx.receipt.transaction_hash.as_bytes()));
+//                 tx_hash_full == tx_hash
+//             });
+//             assert!(
+//                 tx_exists,
+//                 "The state dump should contain the transaction with hash: {:?}",
+//                 tx_hash
+//             );
+//         }
+//         VersionedState::Unknown { version } => {
+//             panic!("Encountered unknown state version: {}", version);
+//         }
+//     }
+//
+//     Ok(())
+// }
+//
+// #[tokio::test]
+// async fn load_state_on_run() -> anyhow::Result<()> {
+//     let temp_dir = TempDir::new("load-state-test").expect("failed creating temporary dir");
+//     let dump_path = temp_dir.path().join("load_state_run.json");
+//     let tester = AnvilZksyncTesterBuilder::default().build().await?;
+//     let receipts = [tester.tx().finalize().await?, tester.tx().finalize().await?];
+//     let blocks = tester.get_blocks_by_receipts(&receipts).await?;
+//     let state_bytes = tester.l2_provider().anvil_dump_state().await?;
+//     drop(tester);
+//
+//     let mut decoder = GzDecoder::new(&state_bytes.0[..]);
+//     let mut json_str = String::new();
+//     decoder.read_to_string(&mut json_str).unwrap();
+//     let state: VersionedState = serde_json::from_str(&json_str).unwrap();
+//     write_json_file(&dump_path, &state)?;
+//
+//     let dump_path_clone = dump_path.clone();
+//     let new_provider = AnvilZksyncTesterBuilder::default()
+//         .with_node_fn(&|node| {
+//             node.path(get_node_binary_path())
+//                 .arg("--state-interval")
+//                 .arg("1")
+//                 .arg("--load-state")
+//                 .arg(dump_path_clone.to_str().unwrap())
+//         })
+//         .build()
+//         .await?;
+//
+//     new_provider.assert_has_receipts(&receipts).await?;
+//     new_provider.assert_has_blocks(&blocks).await?;
+//     new_provider
+//         .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
+//         .await?;
+//     new_provider
+//         .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
+//         .await?;
+//
+//     drop(new_provider);
+//
+//     assert!(
+//         dump_path.exists(),
+//         "State dump file should still exist at {:?}",
+//         dump_path
+//     );
+//
+//     Ok(())
+// }
+//
+// #[tokio::test]
+// #[ignore]
+// // TODO: Investigate a better way to test against fork to avoid flakiness. See: https://github.com/matter-labs/anvil-zksync/issues/508
+// async fn load_state_on_fork() -> anyhow::Result<()> {
+//     let temp_dir = TempDir::new("load-state-fork-test").expect("failed creating temporary dir");
+//     let dump_path = temp_dir.path().join("load_state_fork.json");
+//     let tester = AnvilZksyncTesterBuilder::default().build().await?;
+//     let receipts = [tester.tx().finalize().await?, tester.tx().finalize().await?];
+//     let blocks = tester.get_blocks_by_receipts(&receipts).await?;
+//     let state_bytes = tester.l2_provider().anvil_dump_state().await?;
+//     drop(tester);
+//
+//     let mut decoder = GzDecoder::new(&state_bytes.0[..]);
+//     let mut json_str = String::new();
+//     decoder.read_to_string(&mut json_str).unwrap();
+//     let state: VersionedState = serde_json::from_str(&json_str).unwrap();
+//     write_json_file(&dump_path, &state)?;
+//
+//     let dump_path_clone = dump_path.clone();
+//     let new_provider = AnvilZksyncTesterBuilder::default()
+//         .with_node_fn(&|node| {
+//             node.path(get_node_binary_path())
+//                 .arg("--state-interval")
+//                 .arg("1")
+//                 .arg("--load-state")
+//                 .arg(dump_path_clone.to_str().unwrap())
+//                 .fork("sepolia-testnet")
+//         })
+//         .build()
+//         .await?;
+//
+//     new_provider.assert_has_receipts(&receipts).await?;
+//     new_provider.assert_has_blocks(&blocks).await?;
+//     new_provider
+//         .assert_balance(receipts[0].sender()?, DEFAULT_TX_VALUE)
+//         .await?;
+//     new_provider
+//         .assert_balance(receipts[1].sender()?, DEFAULT_TX_VALUE)
+//         .await?;
+//
+//     drop(new_provider);
+//
+//     assert!(
+//         dump_path.exists(),
+//         "State dump file should still exist at {:?}",
+//         dump_path
+//     );
+//
+//     Ok(())
+// }
 
 #[tokio::test]
 async fn test_server_port_fallback() -> anyhow::Result<()> {

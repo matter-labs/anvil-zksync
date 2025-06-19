@@ -22,10 +22,12 @@ use zksync_types::api::{
     TransactionReceipt, TransactionVariant,
 };
 use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
+use zksync_types::fee_model::BatchFeeInput;
 use zksync_types::l2::L2Tx;
+use zksync_types::priority_op_onchain_data::PriorityOpOnchainData;
 use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
-    api, h256_to_u256, AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber,
+    api, h256_to_u256, AccountTreeId, Address, Bloom, ExecuteTransactionCommon, L1BatchNumber,
     L2BlockNumber, ProtocolVersionId, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
 };
@@ -907,7 +909,7 @@ impl ReadBlockchain for StateHandle {
             uncles: vec![],
             transactions: tx_hashes
                 .into_iter()
-                .map(TransactionVariant::Hash)
+                .map(|tx| TransactionVariant::Hash(tx.hash()))
                 .collect(),
             size: Default::default(),
             mix_hash: Default::default(),
@@ -1027,9 +1029,48 @@ impl ReadBlockchain for StateHandle {
         vec![]
     }
 
-    async fn get_batch_header(&self, _batch_number: L1BatchNumber) -> Option<L1BatchHeader> {
-        // TODO: proper implementation
-        None
+    async fn get_batch_header(&self, batch_number: L1BatchNumber) -> Option<L1BatchHeader> {
+        let (block_output, txs) = self.0.in_memory_block_receipts.get(batch_number.0 as u64)?;
+
+        let mut l1_tx_count = 0;
+        let mut l2_tx_count = 0;
+        let mut priority_ops_onchain_data = Vec::new();
+        for tx in txs {
+            if matches!(tx.common_data, ExecuteTransactionCommon::L1(_)) {
+                l1_tx_count += 1;
+            } else {
+                l2_tx_count += 1;
+            }
+
+            if let ExecuteTransactionCommon::L1(data) = &tx.common_data {
+                let onchain_metadata = data.onchain_metadata().onchain_data;
+                priority_ops_onchain_data.push(onchain_metadata);
+            }
+        }
+
+        Some(L1BatchHeader {
+            number: L1BatchNumber(block_output.header.number as u32),
+            timestamp: block_output.header.timestamp,
+            l1_tx_count,
+            l2_tx_count,
+            priority_ops_onchain_data,
+            // L2->L1 logs are not saved yet
+            l2_to_l1_logs: vec![],
+            l2_to_l1_messages: vec![],
+            bloom: Bloom::from(block_output.header.logs_bloom),
+            // Intentional empty for now
+            used_contract_hashes: vec![],
+            // Intentional default for now
+            base_system_contracts_hashes: Default::default(),
+            // Intentional empty for now
+            system_logs: vec![],
+            protocol_version: Some(ProtocolVersionId::latest()),
+            pubdata_input: Some(block_output.pubdata),
+            // Intentional default for now
+            fee_address: Default::default(),
+            // TODO: gas?
+            batch_fee_input: BatchFeeInput::pubdata_independent(1000, 1000, 1000),
+        })
     }
 
     async fn get_batch_state_diffs(

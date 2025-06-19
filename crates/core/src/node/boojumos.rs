@@ -3,7 +3,6 @@
 use std::{alloc::Global, collections::HashMap, vec};
 
 use anvil_zksync_config::types::BoojumConfig;
-use rig::utils::evm_bytecode_into_account_properties;
 use ruint::aliases::B160;
 use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
 use zk_os_basic_system::system_implementation::flat_storage_model::{
@@ -866,11 +865,11 @@ pub fn set_account_properties(
 ) {
     let mut account_properties = get_account_properties(state_tree, preimage_source, &address);
     if let Some(bytecode) = bytecode {
-        account_properties = evm_bytecode_into_account_properties(&bytecode);
-        // Save bytecode preimage
-        preimage_source
-            .inner
-            .insert(account_properties.bytecode_hash, bytecode);
+        // account_properties = evm_bytecode_into_account_properties(&bytecode);
+        // // Save bytecode preimage
+        // preimage_source
+        //     .inner
+        //     .insert(account_properties.bytecode_hash, bytecode);
     }
     if let Some(nominal_token_balance) = balance {
         account_properties.balance = nominal_token_balance;

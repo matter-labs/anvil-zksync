@@ -120,14 +120,6 @@ impl BlockSealerMode {
     pub fn fixed_time(max_transactions: usize, block_time: Duration) -> Self {
         Self::FixedTime(FixedTimeBlockSealer::new(max_transactions, block_time))
     }
-
-    pub fn poll(&mut self, pool: &TxPool, cx: &mut Context<'_>) -> Poll<TxBatch> {
-        match self {
-            BlockSealerMode::Noop => Poll::Pending,
-            BlockSealerMode::Immediate(immediate) => immediate.poll(pool, cx),
-            BlockSealerMode::FixedTime(fixed) => fixed.poll(pool, cx),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -140,12 +132,15 @@ pub struct ImmediateBlockSealer {
 
 impl ImmediateBlockSealer {
     pub fn poll(&mut self, pool: &TxPool, cx: &mut Context<'_>) -> Poll<TxBatch> {
+        tracing::debug!("polling immediate block sealer");
         match pool.take_uniform(self.max_transactions) {
             Some(tx_batch) => Poll::Ready(tx_batch),
             None => {
+                tracing::debug!("checking for new txs");
                 let mut has_new_txs = false;
                 // Yield until new transactions are available in the pool
                 while let Poll::Ready(Some(_hash)) = Pin::new(&mut self.rx).poll_next(cx) {
+                    tracing::debug!("found new tx");
                     has_new_txs = true;
                 }
 

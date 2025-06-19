@@ -53,6 +53,7 @@ impl TxPool {
             submission_number: *submission_number,
             priority,
         });
+        drop(guard);
         self.notify_listeners(hash);
     }
 
@@ -61,8 +62,9 @@ impl TxPool {
         let mut submission_number = self.lock_submission_number();
 
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
+        let mut tx_hashes = Vec::with_capacity(txs.len());
         for tx in txs {
-            let hash = tx.hash();
+            let tx_hash = tx.hash();
             let priority = transaction_order.priority(&tx);
             *submission_number = submission_number.wrapping_add(1);
             guard.insert(PoolTransaction {
@@ -70,7 +72,11 @@ impl TxPool {
                 submission_number: *submission_number,
                 priority,
             });
-            self.notify_listeners(hash);
+            tx_hashes.push(tx_hash);
+        }
+        drop(guard);
+        for tx_hash in tx_hashes {
+            self.notify_listeners(tx_hash);
         }
     }
 
@@ -102,16 +108,20 @@ impl TxPool {
     /// type (either all are impersonating or all non-impersonating).
     // TODO: We should distinguish ready transactions from non-ready ones. Only ready txs should be takeable.
     pub fn take_uniform(&self, n: usize) -> Option<TxBatch> {
+        tracing::debug!(n, "taking from mempool");
         if n == 0 {
             return None;
         }
         let mut guard = self.inner.write().expect("TxPool lock is poisoned");
+        tracing::debug!("taken guard");
         let Some(head_tx) = guard.pop_last() else {
+            tracing::debug!("pool is empty");
             // Pool is empty
             return None;
         };
         let mut taken_txs = vec![];
         let impersonating = self.impersonation.inspect(|state| {
+            tracing::debug!("started inspecting impersonation state");
             // First tx's impersonation status decides what all other txs' impersonation status is
             // expected to be.
             let impersonating = state.is_impersonating(&head_tx.transaction.initiator_account());
@@ -129,6 +139,7 @@ impl TxPool {
                 taken_txs.insert(taken_txs_number, guard.pop_last().unwrap().transaction);
                 taken_txs_number += 1;
             }
+            tracing::debug!("finished inspecting impersonation state");
             impersonating
         });
 
@@ -151,9 +162,13 @@ impl TxPool {
 
     /// Notifies all listeners about the transaction.
     fn notify_listeners(&self, tx_hash: H256) {
+        tracing::debug!("notifying listeners");
         let mut tx_listeners = self.tx_listeners.lock().expect("TxPool lock is poisoned");
         tx_listeners.retain_mut(|listener| match listener.try_send(tx_hash) {
-            Ok(()) => true,
+            Ok(()) => {
+                tracing::debug!("listener notified");
+                true
+            }
             Err(e) => {
                 if e.is_full() {
                     tracing::warn!(
