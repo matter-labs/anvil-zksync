@@ -351,14 +351,21 @@ impl ReadBlockchain for Blockchain {
                 root_hash: Some(block.hash),
                 status: api::BlockStatus::Verified,
                 commit_tx_hash: None,
+                commit_tx_finality: None,
                 commit_chain_id: None,
                 committed_at: None,
                 prove_tx_hash: None,
+                prove_tx_finality: None,
                 prove_chain_id: None,
                 proven_at: None,
                 execute_tx_hash: None,
+                execute_tx_finality: None,
                 execute_chain_id: None,
                 executed_at: None,
+                precommit_tx_hash: None,
+                precommit_tx_finality: None,
+                precommitted_at: None,
+                precommit_chain_id: None,
                 l1_gas_price: 0,
                 l2_fair_gas_price,
                 fair_pubdata_price,
@@ -463,6 +470,7 @@ impl ReadBlockchain for Blockchain {
                 eth_commit_tx_hash: None,
                 eth_prove_tx_hash: None,
                 eth_execute_tx_hash: None,
+                eth_precommit_tx_hash: None,
             }
         })
         .await
@@ -635,7 +643,9 @@ impl BlockchainState {
                     | api::BlockNumber::Pending
                     | api::BlockNumber::Committed
                     | api::BlockNumber::L1Committed
-                    | api::BlockNumber::Latest => self.current_block,
+                    | api::BlockNumber::Latest
+                    | api::BlockNumber::FastFinalized
+                    | api::BlockNumber::Precommitted => self.current_block,
                     api::BlockNumber::Earliest => L2BlockNumber(0),
                     api::BlockNumber::Number(n) => L2BlockNumber(n.as_u32()),
                 };

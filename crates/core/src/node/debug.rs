@@ -9,7 +9,7 @@ use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer, Vm};
 use zksync_types::l2::L2Tx;
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::{api, PackedEthSignature, Transaction, H256};
+use zksync_types::{api, api::BlockId, web3::Bytes, PackedEthSignature, Transaction, H256};
 use zksync_web3_decl::error::Web3Error;
 
 impl InMemoryNode {
@@ -119,6 +119,16 @@ impl InMemoryNode {
             .get_tx_debug_info(&tx_hash, only_top)
             .await
             .map(api::CallTracerResult::CallTrace))
+    }
+
+    pub async fn get_raw_transaction_impl(&self, tx_hash: H256) -> anyhow::Result<Option<Bytes>> {
+        // Ok(self.blockchain.get_raw_transaction(&tx_hash).await)
+        Ok(None)
+    }
+
+    pub async fn get_raw_transactions_impl(&self, block: BlockId) -> anyhow::Result<Vec<Bytes>> {
+        // Ok(self.blockchain.get_raw_transactions(&block).await)
+        Ok(vec![])
     }
 }
 

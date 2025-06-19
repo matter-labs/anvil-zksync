@@ -4,7 +4,7 @@ use anvil_zksync_core::node::InMemoryNode;
 use jsonrpsee::core::{async_trait, RpcResult};
 use zksync_types::api::{BlockNumber, CallTracerBlockResult, CallTracerResult, TracerConfig};
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::{api, H256};
+use zksync_types::{api, api::BlockId, web3::Bytes, H256};
 
 pub struct DebugNamespace {
     node: InMemoryNode,
@@ -63,6 +63,22 @@ impl DebugNamespaceServer for DebugNamespace {
         Ok(self
             .node
             .trace_transaction_impl(tx_hash, options)
+            .await
+            .map_err(RpcError::from)?)
+    }
+
+    async fn get_raw_transaction(&self, tx_hash: H256) -> RpcResult<Option<Bytes>> {
+        Ok(self
+            .node
+            .get_raw_transaction_impl(tx_hash)
+            .await
+            .map_err(RpcError::from)?)
+    }
+
+    async fn get_raw_transactions(&self, block: BlockId) -> RpcResult<Vec<Bytes>> {
+        Ok(self
+            .node
+            .get_raw_transactions_impl(block)
             .await
             .map_err(RpcError::from)?)
     }
