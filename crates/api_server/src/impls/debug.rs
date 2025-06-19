@@ -77,20 +77,4 @@ impl DebugNamespaceServer for DebugNamespace {
             .await
             .map_err(RpcErrorAdapter::into)
     }
-
-    async fn get_raw_transaction(&self, tx_hash: H256) -> RpcResult<Option<Bytes>> {
-        Ok(self
-            .node
-            .get_raw_transaction_impl(tx_hash)
-            .await
-            .map_err(RpcError::from)?)
-    }
-
-    async fn get_raw_transactions(&self, block: BlockId) -> RpcResult<Vec<Bytes>> {
-        Ok(self
-            .node
-            .get_raw_transactions_impl(block)
-            .await
-            .map_err(RpcError::from)?)
-    }
 }
