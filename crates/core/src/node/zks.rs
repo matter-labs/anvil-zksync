@@ -70,49 +70,6 @@ impl InMemoryNode {
             }))
     }
 
-    pub async fn get_confirmed_tokens_impl(
-        &self,
-        from: u32,
-        limit: u8,
-    ) -> anyhow::Result<Vec<zksync_web3_decl::types::Token>> {
-        Ok(self
-            .fork
-            .get_confirmed_tokens(from, limit)
-            .await?
-            .unwrap_or(vec![zksync_web3_decl::types::Token {
-                l1_address: Address::zero(),
-                l2_address: L2_BASE_TOKEN_ADDRESS,
-                name: "Ether".to_string(),
-                symbol: "ETH".to_string(),
-                decimals: 18,
-            }]))
-    }
-
-    pub async fn get_all_account_balances_impl(
-        &self,
-        address: Address,
-    ) -> Result<HashMap<Address, U256>, Web3Error> {
-        let tokens = self.get_confirmed_tokens_impl(0, 100).await?;
-
-        let balances = {
-            let mut balances = HashMap::new();
-            for token in tokens {
-                // TODO: Use StorageKeyLayout once zkos can lookup other tokens
-                let balance_key = storage_key_for_standard_token_balance(
-                    AccountTreeId::new(token.l2_address),
-                    &address,
-                );
-                let balance = self.storage.read_value_alt(&balance_key).await?;
-                if !balance.is_zero() {
-                    balances.insert(token.l2_address, h256_to_u256(balance));
-                }
-            }
-            balances
-        };
-
-        Ok(balances)
-    }
-
     pub async fn get_block_details_impl(
         &self,
         block_number: L2BlockNumber,
@@ -281,7 +238,7 @@ mod tests {
 
         let result = node.estimate_fee_impl(mock_request).await.unwrap();
 
-        assert_eq!(result.gas_limit, U256::from(408330));
+        assert_eq!(result.gas_limit, U256::from(413091));
         assert_eq!(result.max_fee_per_gas, U256::from(45250000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
         assert_eq!(result.gas_per_pubdata_limit, U256::from(3143));

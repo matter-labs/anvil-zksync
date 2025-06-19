@@ -55,7 +55,9 @@ pub fn to_human_size(input: U256) -> String {
 /// A [U64] representing the input block number.
 pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64) -> U64 {
     match block_number {
-        BlockNumber::Finalized
+        // TODO: review FastFinalized
+        BlockNumber::FastFinalized
+        | BlockNumber::Finalized
         | BlockNumber::Pending
         | BlockNumber::Committed
         | BlockNumber::L1Committed

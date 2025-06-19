@@ -20,8 +20,8 @@ use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
 use zksync_types::l2::L2Tx;
 use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
-    api, h256_to_u256, AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber,
-    L2BlockNumber, ProtocolVersionId, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS,
+    api, api::BlockId, h256_to_u256, web3::Bytes, AccountTreeId, Address, ExecuteTransactionCommon,
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
 };
 
@@ -161,6 +161,10 @@ pub trait ReadBlockchain: Send + Sync + Debug {
 
     /// Retrieve batch aggregation root by its number.
     async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256>;
+
+    async fn get_raw_transaction(&self, tx_hash: H256) -> Option<Bytes>;
+
+    async fn get_raw_transactions(&self, block_number: BlockId) -> Vec<Bytes>;
 }
 
 impl Clone for Box<dyn ReadBlockchain> {
@@ -370,6 +374,9 @@ impl ReadBlockchain for Blockchain {
                 l2_fair_gas_price,
                 fair_pubdata_price,
                 base_system_contracts_hashes,
+                commit_tx_finality: None,
+                prove_tx_finality: None,
+                execute_tx_finality: None,
             },
             operator_address: Address::zero(),
             protocol_version: Some(self.protocol_version),
@@ -529,6 +536,20 @@ impl ReadBlockchain for Blockchain {
         )
         .await
     }
+
+    async fn get_raw_transaction(&self, tx_hash: H256) -> Option<Bytes> {
+        // self.inspect_tx(tx_hash, |TransactionResult { info, .. }| info.tx.clone())
+        //     .await
+        None
+        // kl todo
+    }
+
+    async fn get_raw_transactions(&self, block_number: BlockId) -> Vec<Bytes> {
+        // self.inspect_block_by_number(block_number, |block| block.transactions.clone())
+        //     .await
+        vec![]
+        // kl todo
+    }
 }
 
 impl Blockchain {
@@ -639,6 +660,7 @@ impl BlockchainState {
         match block_id {
             api::BlockId::Number(number) => {
                 let number = match number {
+                    api::BlockNumber::FastFinalized | // TODO: Review how we handle these
                     api::BlockNumber::Finalized
                     | api::BlockNumber::Pending
                     | api::BlockNumber::Committed
@@ -647,7 +669,7 @@ impl BlockchainState {
                     | api::BlockNumber::FastFinalized
                     | api::BlockNumber::Precommitted => self.current_block,
                     api::BlockNumber::Earliest => L2BlockNumber(0),
-                    api::BlockNumber::Number(n) => L2BlockNumber(n.as_u32()),
+                    api::BlockNumber::Number(n) => L2BlockNumber(n.as_u32())
                 };
                 self.hashes.get(&number).copied()
             }

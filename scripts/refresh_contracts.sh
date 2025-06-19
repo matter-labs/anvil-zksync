@@ -13,10 +13,11 @@ case $PROTOCOL_VERSION in
     ;;
   v28)
     # HEAD of anvil-zksync-0.4.x-release-v28
-    ERA_CONTRACTS_GIT_COMMIT=5e4518c69e8247f9bcd73cdff47453e15ecca532
+    ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
     ;;
   v29)
-    ERA_CONTRACTS_GIT_COMMIT=216c413ffe523186feb75263de3169cb38f7e93a
+    # HEAD of anvil-zksync-0.6.x-draft-v29
+    ERA_CONTRACTS_GIT_COMMIT=5649d56d916804a200348743577ce043ea4ff3b6
     ;;
   v30)
     ERA_CONTRACTS_GIT_COMMIT=7d9275f48be1e31c26186b8149db28fbd63bb43c
@@ -80,6 +81,11 @@ fi
 if [[ ! $PROTOCOL_VERSION < v28 ]]; then
   # New precompile that was added in v28
   precompiles+=("Modexp")
+fi
+
+if [[ $PROTOCOL_VERSION == v29 ]]; then
+  # New L1 contract that was added in v29
+  l1_artifacts+=("ChainAssetHandler" "L2MessageVerification")
 fi
 
 for artifact in "${l1_artifacts[@]}"; do

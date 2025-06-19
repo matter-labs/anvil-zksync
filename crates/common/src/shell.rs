@@ -44,7 +44,7 @@ pub enum OutputMode {
 /// It uses anstream’s AutoStream for stdout and stderr.
 #[derive(Debug)]
 pub struct Shell {
-    /// Verbosity level (currently unused, but will be in #577)
+    /// Verbosity level.
     pub verbosity: u8,
     /// Whether to output anything at all.
     pub output_mode: OutputMode,

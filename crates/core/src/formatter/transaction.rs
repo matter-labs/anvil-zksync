@@ -71,7 +71,7 @@ pub struct TransactionSummary {
     /// Gas consumption details
     gas: GasDetails,
     /// Changes in balances.
-    balance_diffs: Vec<BalanceDiff>,
+    balance_diffs: Option<Vec<BalanceDiff>>,
 }
 
 impl TransactionSummary {
@@ -86,7 +86,7 @@ impl TransactionSummary {
         l2_gas_price: u64,
         tx: &Transaction,
         tx_result: &VmExecutionResultAndLogs,
-        balance_diffs: Vec<BalanceDiff>,
+        balance_diffs: Option<Vec<BalanceDiff>>,
     ) -> Self {
         let status: TransactionStatus = (&tx_result.result).into();
         let tx_hash = tx.hash();
@@ -137,16 +137,9 @@ impl Display for TransactionSummary {
         let emoji = self.status.emoji();
         let l2_gas_price_human = format_gwei(self.context.l2_gas_price.into());
 
-        let mut balance_diffs_formatted_table = tabled::Table::new(
-            balance_diffs
-                .iter()
-                .map(Into::<internal::BalanceDiffRepr>::into)
-                .collect::<Vec<_>>(),
-        );
-        balance_diffs_formatted_table.with(tabled::settings::Style::modern());
-
         // Basic transaction information
-        f.write_fmt(format_args!(
+        write!(
+            f,
             r#"
 {emoji} [{status}] Hash: {tx_hash:?}
 Initiator: {initiator:?}
@@ -154,13 +147,24 @@ Payer: {payer:?}
 Gas Limit: {gas_limit_human} | Used: {gas_used_human} | Refunded: {gas_refunded_human}
 Paid: {paid_in_eth} ({gas_used} gas * {l2_gas_price_human})
 Refunded: {refunded_in_eth}
-
-{balance_diffs_formatted_table}
 "#,
             paid_in_eth = format_eth(paid),
             refunded_in_eth = format_eth(refunded),
-        ))?;
+        )?;
 
+        if let Some(balance_diffs) = balance_diffs {
+            if !balance_diffs.is_empty() {
+                let mut balance_diffs_formatted_table = tabled::Table::new(
+                    balance_diffs
+                        .iter()
+                        .map(Into::<internal::BalanceDiffRepr>::into)
+                        .collect::<Vec<_>>(),
+                );
+                balance_diffs_formatted_table.with(tabled::settings::Style::modern());
+
+                write!(f, "\n{balance_diffs_formatted_table}")?;
+            }
+        }
         Ok(())
     }
 }

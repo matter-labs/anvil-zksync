@@ -24,7 +24,10 @@ const SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {
 async fn commit_batch_to_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--protocol-version", &protocol_version.to_string()])
+        })
         .build()
         .await?;
 
@@ -75,7 +78,10 @@ async fn commit_batch_to_l1(protocol_version: u16) -> anyhow::Result<()> {
 async fn prove_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--protocol-version", &protocol_version.to_string()])
+        })
         .build()
         .await?;
 
@@ -136,7 +142,10 @@ async fn prove_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
 async fn execute_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--protocol-version", &protocol_version.to_string()])
+        })
         .build()
         .await?;
 
@@ -207,7 +216,10 @@ async fn execute_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
 async fn send_l2_to_l1_message(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--protocol-version", &protocol_version.to_string()])
+        })
         .build()
         .await?;
 
@@ -293,7 +305,10 @@ async fn send_l2_to_l1_message(protocol_version: u16) -> anyhow::Result<()> {
 async fn l1_priority_tx(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--protocol-version", &protocol_version.to_string()])
+        })
         .build()
         .await?;
 
@@ -328,7 +343,10 @@ async fn l1_priority_tx(protocol_version: u16) -> anyhow::Result<()> {
 async fn deposit(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--protocol-version", &protocol_version.to_string()])
+        })
         .build()
         .await?;
 
@@ -366,7 +384,10 @@ async fn deposit(protocol_version: u16) -> anyhow::Result<()> {
 async fn withdraw(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| node.args(["--protocol-version", &protocol_version.to_string()]))
+        .with_node_fn(&|node| {
+            node.timeout(60_000)
+                .args(["--protocol-version", &protocol_version.to_string()])
+        })
         .build()
         .await?;
 
@@ -432,7 +453,7 @@ async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
         .with_node_fn(&|node| {
-            node.args([
+            node.timeout(60_000).args([
                 "--auto-execute-l1",
                 "--protocol-version",
                 &protocol_version.to_string(),
