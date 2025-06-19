@@ -1,5 +1,6 @@
 // Hide ugly auto-generated alloy structs outside of this module.
 mod private {
+    use crate::contracts::private::IZKChain::L2Log;
     use zksync_types::commitment::L1BatchWithMetadata;
 
     // Macros that hide non-trivial implementations are not great. One considered alternative was to
@@ -34,8 +35,9 @@ mod private {
                     value.header.priority_ops_onchain_data_hash().0,
                 ),
                 alloy::primitives::FixedBytes::<32>::from(value.metadata.l2_l1_merkle_root.0),
-                alloy::primitives::U256::from(value.header.timestamp),
                 alloy::primitives::FixedBytes::<32>::from(value.metadata.commitment.0),
+                alloy::primitives::U256::from(value.header.timestamp),
+                alloy::primitives::FixedBytes::<32>::from(value.header.system_logs[7].0.value.0),
             ))
         }
     }
