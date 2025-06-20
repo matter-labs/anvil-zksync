@@ -69,7 +69,7 @@ impl SignaturesIdentifier {
         offline: bool,
     ) -> eyre::Result<SingleSignaturesIdentifier> {
         let client = if !offline {
-            Some(SignEthClient::new()?)
+            Some(SignEthClient::new())
         } else {
             None
         };
