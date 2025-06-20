@@ -205,6 +205,7 @@ mod tests {
         Block, BlockDetails, BlockId, DebugCall, Log, Transaction, TransactionDetails,
         TransactionReceipt, TransactionVariant,
     };
+    use zksync_types::web3::Bytes;
     use zksync_types::{L2BlockNumber, ProtocolVersionId};
 
     // TODO: Consider moving to a separate testing crate
@@ -363,6 +364,13 @@ mod tests {
             } else {
                 None
             }
+        }
+
+        async fn get_raw_transaction(&self, _tx_hash: H256) -> Option<Bytes> {
+            unimplemented!()
+        }
+        async fn get_raw_transactions(&self, _block_number: BlockId) -> Vec<Bytes> {
+            unimplemented!()
         }
     }
 

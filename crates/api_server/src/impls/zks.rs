@@ -7,12 +7,11 @@ use std::collections::HashMap;
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::api::{
     BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-    TransactionDetailedResult, TransactionDetails,
+    TransactionDetails,
 };
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput};
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::web3::Bytes;
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, Transaction, H256, U256, U64};
 use zksync_web3_decl::types::Token;
 
@@ -128,17 +127,6 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(RpcErrorAdapter::into)
     }
 
-    #[named]
-    async fn get_l2_to_l1_msg_proof(
-        &self,
-        _block: L2BlockNumber,
-        _sender: Address,
-        _msg: H256,
-        _l2_log_position: Option<usize>,
-    ) -> RpcResult<Option<L2ToL1LogProof>> {
-        rpc_unsupported(function_name!())
-    }
-
     async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,
@@ -232,14 +220,6 @@ impl ZksNamespaceServer for ZksNamespace {
 
     #[named]
     async fn get_batch_fee_input(&self) -> RpcResult<PubdataIndependentBatchFeeModelInput> {
-        rpc_unsupported(function_name!())
-    }
-
-    #[named]
-    async fn send_raw_transaction_with_detailed_output(
-        &self,
-        _tx_bytes: Bytes,
-    ) -> RpcResult<TransactionDetailedResult> {
         rpc_unsupported(function_name!())
     }
 
