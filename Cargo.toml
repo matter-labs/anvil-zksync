@@ -43,13 +43,13 @@ categories = ["cryptography"]
 # zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
 # zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
 
-zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "b73574b1d66dde48030d696bd9332179312019fa" }
-zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "b73574b1d66dde48030d696bd9332179312019fa" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "b73574b1d66dde48030d696bd9332179312019fa" }
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "b73574b1d66dde48030d696bd9332179312019fa" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "b73574b1d66dde48030d696bd9332179312019fa" }
-zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "b73574b1d66dde48030d696bd9332179312019fa" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "b73574b1d66dde48030d696bd9332179312019fa" }
+zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
+zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
+zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
 
 # zksync_mini_merkle_tree = { path = "/home/popzxc/workspace/zksync-era/core/lib/mini_merkle_tree" }
 # zksync_multivm = { path = "/home/popzxc/workspace/zksync-era/core/lib/multivm" }

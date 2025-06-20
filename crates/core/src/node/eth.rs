@@ -256,7 +256,7 @@ impl InMemoryNode {
         let code_key = get_code_key(&address);
         match self.storage.read_value_alt(&code_key).await {
             // TODO: refactor
-            Ok(code_hash) if code_hash.0[0] == 0x02 && code_hash.0[1] == 0x02 => {
+            Ok(code_hash) if code_hash.0[0] == 0x03 && code_hash.0[1] == 0x02 => {
                 // Code hash for 7702 delegation contains the bytecode starting from the 9th byte.
                 Ok(Bytes::from(&code_hash.0[9..]))
             }
