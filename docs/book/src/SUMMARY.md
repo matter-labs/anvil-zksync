@@ -14,6 +14,7 @@
 - [Guides](guides/anvil_zksync_action.md)
   - [Local Hardhat Testing](guides/local_hardhat_testing.md)
   - [Anvil-ZKsync CI](guides/anvil_zksync_action.md)
+  - [Bootloader Debugging](guides/bootloader_debugging.md)
 
 - [RPC](rpc/index.md)
   - [eth_](rpc/eth.md)
