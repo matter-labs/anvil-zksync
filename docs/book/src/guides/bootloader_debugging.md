@@ -1,4 +1,4 @@
-# Bootloader Debug Guide
+# Bootloader Debugging
 
 Let's assume you have a mainnet transaction that you would like to investigate in-depth. It could be halting, reverting without apparent reason, taking too much gas etc. You have tried looking at the trace, but it is not enough to figure out what the problem is. With `anvil-zksync` you can replay that transaction locally and reliably* reproduce the execution flow.
 
