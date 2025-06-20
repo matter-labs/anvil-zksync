@@ -71,7 +71,7 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
     let mut config = opt.clone().into_test_node_config().map_err(to_domain)?;
 
     // Sets the function selector mode based on the offline flag
-    function_selector_mode(config.offline);
+    function_selector_mode(config.offline).await;
 
     // Set verbosity level for the shell
     {

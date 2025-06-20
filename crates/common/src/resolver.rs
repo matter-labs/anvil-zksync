@@ -22,8 +22,8 @@ static GLOBAL_CLIENT: Lazy<RwLock<SignEthClient>> = Lazy::new(|| RwLock::new(Sig
 
 /// Sets the mode for selector decoding.
 /// When `offline` is `true`, network requests will be skipped.
-pub fn function_selector_mode(offline: bool) {
-    GLOBAL_CLIENT.blocking_write().set_offline(offline);
+pub async fn function_selector_mode(offline: bool) {
+    GLOBAL_CLIENT.write().await.set_offline(offline);
 }
 
 /// A client that can request API data from `https://api.openchain.xyz`
