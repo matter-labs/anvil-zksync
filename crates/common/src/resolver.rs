@@ -1,39 +1,42 @@
 //! Resolving the selectors (both method & event) with external database.
 use super::{cache::Cache, cache::CacheConfig, sh_warn};
 use lazy_static::lazy_static;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use once_cell::sync::Lazy;
 use serde::Deserialize;
-use std::iter::FromIterator;
 use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
-    time::Duration,
 };
 use tokio::sync::RwLock;
 
 static SELECTOR_DATABASE_URL: &str = "https://api.openchain.xyz/signature-database/v1/lookup";
 
-/// The standard request timeout for API requests
-const REQ_TIMEOUT: Duration = Duration::from_secs(15);
-
 /// How many request can time out before we decide this is a spurious connection
 const MAX_TIMEDOUT_REQ: usize = 4usize;
 
+/// Global EthClient instance
+static GLOBAL_CLIENT: Lazy<RwLock<SignEthClient>> = Lazy::new(|| RwLock::new(SignEthClient::new()));
+
+/// Sets the mode for selector decoding.
+/// When `offline` is `true`, network requests will be skipped.
+pub async fn function_selector_mode(offline: bool) {
+    GLOBAL_CLIENT.write().await.set_offline(offline);
+}
+
 /// A client that can request API data from `https://api.openchain.xyz`
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SignEthClient {
-    inner: reqwest::Client,
     /// Whether the connection is spurious, or API is down
     spurious_connection: Arc<AtomicBool>,
     /// How many requests timed out
     timedout_requests: Arc<AtomicUsize>,
-    /// Max allowed request that can time out
-    max_timedout_requests: usize,
     /// Cache for network data.
     pub(crate) cache: Arc<RwLock<Cache>>,
+    /// Whether we're in offline mode (skip network requests)
+    offline: AtomicBool,
 }
 
 #[derive(Deserialize)]
@@ -56,36 +59,29 @@ lazy_static! {
 
 impl SignEthClient {
     /// Creates a new client with default settings
-    pub fn new() -> reqwest::Result<Self> {
-        let inner = reqwest::Client::builder()
-            .default_headers(HeaderMap::from_iter([(
-                HeaderName::from_static("user-agent"),
-                HeaderValue::from_static("zksync"),
-            )]))
-            .timeout(REQ_TIMEOUT)
-            .build()?;
-        Ok(Self {
-            inner,
+    pub fn new() -> Self {
+        Self {
             spurious_connection: Arc::new(Default::default()),
             timedout_requests: Arc::new(Default::default()),
-            max_timedout_requests: MAX_TIMEDOUT_REQ,
             cache: Arc::new(RwLock::new(Cache::new(CacheConfig::default()))),
-        })
+            offline: AtomicBool::new(false),
+        }
     }
 
-    async fn get_text(&self, url: &str) -> reqwest::Result<String> {
-        self.inner
-            .get(url)
-            .send()
-            .await
-            .inspect_err(|err| {
-                self.on_reqwest_err(err);
-            })?
-            .text()
-            .await
-            .inspect_err(|err| {
-                self.on_reqwest_err(err);
-            })
+    /// Enable or disable offline mode
+    pub fn set_offline(&self, offline: bool) {
+        self.offline.store(offline, Ordering::Relaxed);
+    }
+
+    /// Convenience method for making a GET request
+    pub async fn quick_get(&self, url: &str) -> eyre::Result<String> {
+        let resp = reqwest::get(url).await.inspect_err(|e| {
+            self.on_reqwest_err(e);
+        })?;
+        let text = resp.text().await.inspect_err(|e| {
+            self.on_reqwest_err(e);
+        })?;
+        Ok(text)
     }
 
     fn on_reqwest_err(&self, err: &reqwest::Error) {
@@ -106,7 +102,7 @@ impl SignEthClient {
         if is_connectivity_err(err) {
             sh_warn!("spurious network detected for api.openchain.xyz");
             let previous = self.timedout_requests.fetch_add(1, Ordering::SeqCst);
-            if previous >= self.max_timedout_requests {
+            if previous >= MAX_TIMEDOUT_REQ {
                 self.set_spurious();
             }
         }
@@ -165,7 +161,7 @@ impl SignEthClient {
             SelectorType::Event => format!("{SELECTOR_DATABASE_URL}?event={selector}&filter=true"),
         };
 
-        let res = self.get_text(&url).await?;
+        let res = self.quick_get(&url).await?;
         let api_response = match serde_json::from_str::<ApiResponse>(&res) {
             Ok(inner) => inner,
             Err(err) => {
@@ -266,7 +262,7 @@ impl SignEthClient {
             selectors_str = selectors.join(",")
         );
 
-        let res = self.get_text(&url).await?;
+        let res = self.quick_get(&url).await?;
         let api_response = match serde_json::from_str::<ApiResponse>(&res) {
             Ok(inner) => inner,
             Err(err) => {
@@ -308,6 +304,13 @@ impl SignEthClient {
     }
 }
 
+/// Default for SignEthClient
+impl Default for SignEthClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum SelectorType {
     Function,
@@ -316,79 +319,61 @@ pub enum SelectorType {
 }
 /// Fetches a function signature given the selector using api.openchain.xyz
 pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<String>> {
-    let client = SignEthClient::new();
     {
-        // Check cache
-        if let Some(resolved_selector) = client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
+        let client = GLOBAL_CLIENT.read().await;
+        if let Some(cached) = client
             .cache
             .read()
             .await
-            .get_resolver_selector(&(selector.to_string()))
+            .get_resolver_selector(&selector.to_string())
         {
-            tracing::debug!("Using cached function selector for {selector}");
-            return Ok(Some(resolved_selector.clone()));
+            tracing::debug!("Using cached function selector for {}", selector);
+            return Ok(Some(cached.clone()));
+        }
+        if client.offline.load(Ordering::Relaxed) {
+            tracing::debug!("Offline mode: skipping network request for {}", selector);
+            return Ok(None);
         }
     }
-
-    tracing::debug!("Making external request to resolve function selector for {selector}");
-    let result = client
-        .as_ref()
-        .unwrap() // Safe to do as client is created within this function
-        .decode_function_selector(selector)
-        .await;
-
-    if let Ok(result) = &result {
-        client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .write()
-            .await
-            .insert_resolver_selector(
-                selector.to_string(),
-                result.clone().unwrap_or_else(|| "".to_string()),
-            );
-    }
-    result
+    tracing::debug!("Resolving function selector for {} via network", selector);
+    let client = GLOBAL_CLIENT.read().await;
+    let result = client.decode_function_selector(selector).await?;
+    // cache the result
+    client
+        .cache
+        .write()
+        .await
+        .insert_resolver_selector(selector.to_string(), result.clone().unwrap_or_default());
+    Ok(result)
 }
 
+/// Decode an event selector using the global client
 pub async fn decode_event_selector(selector: &str) -> eyre::Result<Option<String>> {
-    let client = SignEthClient::new();
     {
-        // Check cache
-        if let Some(resolved_selector) = client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
+        let client = GLOBAL_CLIENT.read().await;
+        if let Some(cached) = client
             .cache
             .read()
             .await
-            .get_resolver_selector(&(selector.to_string()))
+            .get_resolver_selector(&selector.to_string())
         {
-            tracing::debug!("Using cached event selector for {selector}");
-            return Ok(Some(resolved_selector.clone()));
+            tracing::debug!("Using cached event selector for {}", selector);
+            return Ok(Some(cached.clone()));
+        }
+        if client.offline.load(Ordering::Relaxed) {
+            tracing::debug!("Offline mode: skipping network request for {}", selector);
+            return Ok(None);
         }
     }
-
-    tracing::debug!("Making external request to resolve event selector for {selector}");
+    tracing::debug!("Resolving event selector for {} via network", selector);
+    let client = GLOBAL_CLIENT.read().await;
     let result = client
-        .as_ref()
-        .unwrap()
         .decode_selector(selector, SelectorType::Event)
-        .await;
-
-    if let Ok(result) = &result {
-        client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .write()
-            .await
-            .insert_resolver_selector(
-                selector.to_string(),
-                result.clone().unwrap_or_else(|| "".to_string()),
-            );
-    }
-    result
+        .await?;
+    client
+        .cache
+        .write()
+        .await
+        .insert_resolver_selector(selector.to_string(), result.clone().unwrap_or_default());
+    Ok(result)
 }
