@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.6](https://github.com/matter-labs/anvil-zksync/compare/v0.6.5...v0.6.6) (2025-06-23)
+
+
+### Features
+
+* bump zksync-dep to latest ([#736](https://github.com/matter-labs/anvil-zksync/issues/736)) ([c4c4079](https://github.com/matter-labs/anvil-zksync/commit/c4c4079994d3a059bef74b92a0c54a72e866c881))
+
+
+### Bug Fixes
+
+* Improve performance in online mode by 99% ([#738](https://github.com/matter-labs/anvil-zksync/issues/738)) ([b489913](https://github.com/matter-labs/anvil-zksync/commit/b489913674fbae141cd67eb07d6a805d1450fab8))
+* respect offline mode entirely ([#729](https://github.com/matter-labs/anvil-zksync/issues/729)) ([78a4036](https://github.com/matter-labs/anvil-zksync/commit/78a4036063ce83f276e0bb43aa90490e5d8ab447))
+
 ## [0.6.5](https://github.com/matter-labs/anvil-zksync/compare/v0.6.4...v0.6.5) (2025-06-16)
 
 
