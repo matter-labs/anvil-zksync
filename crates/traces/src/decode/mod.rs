@@ -11,7 +11,7 @@ use crate::identifier::SignaturesIdentifier;
 use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Event, Function};
 use alloy::primitives::{LogData, Selector, Sign, B256};
-use anvil_zksync_common::address_map::KNOWN_ADDRESSES;
+use anvil_zksync_common::address_map::{is_precompile, KNOWN_ADDRESSES};
 use anvil_zksync_types::numbers::SignedU256;
 use anvil_zksync_types::traces::{
     CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace,
@@ -142,7 +142,7 @@ impl CallTraceDecoder {
         let label = self.labels.get(&trace.address).cloned();
         let cdata = &trace.call.input;
 
-        if cdata.len() >= SELECTOR_LEN {
+        if !is_precompile(&trace.address) && cdata.len() >= SELECTOR_LEN {
             let selector = &cdata[..SELECTOR_LEN];
             let mut functions = Vec::new();
             let functions = match self.functions.get(selector) {
@@ -316,6 +316,7 @@ impl CallTraceDecoder {
 
         let funcs: Vec<_> = nodes
             .iter()
+            .filter(|&t| !is_precompile(&t.trace.address))
             .filter_map(|n| n.trace.call.input.get(..SELECTOR_LEN).map(|s| s.to_vec()))
             .filter(|s| !self.functions.contains_key(s.as_slice()))
             .collect();
