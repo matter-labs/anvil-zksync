@@ -201,11 +201,10 @@ impl VmRunner {
 
             let decoder = builder.build();
             let mut arena = build_call_trace_arena(&call_traces, &tx_result);
-            decode_trace_arena(&mut arena, &decoder).await;
-
             extract_addresses(&arena, &mut known_addresses);
 
             if verbosity >= 2 {
+                decode_trace_arena(&mut arena, &decoder).await;
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
                 trace_output = Some(render_trace_arena_inner(&filtered_arena, false));
             }

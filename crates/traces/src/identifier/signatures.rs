@@ -17,6 +17,7 @@ use anvil_zksync_common::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -46,7 +47,29 @@ impl CachedSignatures {
             Self::default()
         }
     }
+
+    pub fn save(&self, cache_path: &PathBuf) {
+        if self.is_empty() {
+            // Avoid writing file if there are no signatures.
+            return;
+        }
+        if let Some(parent) = cache_path.parent() {
+            if let Err(err) = std::fs::create_dir_all(parent) {
+                tracing::warn!(target: "trace::signatures", ?parent, ?err, "failed to create cache");
+            }
+        }
+        if let Err(err) = write_json_file(cache_path, &self) {
+            tracing::warn!(target: "trace::signatures", ?cache_path, ?err, "failed to flush signature cache");
+        } else {
+            tracing::trace!(target: "trace::signatures", ?cache_path, "flushed signature cache")
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty() && self.events.is_empty() && self.functions.is_empty()
+    }
 }
+
 /// An identifier that tries to identify functions and events using signatures found at
 /// `https://openchain.xyz` or a local cache.
 #[derive(Debug, Default, Clone)]
@@ -91,13 +114,18 @@ impl SignaturesIdentifierInner {
         Ok(self_)
     }
 
+    fn save(&self) {
+        if let Some(cached_path) = &self.cached_path {
+            self.cached.save(cached_path);
+        }
+    }
+
     async fn identify<T>(
         &mut self,
         selector_type: SelectorType,
         identifiers: impl IntoIterator<Item = impl AsRef<[u8]>>,
         get_type: impl Fn(&str) -> eyre::Result<T>,
     ) -> Vec<Option<T>> {
-        let start = std::time::Instant::now();
         let cache = match selector_type {
             SelectorType::Function => &mut self.cached.functions,
             SelectorType::Event => &mut self.cached.events,
@@ -113,20 +141,31 @@ impl SignaturesIdentifierInner {
                 .filter(|v| !cache.contains_key(v.as_str()))
                 .collect();
 
-            let res = client.decode_selectors(selector_type, query.clone()).await;
-            if let Ok(res) = res {
-                for (hex_id, selector_result) in query.into_iter().zip(res.into_iter()) {
-                    let mut found = false;
-                    if let Some(decoded_results) = selector_result {
-                        if let Some(decoded_result) = decoded_results.into_iter().next() {
-                            cache.insert(hex_id.clone(), Some(decoded_result));
-                            found = true;
+            if !query.is_empty() {
+                let start = Instant::now();
+                let n_queries = query.len();
+                // Fetching from remote sources can easily be the slowest part of execution, so we want to track
+                // each call to the client.
+                let res = client.decode_selectors(selector_type, query.clone()).await;
+                if let Ok(res) = res {
+                    for (hex_id, selector_result) in query.into_iter().zip(res.into_iter()) {
+                        let mut found = false;
+                        if let Some(decoded_results) = selector_result {
+                            if let Some(decoded_result) = decoded_results.into_iter().next() {
+                                cache.insert(hex_id.clone(), Some(decoded_result));
+                                found = true;
+                            }
+                        }
+                        if !found {
+                            cache.insert(hex_id.clone(), None);
                         }
                     }
-                    if !found {
-                        cache.insert(hex_id.clone(), None);
-                    }
                 }
+                tracing::debug!(
+                    "Queried {} signatures from remote source in {:?}",
+                    n_queries,
+                    start.elapsed()
+                );
             }
         }
 
@@ -140,21 +179,6 @@ impl SignaturesIdentifierInner {
                 }
             })
             .collect()
-    }
-
-    pub fn save(&self) {
-        if let Some(cached_path) = &self.cached_path {
-            if let Some(parent) = cached_path.parent() {
-                if let Err(err) = std::fs::create_dir_all(parent) {
-                    tracing::warn!(target: "trace::signatures", ?parent, ?err, "failed to create cache");
-                }
-            }
-            if let Err(err) = write_json_file(cached_path, &self.cached) {
-                tracing::warn!(target: "trace::signatures", ?cached_path, ?err, "failed to flush signature cache");
-            } else {
-                tracing::trace!(target: "trace::signatures", ?cached_path, "flushed signature cache")
-            }
-        }
     }
 }
 
@@ -229,12 +253,6 @@ impl SignaturesIdentifier {
     /// Identifies `Error` from its cache or `https://api.openchain.xyz`.
     pub async fn identify_error(&self, identifier: &[u8]) -> Option<Error> {
         self.identify_errors(&[identifier]).await.pop().unwrap()
-    }
-}
-
-impl Drop for SignaturesIdentifierInner {
-    fn drop(&mut self) {
-        self.save();
     }
 }
 
