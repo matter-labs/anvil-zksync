@@ -291,7 +291,8 @@ mod tests {
                 get_event("Transfer(address,address,uint128)").unwrap()
             );
 
-            // dropping saves the cache
+            // Save the cache.
+            sigs.save().await;
         }
 
         let sigs = SignaturesIdentifier::new(Some(tmp.path().into()), false).unwrap();
