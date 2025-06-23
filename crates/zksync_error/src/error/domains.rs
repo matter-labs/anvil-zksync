@@ -17,6 +17,8 @@ use crate::error::definitions::FoundryUpstream;
 use crate::error::definitions::FoundryUpstreamCode;
 use crate::error::definitions::FoundryZksync;
 use crate::error::definitions::FoundryZksyncCode;
+use crate::error::definitions::GasEstimation;
+use crate::error::definitions::GasEstimationCode;
 use crate::error::definitions::Halt;
 use crate::error::definitions::HaltCode;
 use crate::error::definitions::HardhatUpstream;
@@ -34,6 +36,8 @@ use crate::error::definitions::Solc;
 use crate::error::definitions::SolcCode;
 use crate::error::definitions::SolcFork;
 use crate::error::definitions::SolcForkCode;
+use crate::error::definitions::StateLoader;
+use crate::error::definitions::StateLoaderCode;
 use crate::error::definitions::TransactionValidation;
 use crate::error::definitions::TransactionValidationCode;
 use crate::error::definitions::Zksolc;
@@ -103,11 +107,17 @@ impl ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::AnvilNode)
             }
+            ZksyncError::AnvilZksync(AnvilZksync::GasEstimation(_)) => {
+                Kind::AnvilZksync(AnvilZksyncCode::GasEstimation)
+            }
             ZksyncError::AnvilZksync(AnvilZksync::Halt(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::Halt)
             }
             ZksyncError::AnvilZksync(AnvilZksync::Revert(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::Revert)
+            }
+            ZksyncError::AnvilZksync(AnvilZksync::StateLoader(_)) => {
+                Kind::AnvilZksync(AnvilZksyncCode::StateLoader)
             }
             ZksyncError::AnvilZksync(AnvilZksync::TransactionValidation(_)) => {
                 Kind::AnvilZksync(AnvilZksyncCode::TransactionValidation)
@@ -149,11 +159,17 @@ impl ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(error)) => {
                 Into::<AnvilNodeCode>::into(error) as u32
             }
+            ZksyncError::AnvilZksync(AnvilZksync::GasEstimation(error)) => {
+                Into::<GasEstimationCode>::into(error) as u32
+            }
             ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => {
                 Into::<HaltCode>::into(error) as u32
             }
             ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => {
                 Into::<RevertCode>::into(error) as u32
+            }
+            ZksyncError::AnvilZksync(AnvilZksync::StateLoader(error)) => {
+                Into::<StateLoaderCode>::into(error) as u32
             }
             ZksyncError::AnvilZksync(AnvilZksync::TransactionValidation(error)) => {
                 Into::<TransactionValidationCode>::into(error) as u32
@@ -215,8 +231,10 @@ pub enum AnvilZksync {
     AnvilEnvironment(AnvilEnvironment),
     AnvilGeneric(AnvilGeneric),
     AnvilNode(AnvilNode),
+    GasEstimation(GasEstimation),
     Halt(Halt),
     Revert(Revert),
+    StateLoader(StateLoader),
     TransactionValidation(TransactionValidation),
 }
 impl AnvilZksync {
@@ -254,6 +272,16 @@ impl From<AnvilNode> for AnvilZksync {
         AnvilZksync::AnvilNode(val)
     }
 }
+impl ICustomError<ZksyncError, ZksyncError> for GasEstimation {
+    fn to_unified(&self) -> ZksyncError {
+        AnvilZksync::GasEstimation(self.clone()).to_unified()
+    }
+}
+impl From<GasEstimation> for AnvilZksync {
+    fn from(val: GasEstimation) -> Self {
+        AnvilZksync::GasEstimation(val)
+    }
+}
 impl ICustomError<ZksyncError, ZksyncError> for Halt {
     fn to_unified(&self) -> ZksyncError {
         AnvilZksync::Halt(self.clone()).to_unified()
@@ -272,6 +300,16 @@ impl ICustomError<ZksyncError, ZksyncError> for Revert {
 impl From<Revert> for AnvilZksync {
     fn from(val: Revert) -> Self {
         AnvilZksync::Revert(val)
+    }
+}
+impl ICustomError<ZksyncError, ZksyncError> for StateLoader {
+    fn to_unified(&self) -> ZksyncError {
+        AnvilZksync::StateLoader(self.clone()).to_unified()
+    }
+}
+impl From<StateLoader> for AnvilZksync {
+    fn from(val: StateLoader) -> Self {
+        AnvilZksync::StateLoader(val)
     }
 }
 impl ICustomError<ZksyncError, ZksyncError> for TransactionValidation {
@@ -303,8 +341,10 @@ impl crate::documentation::Documented for AnvilZksync {
             AnvilZksync::AnvilEnvironment(error) => error.get_documentation(),
             AnvilZksync::AnvilGeneric(error) => error.get_documentation(),
             AnvilZksync::AnvilNode(error) => error.get_documentation(),
+            AnvilZksync::GasEstimation(error) => error.get_documentation(),
             AnvilZksync::Halt(error) => error.get_documentation(),
             AnvilZksync::Revert(error) => error.get_documentation(),
+            AnvilZksync::StateLoader(error) => error.get_documentation(),
             AnvilZksync::TransactionValidation(error) => error.get_documentation(),
         }
     }
@@ -315,8 +355,10 @@ impl std::fmt::Display for AnvilZksync {
             AnvilZksync::AnvilEnvironment(component) => component.fmt(f),
             AnvilZksync::AnvilGeneric(component) => component.fmt(f),
             AnvilZksync::AnvilNode(component) => component.fmt(f),
+            AnvilZksync::GasEstimation(component) => component.fmt(f),
             AnvilZksync::Halt(component) => component.fmt(f),
             AnvilZksync::Revert(component) => component.fmt(f),
+            AnvilZksync::StateLoader(component) => component.fmt(f),
             AnvilZksync::TransactionValidation(component) => component.fmt(f),
         }
     }
