@@ -69,9 +69,7 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::AnvilNode as AnvilNodeError;
         pub type AnvilNodeResult<T> = core::result::Result<T, AnvilNodeError>;
         pub use crate::error::definitions::AnvilNode::GenericError;
-        pub use crate::error::definitions::AnvilNode::SerializationError;
         pub use crate::error::definitions::AnvilNode::TimestampBackwardsError;
-        pub use crate::error::definitions::AnvilNode::TransactionGasEstimationFailed;
         pub use crate::error::definitions::AnvilNode::TransactionHalt;
         pub use crate::error::definitions::AnvilNode::TransactionValidationFailed;
         pub use crate::error::definitions::AnvilNodeCode as ErrorCode;
@@ -85,31 +83,6 @@ pub mod anvil_zksync {
         }
         pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::AnvilNode(GenericError {
-                message: err.to_string(),
-            })
-        }
-    }
-    pub mod gas_estim {
-        pub use crate::error::definitions::GasEstimation as GasEstimationError;
-        pub type GasEstimationResult<T> = core::result::Result<T, GasEstimationError>;
-        pub use crate::error::definitions::GasEstimation::ExceedsBlockGasLimit;
-        pub use crate::error::definitions::GasEstimation::ExceedsLimitForPublishedPubdata;
-        pub use crate::error::definitions::GasEstimation::GenericError;
-        pub use crate::error::definitions::GasEstimation::TransactionAlwaysHalts;
-        pub use crate::error::definitions::GasEstimation::TransactionAlwaysReverts;
-        pub use crate::error::definitions::GasEstimation::TransactionHalt;
-        pub use crate::error::definitions::GasEstimation::TransactionRevert;
-        pub use crate::error::definitions::GasEstimationCode as ErrorCode;
-        #[macro_export]
-        macro_rules ! anvil_zksync_gas_estim_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: gas_estim :: GasEstimationError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
-        pub use crate::anvil_zksync_gas_estim_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> GasEstimationError {
-            GenericError {
-                message: err.to_string(),
-            }
-        }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
-            super::AnvilZksyncError::GasEstimation(GenericError {
                 message: err.to_string(),
             })
         }
@@ -173,31 +146,6 @@ pub mod anvil_zksync {
         }
         pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::Revert(GenericError {
-                message: err.to_string(),
-            })
-        }
-    }
-    pub mod state {
-        pub use crate::error::definitions::StateLoader as StateLoaderError;
-        pub type StateLoaderResult<T> = core::result::Result<T, StateLoaderError>;
-        pub use crate::error::definitions::StateLoader::GenericError;
-        pub use crate::error::definitions::StateLoader::LoadEmptyState;
-        pub use crate::error::definitions::StateLoader::LoadingStateOverExistingState;
-        pub use crate::error::definitions::StateLoader::StateDecompression;
-        pub use crate::error::definitions::StateLoader::StateDeserialization;
-        pub use crate::error::definitions::StateLoader::StateFileAccess;
-        pub use crate::error::definitions::StateLoader::UnknownStateVersion;
-        pub use crate::error::definitions::StateLoaderCode as ErrorCode;
-        #[macro_export]
-        macro_rules ! anvil_zksync_state_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: state :: StateLoaderError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
-        pub use crate::anvil_zksync_state_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> StateLoaderError {
-            GenericError {
-                message: err.to_string(),
-            }
-        }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
-            super::AnvilZksyncError::StateLoader(GenericError {
                 message: err.to_string(),
             })
         }

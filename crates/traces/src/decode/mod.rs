@@ -7,7 +7,7 @@
 // Note: These methods are used under the terms of the original project's license.                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-use crate::identifier::SingleSignaturesIdentifier;
+use crate::identifier::SignaturesIdentifier;
 use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Event, Function};
 use alloy::primitives::{LogData, Selector, Sign, B256};
@@ -63,7 +63,7 @@ impl CallTraceDecoderBuilderBase {
 
     /// Sets the signature identifier for events and functions.
     #[inline]
-    pub fn with_signature_identifier(mut self, identifier: SingleSignaturesIdentifier) -> Self {
+    pub fn with_signature_identifier(mut self, identifier: SignaturesIdentifier) -> Self {
         self.decoder.signature_identifier = Some(identifier);
         self
     }
@@ -98,7 +98,7 @@ pub struct CallTraceDecoder {
     /// All known functions.
     pub functions: HashMap<Selector, Vec<Function>>,
     /// A signature identifier for events and functions.
-    pub signature_identifier: Option<SingleSignaturesIdentifier>,
+    pub signature_identifier: Option<SignaturesIdentifier>,
 }
 
 impl CallTraceDecoder {
@@ -149,9 +149,7 @@ impl CallTraceDecoder {
                 Some(fs) => fs,
                 None => {
                     if let Some(identifier) = &self.signature_identifier {
-                        if let Some(function) =
-                            identifier.write().await.identify_function(selector).await
-                        {
+                        if let Some(function) = identifier.identify_function(selector).await {
                             functions.push(function);
                         }
                     }
@@ -264,7 +262,7 @@ impl CallTraceDecoder {
             Some(es) => es,
             None => {
                 if let Some(identifier) = &self.signature_identifier {
-                    if let Some(event) = identifier.write().await.identify_event(&t0[..]).await {
+                    if let Some(event) = identifier.identify_event(&t0[..]).await {
                         events.push(get_indexed_event_from_vm_event(event, vm_event));
                     }
                 }
@@ -314,14 +312,14 @@ impl CallTraceDecoder {
             })
             .unique()
             .collect();
-        identifier.write().await.identify_events(events).await;
+        identifier.identify_events(events).await;
 
         let funcs: Vec<_> = nodes
             .iter()
             .filter_map(|n| n.trace.call.input.get(..SELECTOR_LEN).map(|s| s.to_vec()))
             .filter(|s| !self.functions.contains_key(s.as_slice()))
             .collect();
-        identifier.write().await.identify_functions(funcs).await;
+        identifier.identify_functions(funcs).await;
 
         // Need to decode revert reasons and errors as well
     }

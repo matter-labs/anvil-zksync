@@ -453,15 +453,7 @@ impl InMemoryNode {
         if !call_traces.is_empty() && verbosity >= 2 {
             let tx_result_for_arena = tx_result.clone();
             let mut builder = CallTraceDecoderBuilder::default();
-            builder = builder.with_signature_identifier(
-                SignaturesIdentifier::new(
-                    Some(inner.config.get_cache_dir().into()),
-                    inner.config.offline,
-                )
-                .map_err(|err| {
-                    generic_error!("Failed to create SignaturesIdentifier: {:#}", err)
-                })?,
-            );
+            builder = builder.with_signature_identifier(SignaturesIdentifier::global());
 
             let decoder = builder.build();
             let arena: CallTraceArena = futures::executor::block_on(async {
