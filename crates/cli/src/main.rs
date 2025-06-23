@@ -5,7 +5,7 @@ use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::shell::{get_shell, OutputMode};
 use anvil_zksync_common::utils::predeploys::PREDEPLOYS;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
@@ -112,8 +112,6 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
     let command = command.as_ref().unwrap_or(&Command::Run);
     let (fork_client, transactions_to_replay) = match command {
         Command::Run => {
-            if config.offline {
-                sh_warn!("Running in offline mode: default fee parameters will be used.");
                 config = config
                     .clone()
                     .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
@@ -128,55 +126,9 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
                             .limit_scale_factor
                             .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
                     )
-                    .with_l1_pubdata_price(
-                        config.l1_pubdata_price.or(Some(DEFAULT_FAIR_PUBDATA_PRICE)),
-                    )
+                .with_l1_pubdata_price(config.l1_pubdata_price.or(Some(DEFAULT_FAIR_PUBDATA_PRICE)))
                     .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
                 (None, Vec::new())
-            } else {
-                // Initialize the client to get the fee params
-                let client = ForkClient::at_block_number(
-                    ForkUrl::Builtin(BuiltinNetwork::Era).to_config(),
-                    None,
-                )
-                .await
-                .map_err(to_domain)?;
-                let fee = client.get_fee_params().await.map_err(to_domain)?;
-
-                match fee {
-                    FeeParams::V2(fee_v2) => {
-                        config = config
-                            .clone()
-                            .with_l1_gas_price(config.l1_gas_price.or(Some(fee_v2.l1_gas_price())))
-                            .with_l2_gas_price(
-                                config
-                                    .l2_gas_price
-                                    .or(Some(fee_v2.config().minimal_l2_gas_price)),
-                            )
-                            .with_price_scale(
-                                config
-                                    .price_scale_factor
-                                    .or(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)),
-                            )
-                            .with_gas_limit_scale(
-                                config
-                                    .limit_scale_factor
-                                    .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
-                            )
-                            .with_l1_pubdata_price(
-                                config.l1_pubdata_price.or(Some(fee_v2.l1_pubdata_price())),
-                            )
-                            .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
-                    }
-                    FeeParams::V1(_) => {
-                        return Err(
-                            generic_error!("Unsupported FeeParams::V1 in this context").into()
-                        );
-                    }
-                }
-
-                (None, Vec::new())
-            }
         }
         Command::Fork(fork) => {
             let (fork_client, earlier_txs) = if let Some(tx_hash) = fork.fork_transaction_hash {
