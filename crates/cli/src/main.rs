@@ -1,5 +1,5 @@
 use crate::bytecode_override::override_bytecodes;
-use crate::cli::{BuiltinNetwork, Cli, Command, ForkUrl, PeriodicStateDumper};
+use crate::cli::{Cli, Command, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
@@ -112,23 +112,23 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
     let command = command.as_ref().unwrap_or(&Command::Run);
     let (fork_client, transactions_to_replay) = match command {
         Command::Run => {
-                config = config
-                    .clone()
-                    .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
-                    .with_l2_gas_price(config.l2_gas_price.or(Some(DEFAULT_L2_GAS_PRICE)))
-                    .with_price_scale(
-                        config
-                            .price_scale_factor
-                            .or(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)),
-                    )
-                    .with_gas_limit_scale(
-                        config
-                            .limit_scale_factor
-                            .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
-                    )
+            config = config
+                .clone()
+                .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
+                .with_l2_gas_price(config.l2_gas_price.or(Some(DEFAULT_L2_GAS_PRICE)))
+                .with_price_scale(
+                    config
+                        .price_scale_factor
+                        .or(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)),
+                )
+                .with_gas_limit_scale(
+                    config
+                        .limit_scale_factor
+                        .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
+                )
                 .with_l1_pubdata_price(config.l1_pubdata_price.or(Some(DEFAULT_FAIR_PUBDATA_PRICE)))
-                    .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
-                (None, Vec::new())
+                .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
+            (None, Vec::new())
         }
         Command::Fork(fork) => {
             let (fork_client, earlier_txs) = if let Some(tx_hash) = fork.fork_transaction_hash {
