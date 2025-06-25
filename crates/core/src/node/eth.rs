@@ -298,7 +298,8 @@ impl InMemoryNode {
         let code_hash = self.storage.read_value_alt(&code_key).await?;
         let account_info = self.storage.read_value_alt(&is_account_key).await?;
 
-        if code_hash.is_zero() || !account_info.is_zero() {
+        // TODO: should add `code_hash.is_eoa()` in core
+        if code_hash.is_zero() || code_hash[0] == 0x03 || !account_info.is_zero() {
             // Return account nonce for EOA accounts
             Ok(account_nonce)
         } else {
