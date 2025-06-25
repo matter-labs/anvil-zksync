@@ -1,18 +1,19 @@
 use crate::filters::EthFilters;
-use crate::formatter::ExecutionErrorReport;
+use crate::formatter::errors::view::EstimationErrorReport;
+use crate::node::boojumos::BoojumOsVM;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
 use crate::node::diagnostics::vm::traces::extract_addresses;
-use crate::node::error::{LoadStateError, ToHaltError, ToRevertReason};
+use crate::node::error::{ToHaltError, ToRevertReason};
 use crate::node::inner::blockchain::Blockchain;
 use crate::node::inner::fork::{Fork, ForkClient, ForkSource};
 use crate::node::inner::fork_storage::{ForkStorage, SerializableStorage};
+use crate::node::inner::storage::ReadStorageDyn;
 use crate::node::inner::time::Time;
 use crate::node::inner::vm_runner::TxBatchExecutionResult;
 use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::vm::AnvilVM;
-use crate::node::zkos::ZKOsVM;
 use crate::node::{
     create_block, ImpersonationManager, Snapshot, TestNodeFeeInputProvider, TransactionResult,
     VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION, MAX_PREVIOUS_STATES, MAX_TX_SIZE,
@@ -24,12 +25,12 @@ use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
+use anvil_zksync_config::types::BoojumConfig;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
 };
-use colored::Colorize;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
@@ -37,7 +38,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_error::anvil_zksync::node::AnvilNodeResult;
+use zksync_error::anvil_zksync::gas_estim;
+use zksync_error::anvil_zksync::node::{
+    AnvilNodeError, AnvilNodeResult, TransactionGasEstimationFailed,
+};
+use zksync_error::anvil_zksync::state::{StateLoaderError, StateLoaderResult};
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::storage::{ReadStorage, StorageView, WriteStorage};
 use zksync_multivm::interface::{
@@ -51,7 +56,7 @@ use zksync_multivm::utils::{
     get_max_gas_per_pubdata_byte,
 };
 use zksync_multivm::vm_latest::constants::{
-    BATCH_COMPUTATIONAL_GAS_LIMIT, BATCH_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH,
+    BATCH_COMPUTATIONAL_GAS_LIMIT, MAX_VM_PUBDATA_PER_BATCH,
 };
 use zksync_multivm::vm_latest::{HistoryDisabled, Vm};
 use zksync_multivm::{MultiVmTracer, VmVersion};
@@ -63,7 +68,7 @@ use zksync_types::l1::L1Tx;
 use zksync_types::l2::{L2Tx, TransactionType};
 use zksync_types::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::utils::{decompose_full_nonce, nonces_to_full_nonce};
+use zksync_types::utils::decompose_full_nonce;
 use zksync_types::web3::{keccak256, Index};
 use zksync_types::{
     api, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
@@ -466,8 +471,22 @@ impl InMemoryNodeInner {
     /// # Returns
     ///
     /// A `Result` with a `Fee` representing the estimated gas related data.
-    pub async fn estimate_gas_impl(&self, req: CallRequest) -> Result<Fee, Web3Error> {
+    pub async fn estimate_gas_impl(&self, req: CallRequest) -> AnvilNodeResult<Fee> {
+        let from = req.from;
+        let to = req.to;
         let mut request_with_gas_per_pubdata_overridden = req;
+
+        // If not passed, set request nonce to the expected value
+        if request_with_gas_per_pubdata_overridden.nonce.is_none() {
+            let nonce_key = self.storage_key_layout.get_nonce_key(
+                &request_with_gas_per_pubdata_overridden
+                    .from
+                    .unwrap_or_default(),
+            );
+            let full_nonce = self.fork_storage.read_value_alt(&nonce_key).await?;
+            let (account_nonce, _) = decompose_full_nonce(h256_to_u256(full_nonce));
+            request_with_gas_per_pubdata_overridden.nonce = Some(account_nonce);
+        }
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
@@ -485,8 +504,14 @@ impl InMemoryNodeInner {
             MAX_TX_SIZE,
             self.system_contracts.allow_no_target(),
         )
-        .map_err(Web3Error::SerializationError)?;
-
+        .map_err(
+            |inner| zksync_error::anvil_zksync::node::SerializationError {
+                transaction_type: "L2".to_owned(),
+                from: Box::new(from.unwrap_or_default().into()),
+                to: Box::new(to.unwrap_or_default().into()),
+                reason: inner.to_string(),
+            },
+        )?;
         // Properly format signature
         if l2_tx.common_data.signature.is_empty() {
             l2_tx.common_data.signature = vec![0u8; 65];
@@ -505,7 +530,10 @@ impl InMemoryNodeInner {
         self.estimate_gas_inner(l2_tx.into()).await
     }
 
-    pub async fn estimate_l1_to_l2_gas_impl(&self, req: CallRequest) -> Result<U256, Web3Error> {
+    pub async fn estimate_l1_to_l2_gas_impl(&self, req: CallRequest) -> AnvilNodeResult<U256> {
+        let from = req.from;
+        let to = req.to;
+
         let mut request_with_gas_per_pubdata_overridden = req;
 
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
@@ -519,14 +547,19 @@ impl InMemoryNodeInner {
             request_with_gas_per_pubdata_overridden,
             self.system_contracts.allow_no_target(),
         )
-        .map_err(Web3Error::SerializationError)?;
+        .map_err(
+            |inner| zksync_error::anvil_zksync::node::SerializationError {
+                transaction_type: "L1".to_owned(),
+                from: Box::new(from.unwrap_or_default().into()),
+                to: Box::new(to.unwrap_or_default().into()),
+                reason: inner.to_string(),
+            },
+        )?;
 
         Ok(self.estimate_gas_inner(l1_tx.into()).await?.gas_limit)
     }
 
-    async fn estimate_gas_inner(&self, mut tx: Transaction) -> Result<Fee, Web3Error> {
-        tracing::error!("Estimate gas for transaction: {:#?}", tx);
-
+    async fn estimate_gas_inner(&self, mut tx: Transaction) -> AnvilNodeResult<Fee> {
         let fee_input = {
             let fee_input = self.fee_input_provider.get_batch_fee_input_scaled();
             // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
@@ -590,10 +623,13 @@ impl InMemoryNodeInner {
                 .await?;
 
             if result.statistics.pubdata_published > (MAX_VM_PUBDATA_PER_BATCH as u32) {
-                return Err(Web3Error::SubmitTransactionError(
-                    "exceeds limit for published pubdata".into(),
-                    Default::default(),
-                ));
+                return Err(TransactionGasEstimationFailed {
+                    inner: Box::new(gas_estim::ExceedsLimitForPublishedPubdata {
+                        pubdata_published: result.statistics.pubdata_published,
+                        pubdata_limit: (MAX_VM_PUBDATA_PER_BATCH as u32),
+                    }),
+                    transaction_data: tx.raw_bytes.unwrap_or_default().0,
+                });
             }
 
             // It is assumed that there is no overflow here
@@ -625,7 +661,7 @@ impl InMemoryNodeInner {
                     batch_env.clone(),
                     system_env.clone(),
                     &self.fork_storage,
-                    self.system_contracts.use_zkos,
+                    &self.system_contracts.boojum,
                     false,
                 )
                 .tx_result;
@@ -660,7 +696,7 @@ impl InMemoryNodeInner {
                 batch_env,
                 system_env,
                 &self.fork_storage,
-                self.system_contracts.use_zkos,
+                &self.system_contracts.boojum,
                 false,
             )
             .tx_result;
@@ -673,70 +709,65 @@ impl InMemoryNodeInner {
             VmVersion::latest(),
         ) as u64;
 
-        match &estimate_gas_result.result {
+        let result: Result<Fee, gas_estim::GasEstimationError> = match &estimate_gas_result.result {
             ExecutionResult::Revert { output } => {
-                let message = output.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
-                let data = output.encoded_data();
-
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
-                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
-                sh_println!("{}", error_report);
-
-                Err(Web3Error::SubmitTransactionError(pretty_message, data))
+                Err(gas_estim::TransactionRevert {
+                    inner: Box::new(revert_reason),
+                    data: output.encoded_data(),
+                })
             }
             ExecutionResult::Halt { reason } => {
-                let message = reason.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
-
                 let halt_error: HaltError = reason.clone().to_halt_error().await;
-                let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
-                sh_println!("{}", error_report);
 
-                Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
+                Err(gas_estim::TransactionHalt {
+                    inner: Box::new(halt_error),
+                })
             }
             ExecutionResult::Success { .. } => {
                 let full_gas_limit = match suggested_gas_limit.overflowing_add(overhead) {
-                    (value, false) => value,
-                    (_, true) => {
-                        tracing::info!("Overflow when calculating gas estimation. We've exceeded the block gas limit by summing the following values:");
-                        tracing::info!(
-                            "\tEstimated transaction body gas cost: {}",
-                            tx_body_gas_limit
+                    (value, false) => Ok(value),
+                    (_, true) => Err(
+                        zksync_error::anvil_zksync::gas_estim::ExceedsBlockGasLimit {
+                            overhead: overhead.into(),
+                            gas_for_pubdata: additional_gas_for_pubdata.into(),
+                            estimated_body_cost: tx_body_gas_limit.into(),
+                        },
+                    ),
+                };
+
+                match full_gas_limit {
+                    Ok(full_gas_limit) => {
+                        tracing::trace!("Gas Estimation Results");
+                        tracing::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
+                        tracing::trace!(
+                            "  additional_gas_for_pubdata: {}",
+                            additional_gas_for_pubdata
                         );
-                        tracing::info!("\tGas for pubdata: {}", additional_gas_for_pubdata);
-                        tracing::info!("\tOverhead: {}", overhead);
-
-                        return Err(Web3Error::SubmitTransactionError(
-                            "exceeds block gas limit".into(),
-                            Default::default(),
-                        ));
+                        tracing::trace!("  overhead: {}", overhead);
+                        tracing::trace!("  full_gas_limit: {}", full_gas_limit);
+                        let fee = Fee {
+                            max_fee_per_gas: base_fee.into(),
+                            max_priority_fee_per_gas: 0u32.into(),
+                            gas_limit: full_gas_limit.into(),
+                            gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
+                        };
+                        Ok(fee)
                     }
-                };
+                    Err(e) => Err(e),
+                }
+            }
+        };
 
-                tracing::trace!("Gas Estimation Results");
-                tracing::trace!("  tx_body_gas_limit: {}", tx_body_gas_limit);
-                tracing::trace!(
-                    "  additional_gas_for_pubdata: {}",
-                    additional_gas_for_pubdata
-                );
-                tracing::trace!("  overhead: {}", overhead);
-                tracing::trace!("  full_gas_limit: {}", full_gas_limit);
-                let fee = Fee {
-                    max_fee_per_gas: base_fee.into(),
-                    max_priority_fee_per_gas: 0u32.into(),
-                    gas_limit: full_gas_limit.into(),
-                    gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
+        match result {
+            Ok(fee) => Ok(fee),
+            Err(e) => {
+                sh_println!("{}", EstimationErrorReport::new(&e, &tx),);
+                let error = TransactionGasEstimationFailed {
+                    inner: Box::new(e),
+                    transaction_data: tx.raw_bytes.clone().unwrap_or_default().0,
                 };
-                Ok(fee)
+                Err(error)
             }
         }
     }
@@ -751,7 +782,7 @@ impl InMemoryNodeInner {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
-        is_zkos: bool,
+        boojum: &BoojumConfig,
         trace_calls: bool,
     ) -> BatchTransactionExecutionResult {
         // Set gas_limit for transaction
@@ -781,19 +812,7 @@ impl InMemoryNodeInner {
 
         let storage = StorageView::new(fork_storage).to_rc_ptr();
 
-        // The nonce needs to be updated
-        let nonce_key = self
-            .storage_key_layout
-            .get_nonce_key(&tx.initiator_account());
-        if let Some(nonce) = tx.nonce() {
-            let full_nonce = storage.borrow_mut().read_value(&nonce_key);
-            let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-            let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
-            storage
-                .borrow_mut()
-                .set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-        }
-
+        // TODO: core doesn't do this during estimation and fast-fails with validation error instead
         // We need to explicitly put enough balance into the account of the users
         let payer = tx.payer();
         let balance_key = self
@@ -819,18 +838,19 @@ impl InMemoryNodeInner {
             ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
         }
 
-        let mut vm = if is_zkos {
-            let mut vm = ZKOsVM::<_, HistoryDisabled>::new(
+        let mut vm = if boojum.use_boojum {
+            let mut vm = BoojumOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
                 // TODO: this might be causing a deadlock.. check..
                 &fork_storage.inner.read().unwrap().raw_storage,
+                boojum,
             );
-            // Temporary hack - as we update the 'storage' just above, but zkos loads its full
+            // Temporary hack - as we update the 'storage' just above, but boojumos loads its full
             // state from fork_storage (that is not updated).
-            vm.update_inconsistent_keys(&[&nonce_key, &balance_key]);
-            AnvilVM::ZKOs(vm)
+            vm.update_inconsistent_keys(&[&balance_key]);
+            AnvilVM::BoojumOs(vm)
         } else {
             AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
         };
@@ -847,7 +867,9 @@ impl InMemoryNodeInner {
         };
 
         let tx_result = match &mut vm {
-            AnvilVM::ZKOs(vm) => vm.inspect(&mut Default::default(), InspectExecutionMode::OneTx),
+            AnvilVM::BoojumOs(vm) => {
+                vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
+            }
             AnvilVM::ZKSync(vm) => {
                 vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
             }
@@ -869,7 +891,7 @@ impl InMemoryNodeInner {
         gas_per_pubdata_byte: u64,
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> Result<VmExecutionResultAndLogs, Web3Error> {
+    ) -> AnvilNodeResult<VmExecutionResultAndLogs> {
         let verbosity = get_shell().verbosity;
         let mut known_addresses = known_addresses_after_transaction(&tx);
         let BatchTransactionExecutionResult {
@@ -879,86 +901,68 @@ impl InMemoryNodeInner {
         } = self.estimate_gas_step(
             tx.clone(),
             gas_per_pubdata_byte,
-            BATCH_GAS_LIMIT,
+            // `MAX_L2_TX_GAS_LIMIT` is what can be used by the transaction logic, but we give
+            // extra to account for potential pubdata cost
+            MAX_L2_TX_GAS_LIMIT + MAX_VM_PUBDATA_PER_BATCH as u64 * gas_per_pubdata_byte,
             batch_env,
             system_env,
             &self.fork_storage,
-            self.system_contracts.use_zkos,
+            &self.system_contracts.boojum,
             true,
         );
 
-        let error = match tx_result.result {
-            ExecutionResult::Success { .. } => {
-                // Transaction is executable with max gas, proceed with gas estimation
-                return Ok(*tx_result);
-            }
-            ExecutionResult::Revert { ref output } => {
-                let message = output.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
-                let data = output.encoded_data();
-
-                if verbosity >= 1 {
+        let result: zksync_error::anvil_zksync::gas_estim::GasEstimationResult<()> =
+            match tx_result.result {
+                ExecutionResult::Success { .. } => {
+                    // Transaction is executable with max gas, proceed with gas estimation
+                    Ok(())
+                }
+                ExecutionResult::Revert { ref output } => {
                     let revert_reason: RevertError = output.clone().to_revert_reason().await;
-                    let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
-                    sh_println!(
-                        "{}: {}\n{}",
-                        "error".red().bold(),
-                        "Gas estimation encountered unexecutable transaction".red(),
-                        error_report
-                    );
+
+                    Err(gas_estim::TransactionAlwaysReverts {
+                        inner: Box::new(revert_reason),
+                        data: output.encoded_data(),
+                    })
                 }
-
-                Web3Error::SubmitTransactionError(pretty_message, data)
-            }
-            ExecutionResult::Halt { ref reason } => {
-                let message = reason.to_string();
-                let pretty_message = format!(
-                    "execution reverted{}{}",
-                    if message.is_empty() { "" } else { ": " },
-                    message
-                );
-
-                if verbosity >= 1 {
+                ExecutionResult::Halt { ref reason } => {
                     let halt_error: HaltError = reason.clone().to_halt_error().await;
-                    let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
-                    sh_println!(
-                        "{}: {}\n{}",
-                        "error".red().bold(),
-                        "Gas estimation encountered unexecutable transaction".red(),
-                        error_report
-                    );
+
+                    Err(gas_estim::TransactionAlwaysHalts {
+                        inner: Box::new(halt_error),
+                    })
                 }
+            };
 
-                Web3Error::SubmitTransactionError(pretty_message, vec![])
+        if let Err(error) = result {
+            if verbosity >= 1 {
+                sh_println!("{}", EstimationErrorReport::new(&error, &tx),);
             }
-        };
 
-        if !call_traces.is_empty() && verbosity >= 2 {
-            let mut builder = CallTraceDecoderBuilder::default();
+            if !call_traces.is_empty() && verbosity >= 2 {
+                let mut builder = CallTraceDecoderBuilder::default();
 
-            builder = builder.with_signature_identifier(
-                SignaturesIdentifier::new(
-                    Some(self.config.get_cache_dir().into()),
-                    self.config.offline,
-                )
-                .map_err(|err| anyhow::anyhow!("Failed to create SignaturesIdentifier: {err:#}"))?,
-            );
+                builder = builder.with_signature_identifier(SignaturesIdentifier::global());
 
-            let decoder = builder.build();
-            let mut arena = build_call_trace_arena(&call_traces, &tx_result);
-            decode_trace_arena(&mut arena, &decoder).await?;
+                let decoder = builder.build();
+                let mut arena = build_call_trace_arena(&call_traces, &tx_result);
+                decode_trace_arena(&mut arena, &decoder).await;
 
-            extract_addresses(&arena, &mut known_addresses);
+                extract_addresses(&arena, &mut known_addresses);
 
-            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
-            let trace_output = render_trace_arena_inner(&filtered_arena, false);
-            sh_println!("\nTraces:\n{}", trace_output);
+                let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+                let trace_output = render_trace_arena_inner(&filtered_arena, false);
+                if !trace_output.is_empty() {
+                    sh_println!("\nTraces:\n{}", trace_output);
+                }
+            };
+            Err(AnvilNodeError::TransactionGasEstimationFailed {
+                inner: Box::new(error),
+                transaction_data: tx.raw_bytes.clone().unwrap_or_default().0,
+            })
+        } else {
+            Ok(*tx_result)
         }
-        Err(error)
     }
 
     /// Creates a [Snapshot] of the current state of the node.
@@ -1021,7 +1025,7 @@ impl InMemoryNodeInner {
     pub async fn dump_state(
         &self,
         preserve_historical_states: bool,
-    ) -> anyhow::Result<VersionedState> {
+    ) -> AnvilNodeResult<VersionedState> {
         let blockchain = self.blockchain.read().await;
         let blocks = blockchain.blocks.values().cloned().collect();
         let transactions = blockchain.tx_results.values().cloned().collect();
@@ -1044,24 +1048,26 @@ impl InMemoryNodeInner {
         }))
     }
 
-    pub async fn load_state(&mut self, state: VersionedState) -> Result<bool, LoadStateError> {
+    pub async fn load_state(&mut self, state: VersionedState) -> StateLoaderResult<bool> {
         let mut storage = self.blockchain.write().await;
         if storage.blocks.len() > 1 {
             tracing::debug!(
                 blocks = storage.blocks.len(),
                 "node has existing state; refusing to load new state"
             );
-            return Err(LoadStateError::HasExistingState);
+            return Err(StateLoaderError::LoadingStateOverExistingState);
         }
         let state = match state {
             VersionedState::V1 { state, .. } => state,
             VersionedState::Unknown { version } => {
-                return Err(LoadStateError::UnknownStateVersion(version))
+                return Err(StateLoaderError::UnknownStateVersion {
+                    version: version.into(),
+                })
             }
         };
         if state.blocks.is_empty() {
             tracing::debug!("new state has no blocks; refusing to load");
-            return Err(LoadStateError::EmptyState);
+            return Err(StateLoaderError::LoadEmptyState);
         }
 
         storage.load_blocks(&mut self.time, state.blocks);
@@ -1276,11 +1282,11 @@ pub mod testing {
                 config.system_contracts_options,
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
-                config.use_evm_emulator,
-                config.use_zkos,
+                config.use_evm_interpreter,
+                config.boojum.clone(),
             );
-            let storage_key_layout = if config.use_zkos {
-                StorageKeyLayout::ZkOs
+            let storage_key_layout = if config.boojum.use_boojum {
+                StorageKeyLayout::BoojumOs
             } else {
                 StorageKeyLayout::ZkEra
             };

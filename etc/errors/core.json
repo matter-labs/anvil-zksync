@@ -1,0 +1,11 @@
+{
+  "types": [],
+  "domains": [
+    {
+      "domain_name": "Core",
+      "domain_code": 1,
+      "identifier_encoding": "core",
+      "components": []
+    }
+  ]
+}

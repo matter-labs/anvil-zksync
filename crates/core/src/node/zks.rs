@@ -1,6 +1,7 @@
 use crate::node::InMemoryNode;
 use anyhow::Context;
 use std::collections::HashMap;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::api;
 use zksync_types::fee::Fee;
@@ -18,11 +19,11 @@ use zksync_types::{
 use zksync_web3_decl::error::Web3Error;
 
 impl InMemoryNode {
-    pub async fn estimate_fee_impl(&self, req: CallRequest) -> Result<Fee, Web3Error> {
+    pub async fn estimate_fee_impl(&self, req: CallRequest) -> AnvilNodeResult<Fee> {
         self.inner.read().await.estimate_gas_impl(req).await
     }
 
-    pub async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> Result<U256, Web3Error> {
+    pub async fn estimate_gas_l1_to_l2(&self, req: CallRequest) -> AnvilNodeResult<U256> {
         self.inner
             .read()
             .await
@@ -97,7 +98,7 @@ impl InMemoryNode {
         let balances = {
             let mut balances = HashMap::new();
             for token in tokens {
-                // TODO: Use StorageKeyLayout once zkos can lookup other tokens
+                // TODO: Use StorageKeyLayout once boojumos can lookup other tokens
                 let balance_key = storage_key_for_standard_token_balance(
                     AccountTreeId::new(token.l2_address),
                     &address,
@@ -282,10 +283,10 @@ mod tests {
 
         let result = node.estimate_fee_impl(mock_request).await.unwrap();
 
-        assert_eq!(result.gas_limit, U256::from(413091));
+        assert_eq!(result.gas_limit, U256::from(153968));
         assert_eq!(result.max_fee_per_gas, U256::from(45250000));
         assert_eq!(result.max_priority_fee_per_gas, U256::from(0));
-        assert_eq!(result.gas_per_pubdata_limit, U256::from(3143));
+        assert_eq!(result.gas_per_pubdata_limit, U256::from(168));
     }
 
     #[tokio::test]

@@ -1,17 +1,18 @@
-use crate::formatter::ExecutionErrorReport;
+use crate::formatter::errors::view::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
-use anvil_zksync_common::utils::numbers::h256_to_u64;
 use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
 use std::collections::HashSet;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::api::state_override::StateOverride;
+use zksync_types::utils::decompose_full_nonce;
 use zksync_types::{
     api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
-    get_code_key,
+    get_code_key, get_is_account_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
     PackedEthSignature, MAX_L1_TRANSACTION_GAS_LIMIT,
@@ -31,6 +32,8 @@ use crate::{
     node::{InMemoryNode, MAX_TX_SIZE, PROTOCOL_VERSION},
     utils::TransparentError,
 };
+
+use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
 
 impl InMemoryNode {
     pub async fn call_impl(
@@ -55,7 +58,11 @@ impl InMemoryNode {
             }
         }
 
-        tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        if self.system_contracts.boojum.use_boojum {
+            tx.common_data.fee.gas_limit = BOOJUM_CALL_GAS_LIMIT.into();
+        } else {
+            tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        }
         let call_result = self
             .run_l2_call(tx.clone(), system_contracts, state_override)
             .await
@@ -73,7 +80,7 @@ impl InMemoryNode {
 
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 let tx = Transaction::from(tx);
-                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
+                let error_report = ExecutionErrorReport::new(&revert_reason, &tx);
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(
@@ -91,7 +98,7 @@ impl InMemoryNode {
 
                 let halt_error: HaltError = reason.clone().to_halt_error().await;
                 let tx = Transaction::from(tx);
-                let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
+                let error_report = ExecutionErrorReport::new(&halt_error, &tx);
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
@@ -283,19 +290,20 @@ impl InMemoryNode {
         }
 
         let nonce_key = self.storage_key_layout.get_nonce_key(&address);
-        match self.storage.read_value_alt(&nonce_key).await {
-            Ok(result) => {
-                // The storage slot contains the full nonce.
-                // Full nonce is a composite one: it includes both account nonce
-                // (number of transactions initiated by the account) and
-                // deployer nonce (number of smart contracts deployed by the
-                // account).
-                // We need to cut the lowest 64 bits to get an account nonce.
-                // See functions: `decompose_full_nonce`, `nonces_to_full_nonce`
-                // https://github.com/matter-labs/zksync-era/blob/8063281579e4e02482823f09997244de153db87e/core/lib/types/src/utils.rs#L42-L52
-                Ok(h256_to_u64(result).into())
-            }
-            Err(error) => Err(anyhow::anyhow!("failed to read nonce storage: {error}")),
+        let code_key = get_code_key(&address);
+        let is_account_key = get_is_account_key(&address);
+
+        let full_nonce = self.storage.read_value_alt(&nonce_key).await?;
+        let (account_nonce, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
+        let code_hash = self.storage.read_value_alt(&code_key).await?;
+        let account_info = self.storage.read_value_alt(&is_account_key).await?;
+
+        if code_hash.is_zero() || !account_info.is_zero() {
+            // Return account nonce for EOA accounts
+            Ok(account_nonce)
+        } else {
+            // Return deployment nonce for contracts
+            Ok(deployment_nonce)
         }
     }
 
@@ -327,7 +335,7 @@ impl InMemoryNode {
         mut req: zksync_types::transaction_request::CallRequest,
         // TODO: Support
         _block: Option<BlockNumber>,
-    ) -> Result<U256, Web3Error> {
+    ) -> AnvilNodeResult<U256> {
         if req.nonce.is_none() {
             let from = req.from.unwrap_or_default();
             // TODO: support block number

@@ -7,17 +7,16 @@
 // Note: These methods are used under the terms of the original project's license.                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-use crate::identifier::SingleSignaturesIdentifier;
+use crate::identifier::SignaturesIdentifier;
 use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Event, Function};
 use alloy::primitives::{LogData, Selector, Sign, B256};
-use anvil_zksync_common::address_map::KNOWN_ADDRESSES;
+use anvil_zksync_common::address_map::{is_precompile, KNOWN_ADDRESSES};
 use anvil_zksync_types::numbers::SignedU256;
 use anvil_zksync_types::traces::{
     CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace,
     DecodedReturnData, DecodedRevertData, DecodedValue, LabeledAddress, Word32,
 };
-use error::DecodingError;
 use itertools::Itertools;
 use std::collections::{BTreeMap, HashMap};
 use zksync_multivm::interface::VmEvent;
@@ -25,8 +24,6 @@ use zksync_types::{Address, H160};
 
 pub mod revert_decoder;
 use revert_decoder::RevertDecoder;
-
-pub mod error;
 
 /// The first four bytes of the call data for a function call specifies the function to be called.
 pub const SELECTOR_LEN: usize = 4;
@@ -66,7 +63,7 @@ impl CallTraceDecoderBuilderBase {
 
     /// Sets the signature identifier for events and functions.
     #[inline]
-    pub fn with_signature_identifier(mut self, identifier: SingleSignaturesIdentifier) -> Self {
+    pub fn with_signature_identifier(mut self, identifier: SignaturesIdentifier) -> Self {
         self.decoder.signature_identifier = Some(identifier);
         self
     }
@@ -101,7 +98,7 @@ pub struct CallTraceDecoder {
     /// All known functions.
     pub functions: HashMap<Selector, Vec<Function>>,
     /// A signature identifier for events and functions.
-    pub signature_identifier: Option<SingleSignaturesIdentifier>,
+    pub signature_identifier: Option<SignaturesIdentifier>,
 }
 
 impl CallTraceDecoder {
@@ -131,37 +128,28 @@ impl CallTraceDecoder {
     /// Populates the traces with decoded data by mutating the
     /// [CallTrace] in place. See [CallTraceDecoder::decode_function] and
     /// [CallTraceDecoder::decode_event] for more details.
-    pub async fn populate_traces(
-        &self,
-        traces: &mut Vec<CallTraceNode>,
-    ) -> Result<(), DecodingError> {
+    pub async fn populate_traces(&self, traces: &mut Vec<CallTraceNode>) {
         for node in traces {
-            node.trace.decoded = self.decode_function(&node.trace).await?;
+            node.trace.decoded = self.decode_function(&node.trace).await;
             for log in node.logs.iter_mut() {
                 log.decoded = self.decode_event(&log.raw_log).await;
             }
         }
-        Ok(())
     }
 
     /// Decodes a call trace.
-    pub async fn decode_function(
-        &self,
-        trace: &CallTrace,
-    ) -> Result<DecodedCallTrace, DecodingError> {
+    pub async fn decode_function(&self, trace: &CallTrace) -> DecodedCallTrace {
         let label = self.labels.get(&trace.address).cloned();
         let cdata = &trace.call.input;
 
-        if cdata.len() >= SELECTOR_LEN {
+        if !is_precompile(&trace.address) && cdata.len() >= SELECTOR_LEN {
             let selector = &cdata[..SELECTOR_LEN];
             let mut functions = Vec::new();
             let functions = match self.functions.get(selector) {
                 Some(fs) => fs,
                 None => {
                     if let Some(identifier) = &self.signature_identifier {
-                        if let Some(function) =
-                            identifier.write().await.identify_function(selector).await
-                        {
+                        if let Some(function) = identifier.identify_function(selector).await {
                             functions.push(function);
                         }
                     }
@@ -169,11 +157,11 @@ impl CallTraceDecoder {
                 }
             };
             let [func, ..] = &functions[..] else {
-                return Ok(DecodedCallTrace {
+                return DecodedCallTrace {
                     label,
                     call_data: None,
                     return_data: self.default_return_data(trace),
-                });
+                };
             };
 
             // If traced contract is a fallback contract, check if it has the decoded function.
@@ -185,11 +173,11 @@ impl CallTraceDecoder {
                 }
             }
 
-            Ok(DecodedCallTrace {
+            DecodedCallTrace {
                 label,
                 call_data: Some(call_data),
                 return_data: self.decode_function_output(trace, functions),
-            })
+            }
         } else {
             let has_receive = self.receive_contracts.contains(&trace.address);
             let signature = if cdata.is_empty() && has_receive {
@@ -203,11 +191,11 @@ impl CallTraceDecoder {
             } else {
                 vec![DecodedValue::Bytes(cdata.clone())]
             };
-            Ok(DecodedCallTrace {
+            DecodedCallTrace {
                 label,
                 call_data: Some(DecodedCallData { signature, args }),
                 return_data: self.default_return_data(trace),
-            })
+            }
         }
     }
 
@@ -218,11 +206,9 @@ impl CallTraceDecoder {
             if let Ok(v) = func.abi_decode_input(&trace.call.input[SELECTOR_LEN..], false) {
                 args = Some(
                     v.into_iter()
-                        .flat_map(|value| -> Result<DecodedValue, DecodingError> {
-                            let decoded = decode_value(value)?;
-                            Ok(label_value(decoded, |value| {
-                                self.labels.get(value).cloned()
-                            }))
+                        .map(|value| -> DecodedValue {
+                            let decoded = decode_value(value);
+                            label_value(decoded, |value| self.labels.get(value).cloned())
                         })
                         .collect(),
                 );
@@ -253,7 +239,7 @@ impl CallTraceDecoder {
             return DecodedReturnData::NormalReturn(
                 values
                     .into_iter()
-                    .flat_map(|value| self.decode_value(value))
+                    .map(|value| self.decode_value(value))
                     .collect(),
             );
         }
@@ -276,7 +262,7 @@ impl CallTraceDecoder {
             Some(es) => es,
             None => {
                 if let Some(identifier) = &self.signature_identifier {
-                    if let Some(event) = identifier.write().await.identify_event(&t0[..]).await {
+                    if let Some(event) = identifier.identify_event(&t0[..]).await {
                         events.push(get_indexed_event_from_vm_event(event, vm_event));
                     }
                 }
@@ -293,14 +279,12 @@ impl CallTraceDecoder {
                         params
                             .into_iter()
                             .zip(event.inputs.iter())
-                            .flat_map(
-                                |(param, input)| -> Result<(String, DecodedValue), DecodingError> {
-                                    // undo patched names
-                                    let name: String = input.name.clone();
-                                    let value: DecodedValue = self.decode_value(param)?;
-                                    Ok((name, value))
-                                },
-                            )
+                            .map(|(param, input)| -> (String, DecodedValue) {
+                                // undo patched names
+                                let name: String = input.name.clone();
+                                let value: DecodedValue = self.decode_value(param);
+                                (name, value)
+                            })
                             .collect(),
                     ),
                 };
@@ -328,14 +312,15 @@ impl CallTraceDecoder {
             })
             .unique()
             .collect();
-        identifier.write().await.identify_events(events).await;
+        identifier.identify_events(events).await;
 
         let funcs: Vec<_> = nodes
             .iter()
+            .filter(|&t| !is_precompile(&t.trace.address))
             .filter_map(|n| n.trace.call.input.get(..SELECTOR_LEN).map(|s| s.to_vec()))
             .filter(|s| !self.functions.contains_key(s.as_slice()))
             .collect();
-        identifier.write().await.identify_functions(funcs).await;
+        identifier.identify_functions(funcs).await;
 
         // Need to decode revert reasons and errors as well
     }
@@ -351,8 +336,8 @@ impl CallTraceDecoder {
         }
     }
 
-    fn decode_value(&self, value: DynSolValue) -> Result<DecodedValue, DecodingError> {
-        decode_value(value).map(|value| label_value(value, |addr| self.labels.get(addr).cloned()))
+    fn decode_value(&self, value: DynSolValue) -> DecodedValue {
+        label_value(decode_value(value), |addr| self.labels.get(addr).cloned())
     }
 }
 
@@ -394,10 +379,10 @@ pub fn label_value(
     }
 }
 
-pub fn decode_value(value: DynSolValue) -> Result<DecodedValue, DecodingError> {
+pub fn decode_value(value: DynSolValue) -> DecodedValue {
     match value {
-        DynSolValue::Bool(b) => Ok(DecodedValue::Bool(b)),
-        DynSolValue::Int(i, _) => Ok(match i.into_sign_and_abs() {
+        DynSolValue::Bool(b) => DecodedValue::Bool(b),
+        DynSolValue::Int(i, _) => match i.into_sign_and_abs() {
             (Sign::Positive, value) => {
                 DecodedValue::Int(zksync_types::U256(value.into_limbs()).into())
             }
@@ -405,51 +390,46 @@ pub fn decode_value(value: DynSolValue) -> Result<DecodedValue, DecodingError> {
                 sign: anvil_zksync_types::numbers::Sign::Negative,
                 inner: zksync_types::U256(value.into_limbs()),
             }),
-        }),
-        DynSolValue::Uint(u, _) => Ok(DecodedValue::Uint(zksync_types::U256(u.into_limbs()))),
+        },
+        DynSolValue::Uint(u, _) => DecodedValue::Uint(zksync_types::U256(u.into_limbs())),
         DynSolValue::FixedBytes(word, size) => {
             // Convert Word to Word32 (assuming proper conversion exists)
             let word32 = Word32::from(word); // This assumes there's a conversion method
-            Ok(DecodedValue::FixedBytes(word32, size))
+            DecodedValue::FixedBytes(word32, size)
         }
-        DynSolValue::Address(addr) => match <[u8; 20]>::try_from(addr.0.as_slice()) {
-            Ok(raw_bytes_20) => {
-                let address = Address::from(raw_bytes_20);
-                Ok(DecodedValue::Address(LabeledAddress {
-                    label: None,
-                    address,
-                }))
-            }
-            Err(_e) => Err(DecodingError::InvalidAddress {
-                address: format!("{addr:?}"),
-            }),
-        },
-        DynSolValue::Function(func) => Ok(DecodedValue::Function(*func.0)),
-        DynSolValue::Bytes(bytes) => Ok(DecodedValue::Bytes(bytes)),
-        DynSolValue::String(s) => Ok(DecodedValue::String(s)),
+        DynSolValue::Address(addr) => {
+            let address = Address::from(addr.0 .0);
+            DecodedValue::Address(LabeledAddress {
+                label: None,
+                address,
+            })
+        }
+        DynSolValue::Function(func) => DecodedValue::Function(*func.0),
+        DynSolValue::Bytes(bytes) => DecodedValue::Bytes(bytes),
+        DynSolValue::String(s) => DecodedValue::String(s),
         DynSolValue::Array(arr) => {
-            let decoded = arr.into_iter().flat_map(decode_value).collect();
-            Ok(DecodedValue::Array(decoded))
+            let decoded = arr.into_iter().map(decode_value).collect();
+            DecodedValue::Array(decoded)
         }
         DynSolValue::FixedArray(arr) => {
-            let decoded = arr.into_iter().flat_map(decode_value).collect();
-            Ok(DecodedValue::FixedArray(decoded))
+            let decoded = arr.into_iter().map(decode_value).collect();
+            DecodedValue::FixedArray(decoded)
         }
         DynSolValue::Tuple(tup) => {
-            let decoded = tup.into_iter().flat_map(decode_value).collect();
-            Ok(DecodedValue::Tuple(decoded))
+            let decoded = tup.into_iter().map(decode_value).collect();
+            DecodedValue::Tuple(decoded)
         }
         DynSolValue::CustomStruct {
             name,
             prop_names,
             tuple,
         } => {
-            let decoded = tuple.into_iter().flat_map(decode_value).collect();
-            Ok(DecodedValue::CustomStruct {
+            let decoded = tuple.into_iter().map(decode_value).collect();
+            DecodedValue::CustomStruct {
                 name,
                 prop_names,
                 tuple: decoded,
-            })
+            }
         }
     }
 }

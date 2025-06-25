@@ -1,91 +1,59 @@
 //! Resolving the selectors (both method & event) with external database.
-use super::{cache::Cache, cache::CacheConfig, sh_warn};
-use lazy_static::lazy_static;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use super::sh_warn;
+use once_cell::sync::Lazy;
 use serde::Deserialize;
-use std::iter::FromIterator;
 use std::{
     collections::HashMap,
-    sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc,
-    },
-    time::Duration,
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
-use tokio::sync::RwLock;
 
 static SELECTOR_DATABASE_URL: &str = "https://api.openchain.xyz/signature-database/v1/lookup";
-
-/// The standard request timeout for API requests
-const REQ_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// How many request can time out before we decide this is a spurious connection
 const MAX_TIMEDOUT_REQ: usize = 4usize;
 
 /// A client that can request API data from `https://api.openchain.xyz`
-#[derive(Debug, Clone)]
+/// Does not perform any caching and should not be used directly.
+/// Use `SignaturesIdentifier` instead.
+#[derive(Debug, Default)]
 pub struct SignEthClient {
-    inner: reqwest::Client,
     /// Whether the connection is spurious, or API is down
-    spurious_connection: Arc<AtomicBool>,
+    spurious_connection: AtomicBool,
     /// How many requests timed out
-    timedout_requests: Arc<AtomicUsize>,
-    /// Max allowed request that can time out
-    max_timedout_requests: usize,
-    /// Cache for network data.
-    pub(crate) cache: Arc<RwLock<Cache>>,
+    timedout_requests: AtomicUsize,
 }
 
 #[derive(Deserialize)]
-pub struct KnownAbi {
+struct KnownAbi {
     abi: String,
     name: String,
 }
 
-lazy_static! {
-    static ref KNOWN_SIGNATURES: HashMap<String, String> = {
-        let json_value = serde_json::from_slice(include_bytes!("data/abi_map.json")).unwrap();
-        let pairs: Vec<KnownAbi> = serde_json::from_value(json_value).unwrap();
+static KNOWN_SIGNATURES: Lazy<HashMap<String, String>> = Lazy::new(|| {
+    let json_value = serde_json::from_slice(include_bytes!("data/abi_map.json")).unwrap();
+    let pairs: Vec<KnownAbi> = serde_json::from_value(json_value).unwrap();
 
-        pairs
-            .into_iter()
-            .map(|entry| (entry.abi, entry.name))
-            .collect()
-    };
-}
+    pairs
+        .into_iter()
+        .map(|entry| (entry.abi, entry.name))
+        .collect()
+});
 
 impl SignEthClient {
     /// Creates a new client with default settings
-    pub fn new() -> reqwest::Result<Self> {
-        let inner = reqwest::Client::builder()
-            .default_headers(HeaderMap::from_iter([(
-                HeaderName::from_static("user-agent"),
-                HeaderValue::from_static("zksync"),
-            )]))
-            .timeout(REQ_TIMEOUT)
-            .build()?;
-        Ok(Self {
-            inner,
-            spurious_connection: Arc::new(Default::default()),
-            timedout_requests: Arc::new(Default::default()),
-            max_timedout_requests: MAX_TIMEDOUT_REQ,
-            cache: Arc::new(RwLock::new(Cache::new(CacheConfig::default()))),
-        })
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    async fn get_text(&self, url: &str) -> reqwest::Result<String> {
-        self.inner
-            .get(url)
-            .send()
-            .await
-            .inspect_err(|err| {
-                self.on_reqwest_err(err);
-            })?
-            .text()
-            .await
-            .inspect_err(|err| {
-                self.on_reqwest_err(err);
-            })
+    /// Convenience method for making a GET request
+    async fn get(&self, url: &str) -> eyre::Result<String> {
+        let resp = reqwest::get(url).await.inspect_err(|e| {
+            self.on_reqwest_err(e);
+        })?;
+        let text = resp.text().await.inspect_err(|e| {
+            self.on_reqwest_err(e);
+        })?;
+        Ok(text)
     }
 
     fn on_reqwest_err(&self, err: &reqwest::Error) {
@@ -105,8 +73,8 @@ impl SignEthClient {
 
         if is_connectivity_err(err) {
             sh_warn!("spurious network detected for api.openchain.xyz");
-            let previous = self.timedout_requests.fetch_add(1, Ordering::SeqCst);
-            if previous >= self.max_timedout_requests {
+            let previous = self.timedout_requests.fetch_add(1, Ordering::Relaxed);
+            if previous >= MAX_TIMEDOUT_REQ {
                 self.set_spurious();
             }
         }
@@ -119,14 +87,10 @@ impl SignEthClient {
 
     /// Marks the connection as spurious
     fn set_spurious(&self) {
-        self.spurious_connection.store(true, Ordering::Relaxed)
-    }
-
-    fn ensure_not_spurious(&self) -> eyre::Result<()> {
-        if self.is_spurious() {
-            eyre::bail!("Spurious connection detected")
-        }
-        Ok(())
+        self.spurious_connection.store(true, Ordering::Relaxed);
+        tracing::warn!(
+            "Connection to {SELECTOR_DATABASE_URL} is spurious, further requests will fail."
+        );
     }
 
     /// Decodes the given function or event selector using api.openchain.xyz
@@ -136,7 +100,7 @@ impl SignEthClient {
         selector_type: SelectorType,
     ) -> eyre::Result<Option<String>> {
         // exit early if spurious connection
-        self.ensure_not_spurious()?;
+        eyre::ensure!(!self.is_spurious(), "Spurious connection detected");
 
         #[derive(Deserialize)]
         struct Decoded {
@@ -165,7 +129,7 @@ impl SignEthClient {
             SelectorType::Event => format!("{SELECTOR_DATABASE_URL}?event={selector}&filter=true"),
         };
 
-        let res = self.get_text(&url).await?;
+        let res = self.get(&url).await?;
         let api_response = match serde_json::from_str::<ApiResponse>(&res) {
             Ok(inner) => inner,
             Err(err) => {
@@ -228,7 +192,7 @@ impl SignEthClient {
         tracing::trace!(?selectors, "decoding selectors");
 
         // exit early if spurious connection
-        self.ensure_not_spurious()?;
+        eyre::ensure!(!self.is_spurious(), "Spurious connection detected");
 
         let expected_len = match selector_type {
             SelectorType::Function | SelectorType::Error => 10, // 0x + hex(4bytes)
@@ -266,7 +230,7 @@ impl SignEthClient {
             selectors_str = selectors.join(",")
         );
 
-        let res = self.get_text(&url).await?;
+        let res = self.get(&url).await?;
         let api_response = match serde_json::from_str::<ApiResponse>(&res) {
             Ok(inner) => inner,
             Err(err) => {
@@ -313,82 +277,4 @@ pub enum SelectorType {
     Function,
     Event,
     Error,
-}
-/// Fetches a function signature given the selector using api.openchain.xyz
-pub async fn decode_function_selector(selector: &str) -> eyre::Result<Option<String>> {
-    let client = SignEthClient::new();
-    {
-        // Check cache
-        if let Some(resolved_selector) = client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .read()
-            .await
-            .get_resolver_selector(&(selector.to_string()))
-        {
-            tracing::debug!("Using cached function selector for {selector}");
-            return Ok(Some(resolved_selector.clone()));
-        }
-    }
-
-    tracing::debug!("Making external request to resolve function selector for {selector}");
-    let result = client
-        .as_ref()
-        .unwrap() // Safe to do as client is created within this function
-        .decode_function_selector(selector)
-        .await;
-
-    if let Ok(result) = &result {
-        client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .write()
-            .await
-            .insert_resolver_selector(
-                selector.to_string(),
-                result.clone().unwrap_or_else(|| "".to_string()),
-            );
-    }
-    result
-}
-
-pub async fn decode_event_selector(selector: &str) -> eyre::Result<Option<String>> {
-    let client = SignEthClient::new();
-    {
-        // Check cache
-        if let Some(resolved_selector) = client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .read()
-            .await
-            .get_resolver_selector(&(selector.to_string()))
-        {
-            tracing::debug!("Using cached event selector for {selector}");
-            return Ok(Some(resolved_selector.clone()));
-        }
-    }
-
-    tracing::debug!("Making external request to resolve event selector for {selector}");
-    let result = client
-        .as_ref()
-        .unwrap()
-        .decode_selector(selector, SelectorType::Event)
-        .await;
-
-    if let Ok(result) = &result {
-        client
-            .as_ref()
-            .unwrap() // Safe to do as client is created within this function
-            .cache
-            .write()
-            .await
-            .insert_resolver_selector(
-                selector.to_string(),
-                result.clone().unwrap_or_else(|| "".to_string()),
-            );
-    }
-    result
 }

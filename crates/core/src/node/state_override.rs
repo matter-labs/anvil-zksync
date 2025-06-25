@@ -1,3 +1,5 @@
+// Copy-pasted from the core API sandbox implementation.
+
 use zksync_multivm::interface::storage::{ReadStorage, StorageWithOverrides};
 use zksync_types::{
     api::state_override::{BytecodeOverride, OverrideState, StateOverride},

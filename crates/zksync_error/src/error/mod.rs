@@ -50,8 +50,10 @@ impl IError<ZksyncError> for ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::AnvilEnvironment(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(error)) => error.get_message(),
+            ZksyncError::AnvilZksync(AnvilZksync::GasEstimation(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => error.get_message(),
+            ZksyncError::AnvilZksync(AnvilZksync::StateLoader(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::TransactionValidation(error)) => {
                 error.get_message()
             }

@@ -72,10 +72,10 @@ pub struct TestNodeConfig {
     pub override_bytecodes_dir: Option<String>,
     /// Enable bytecode compression
     pub bytecode_compression: bool,
-    /// Enables EVM emulation mode
-    pub use_evm_emulator: bool,
-    /// Enables ZKOS mode (experimental)
-    pub use_zkos: bool,
+    /// Enables EVM interpreter mode
+    pub use_evm_interpreter: bool,
+    /// Enables BoojumOS mode (experimental)
+    pub boojum: BoojumConfig,
     /// Optional chain ID for the node
     pub chain_id: Option<u32>,
     /// L1 gas price (optional override)
@@ -197,8 +197,8 @@ impl Default for TestNodeConfig {
             protocol_version: None,
             override_bytecodes_dir: None,
             bytecode_compression: false,
-            use_evm_emulator: false,
-            use_zkos: false,
+            use_evm_interpreter: false,
+            boojum: Default::default(),
             chain_id: None,
 
             // Gas configuration defaults
@@ -433,11 +433,11 @@ Node Configuration
 Port:                  {}
 EVM Interpreter:       {}
 Health Check Endpoint: {}
-ZK OS:                 {}
+BoojumOS:              {}
 L1:                    {}
 "#,
             self.port,
-            if self.use_evm_emulator {
+            if self.use_evm_interpreter {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -447,7 +447,7 @@ L1:                    {}
             } else {
                 "Disabled".red()
             },
-            if self.use_zkos {
+            if self.boojum.use_boojum {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -647,16 +647,23 @@ Address: {address}
 
     /// Enable or disable EVM emulation
     #[must_use]
-    pub fn with_evm_emulator(mut self, enable: Option<bool>) -> Self {
+    pub fn with_evm_interpreter(mut self, enable: Option<bool>) -> Self {
         if let Some(enable) = enable {
-            self.use_evm_emulator = enable;
+            self.use_evm_interpreter = enable;
         }
         self
     }
 
-    /// Get the EVM emulation status
-    pub fn is_evm_emulator_enabled(&self) -> bool {
-        self.use_evm_emulator
+    /// Enable or disable Boojum
+    #[must_use]
+    pub fn with_boojum(mut self, boojum: BoojumConfig) -> Self {
+        self.boojum = boojum;
+        self
+    }
+
+    /// Get the EVM interpreter status
+    pub fn is_evm_interpreter_enabled(&self) -> bool {
+        self.use_evm_interpreter
     }
 
     /// Set the L1 gas price

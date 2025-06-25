@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.6.6](https://github.com/matter-labs/anvil-zksync/compare/v0.6.5...v0.6.6) (2025-06-23)
+
+
+### Features
+
+* bump zksync-dep to latest ([#736](https://github.com/matter-labs/anvil-zksync/issues/736)) ([c4c4079](https://github.com/matter-labs/anvil-zksync/commit/c4c4079994d3a059bef74b92a0c54a72e866c881))
+
+
+### Bug Fixes
+
+* Improve performance in online mode by 99% ([#738](https://github.com/matter-labs/anvil-zksync/issues/738)) ([b489913](https://github.com/matter-labs/anvil-zksync/commit/b489913674fbae141cd67eb07d6a805d1450fab8))
+* respect offline mode entirely ([#729](https://github.com/matter-labs/anvil-zksync/issues/729)) ([78a4036](https://github.com/matter-labs/anvil-zksync/commit/78a4036063ce83f276e0bb43aa90490e5d8ab447))
+
+## [0.6.5](https://github.com/matter-labs/anvil-zksync/compare/v0.6.4...v0.6.5) (2025-06-16)
+
+
+### Bug Fixes
+
+* linter warnings ([#733](https://github.com/matter-labs/anvil-zksync/issues/733)) ([aca4969](https://github.com/matter-labs/anvil-zksync/commit/aca496929564bea49f0d424e7b8846bedf323e7a))
+* revert reasons not communicated to hardhat ([#731](https://github.com/matter-labs/anvil-zksync/issues/731)) ([74fe1fb](https://github.com/matter-labs/anvil-zksync/commit/74fe1fbe35e03c309e41632e081270d75fdbe81b))
+
+## [0.6.4](https://github.com/matter-labs/anvil-zksync/compare/v0.6.3...v0.6.4) (2025-06-12)
+
+
+### Features
+
+* increase max transaction size ([#720](https://github.com/matter-labs/anvil-zksync/issues/720)) ([2b15674](https://github.com/matter-labs/anvil-zksync/commit/2b156749c5c94694ecba6ec26a1db8f7ccc3dff8))
+
+
+### Bug Fixes
+
+* adjusts system contract deps to split out non-kernal contracts ([#721](https://github.com/matter-labs/anvil-zksync/issues/721)) ([fe38245](https://github.com/matter-labs/anvil-zksync/commit/fe38245e8f7e67732f11b30f86521ef9d1dd64fd))
+* correctly report halts and reverts during transaction cost estimation ([#716](https://github.com/matter-labs/anvil-zksync/issues/716)) ([e5bfb14](https://github.com/matter-labs/anvil-zksync/commit/e5bfb147f2db87fab1e0edfe9e4ae12661e788ea))
+* respect quiet param ([#728](https://github.com/matter-labs/anvil-zksync/issues/728)) ([3f19ed6](https://github.com/matter-labs/anvil-zksync/commit/3f19ed65669a97b9f1182d0890a4c7edf8255918))
+* return deployment nonce for contracts ([a88e17c](https://github.com/matter-labs/anvil-zksync/commit/a88e17c9324c94bbff7e602831dc2cd07e99e2c4))
+* return deployment nonce for contracts in `eth_getTransactionCount` ([#710](https://github.com/matter-labs/anvil-zksync/issues/710)) ([a88e17c](https://github.com/matter-labs/anvil-zksync/commit/a88e17c9324c94bbff7e602831dc2cd07e99e2c4))
+
+## [0.6.3](https://github.com/matter-labs/anvil-zksync/compare/v0.6.2...v0.6.3) (2025-05-21)
+
+
+### Bug Fixes
+
+* account for pubdata cost in estimation bounds ([#713](https://github.com/matter-labs/anvil-zksync/issues/713)) ([ab3cd44](https://github.com/matter-labs/anvil-zksync/commit/ab3cd44b6cc8fdcbe1a5281b211239dbbeb58fe1))
+* preserve human-readable revert message ([#715](https://github.com/matter-labs/anvil-zksync/issues/715)) ([1a06611](https://github.com/matter-labs/anvil-zksync/commit/1a06611f32e6b43cefce98fe5d7517956c213e82))
+
+## [0.6.2](https://github.com/matter-labs/anvil-zksync/compare/v0.6.1...v0.6.2) (2025-05-20)
+
+
+### Features
+
+* **boojum-os:** Updated boojum os support ([#702](https://github.com/matter-labs/anvil-zksync/issues/702)) ([eca0fec](https://github.com/matter-labs/anvil-zksync/commit/eca0fececf69a9d1bdb30440245807ec2b8c7860))
+* Support setting EVM bytecode ([#707](https://github.com/matter-labs/anvil-zksync/issues/707)) ([7195c0f](https://github.com/matter-labs/anvil-zksync/commit/7195c0f7bcedd283e5b8832c271624d4e0730968))
+* Support state overrides in eth_call ([#706](https://github.com/matter-labs/anvil-zksync/issues/706)) ([590335f](https://github.com/matter-labs/anvil-zksync/commit/590335f5f8ee0ce2028f41de7230ac6858702c01))
+
+
+### Bug Fixes
+
+* address timeout issue in CI ([#705](https://github.com/matter-labs/anvil-zksync/issues/705)) ([543096e](https://github.com/matter-labs/anvil-zksync/commit/543096e082de9f316a9d0b8c19b45326c8c1175d))
+* set call request's nonce during estimation ([#711](https://github.com/matter-labs/anvil-zksync/issues/711)) ([923a708](https://github.com/matter-labs/anvil-zksync/commit/923a70821df91ca5505288c8a671990bdbf62344))
+* Update nonces for accounts during impersonation ([#708](https://github.com/matter-labs/anvil-zksync/issues/708)) ([b6b0d69](https://github.com/matter-labs/anvil-zksync/commit/b6b0d69394f03de270323fdc11a4339c14d5a4ae))
+
 ## [0.6.1](https://github.com/matter-labs/anvil-zksync/compare/v0.6.0...v0.6.1) (2025-05-05)
 
 

@@ -66,7 +66,7 @@ impl InMemoryNode {
     ///
     /// # Returns
     /// The string "0x0".
-    pub async fn mine_block(&self) -> Result<L2BlockNumber> {
+    pub async fn mine_block(&self) -> AnvilNodeResult<L2BlockNumber> {
         // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
         let max_transactions = self.inner.read().await.config.max_transactions;
         let tx_batch = self.pool.take_uniform(max_transactions).unwrap_or(TxBatch {
@@ -286,12 +286,18 @@ impl InMemoryNode {
 
         let bytecode = hex::decode(code_slice)?;
         let marker = BytecodeMarker::detect(&bytecode);
-        if marker == BytecodeMarker::EraVm {
-            zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
-        }
         let bytecode_hash = match marker {
-            BytecodeMarker::EraVm => BytecodeHash::for_bytecode(&bytecode),
-            BytecodeMarker::Evm => BytecodeHash::for_raw_evm_bytecode(&bytecode),
+            BytecodeMarker::EraVm => {
+                zksync_types::bytecode::validate_bytecode(&bytecode).context("Invalid bytecode")?;
+                BytecodeHash::for_bytecode(&bytecode)
+            }
+            BytecodeMarker::Evm => {
+                let evm_interpreter_enabled = self.inner.read().await.config.use_evm_interpreter;
+                if !evm_interpreter_enabled {
+                    anyhow::bail!("EVM bytecode detected in 'set_code', but EVM interpreter is disabled in config");
+                }
+                BytecodeHash::for_raw_evm_bytecode(&bytecode)
+            }
         };
         tracing::info!(
             ?address,
@@ -619,7 +625,6 @@ mod tests {
     async fn test_set_code() {
         let address = Address::repeat_byte(0x1);
         let node = InMemoryNode::test(None);
-        let new_code = vec![0x1u8; 32];
 
         let code_before = node
             .get_code_impl(address, None)
@@ -628,16 +633,40 @@ mod tests {
             .0;
         assert_eq!(Vec::<u8>::default(), code_before);
 
-        node.set_code(address, format!("0x{}", hex::encode(new_code.clone())))
+        // EVM bytecodes don't start with `0` byte, while EraVM bytecodes do.
+        let evm_bytecode = vec![0x1u8; 32];
+
+        node.set_code(address, format!("0x{}", hex::encode(&evm_bytecode)))
             .await
-            .expect("failed setting code");
+            .expect_err("was able to set EVM bytecode with interpreter disabled");
+
+        // EraVM bytecodes start with `0` byte.
+        let mut era_bytecode = vec![0x2u8; 32];
+        era_bytecode[0] = 0x00;
+
+        node.set_code(address, format!("0x{}", hex::encode(&era_bytecode)))
+            .await
+            .expect("wasn't able to set EraVM bytecode");
 
         let code_after = node
             .get_code_impl(address, None)
             .await
             .expect("failed getting code")
             .0;
-        assert_eq!(new_code, code_after);
+        assert_eq!(era_bytecode, code_after);
+
+        // Enable EVM interpreter and try setting EVM bytecode again.
+        node.inner.write().await.config.use_evm_interpreter = true;
+
+        node.set_code(address, format!("0x{}", hex::encode(&evm_bytecode)))
+            .await
+            .expect("wasn't able to set EVM bytecode");
+        let code_after = node
+            .get_code_impl(address, None)
+            .await
+            .expect("failed getting code")
+            .0;
+        assert_eq!(evm_bytecode, code_after);
     }
 
     #[tokio::test]

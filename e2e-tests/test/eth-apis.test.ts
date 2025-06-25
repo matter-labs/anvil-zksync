@@ -4,6 +4,8 @@ import { expectThrowsAsync, getTestProvider } from "../helpers/utils";
 import { GenesisAccounts, RichAccounts } from "../helpers/constants";
 import { ethers } from "ethers";
 import { TransactionResponse } from "zksync-ethers/build/types";
+import * as hre from "hardhat";
+import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
 
 const provider = getTestProvider();
 
@@ -110,5 +112,38 @@ describe("eth_sendTransaction", function () {
     };
 
     await expectThrowsAsync(action, "not allowed to perform transactions");
+  });
+});
+
+describe("eth_call", function () {
+  it("Should execute with state override", async function () {
+    // Arrange
+    const wallet = new Wallet(RichAccounts[0].PrivateKey, provider);
+    const deployer = new Deployer(hre, wallet);
+    const artifact = await deployer.loadArtifact("Fib");
+    const bytecode = artifact.bytecode;
+
+    const fromAddr = "0xE999bb14881e48934A489cC9B35A4f9449EE87fb";
+    const toAddr = "0xaabbccddeeff00112233445566778899aabbccdd";
+    // Data corresponds to `fib(10)` in the Fib contract
+    const transaction = {
+      to: toAddr,
+      value: "0x0",
+      data: "0xc6c2ea17000000000000000000000000000000000000000000000000000000000000000a",
+      from: fromAddr,
+    };
+
+    const overrides = {
+      "0xaabbccddeeff00112233445566778899aabbccdd": {
+        code: bytecode,
+      },
+    };
+
+    // Act
+
+    const resp = await provider.send("eth_call", [transaction, "latest", overrides]);
+
+    // Assert
+    expect(resp).to.equal("0x0000000000000000000000000000000000000000000000000000000000000059");
   });
 });

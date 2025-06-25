@@ -1,25 +1,9 @@
 use alloy::hex::ToHexExt;
-use anvil_zksync_common::resolver::decode_function_selector;
+use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use async_trait::async_trait;
 use zksync_error::anvil_zksync::halt::HaltError;
 use zksync_error::anvil_zksync::revert::RevertError;
 use zksync_multivm::interface::{Halt, VmRevertReason};
-
-#[derive(thiserror::Error, Debug)]
-pub enum LoadStateError {
-    #[error("loading state into a node with existing state is not allowed (please create an issue if you have a valid use case)")]
-    HasExistingState,
-    #[error("loading empty state (no blocks) is not allowed")]
-    EmptyState,
-    #[error("failed to decompress state: {0}")]
-    FailedDecompress(std::io::Error),
-    #[error("failed to deserialize state: {0}")]
-    FailedDeserialize(serde_json::Error),
-    #[error("unknown state version `{0}`")]
-    UnknownStateVersion(u8),
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
-}
 
 async fn handle_vm_revert_reason(reason: &VmRevertReason) -> (String, &[u8]) {
     match reason {
@@ -34,16 +18,13 @@ async fn handle_vm_revert_reason(reason: &VmRevertReason) -> (String, &[u8]) {
                 ("Error: no function selector available".to_string(), &[])
             } else {
                 let hex_selector = function_selector.encode_hex();
-                match decode_function_selector(&hex_selector).await {
-                    Ok(Some(decoded_name)) => (decoded_name, data),
-                    Ok(None) => (
+                match SignaturesIdentifier::global()
+                    .identify_function(function_selector)
+                    .await
+                {
+                    Some(decoded_name) => (decoded_name.name, data),
+                    None => (
                         format!("Error with function selector: 0x{hex_selector}"),
-                        data,
-                    ),
-                    Err(e) => (
-                        format!(
-                            "Error with function selector: 0x{hex_selector}. Decode failure: {e}"
-                        ),
                         data,
                     ),
                 }

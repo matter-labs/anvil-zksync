@@ -1,7 +1,10 @@
 use super::executor::{Command, MainBatchExecutor};
 use super::shared::Sealed;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
+use crate::deps::InMemoryStorage;
+use crate::node::boojumos::BoojumOsVM;
 use crate::node::traces::call_error::CallErrorTracer;
+use anvil_zksync_config::types::BoojumConfig;
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use std::sync::RwLock;
@@ -90,6 +93,7 @@ pub struct MainBatchExecutorFactory<Tr> {
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
+    boojum: BoojumConfig,
     _tracer: PhantomData<Tr>,
 }
 
@@ -97,6 +101,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
     pub fn new(
         enforced_bytecode_compression: bool,
         legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
+        boojum: BoojumConfig,
     ) -> Self {
         Self {
             enforced_bytecode_compression,
@@ -104,6 +109,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
             skip_signature_verification: false,
             divergence_handler: None,
             legacy_bootloader_debug_result,
+            boojum,
             _tracer: PhantomData,
         }
     }
@@ -118,6 +124,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
+        iterable_storage: Option<InMemoryStorage>,
     ) -> MainBatchExecutor<S> {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
@@ -125,6 +132,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         let executor = CommandReceiver {
             enforced_bytecode_compression: self.enforced_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
+            boojum: self.boojum.clone(),
             skip_signature_verification: self.skip_signature_verification,
             divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
@@ -139,6 +147,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
                 l1_batch_params,
                 system_env,
                 pubdata_params_to_builder(pubdata_params),
+                iterable_storage,
             )
         });
         MainBatchExecutor::new(handle, commands_sender)
@@ -155,14 +164,16 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
         system_env: SystemEnv,
         pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<S>> {
-        Box::new(self.init_main_batch(storage, l1_batch_params, system_env, pubdata_params))
+        Box::new(self.init_main_batch(storage, l1_batch_params, system_env, pubdata_params, None))
     }
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
     Fast(FastVmInstance<S, Tr::Fast>),
+    BoojumOS(BoojumOsVM<StorageView<S>, HistoryEnabled>),
 }
 
 macro_rules! dispatch_batch_vm {
@@ -170,6 +181,7 @@ macro_rules! dispatch_batch_vm {
         match $self {
             Self::Legacy(vm) => vm.$function($($params)*),
             Self::Fast(vm) => vm.$function($($params)*),
+            Self::BoojumOS(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -180,7 +192,18 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         system_env: SystemEnv,
         storage_ptr: StoragePtr<StorageView<S>>,
         mode: FastVmMode,
+        boojum: &BoojumConfig,
+        all_values: Option<InMemoryStorage>,
     ) -> Self {
+        if boojum.use_boojum {
+            return Self::BoojumOS(BoojumOsVM::new(
+                l1_batch_env,
+                system_env,
+                storage_ptr,
+                &all_values.unwrap(),
+                boojum,
+            ));
+        }
         if !is_supported_by_fast_vm(system_env.version) {
             return Self::Legacy(LegacyVmInstance::new(l1_batch_env, system_env, storage_ptr));
         }
@@ -250,6 +273,13 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 tx,
                 with_compression,
             ),
+            Self::BoojumOS(vm) => {
+                vm.push_transaction(tx);
+                let res = vm.inspect(&mut legacy_tracer.into(), InspectExecutionMode::OneTx);
+
+                (Ok((&[]).into()), res)
+            }
+
             Self::Fast(vm) => {
                 let mut tracer = (
                     legacy_tracer.into(),
@@ -273,6 +303,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .unwrap_or_default();
         let call_traces = match self {
             Self::Legacy(_) => legacy_traces,
+            Self::BoojumOS(_) => legacy_traces,
             Self::Fast(FastVmInstance::Fast(_)) => fast_traces,
             Self::Fast(FastVmInstance::Shadowed(vm)) => {
                 vm.get_custom_mut("call_traces", |r| match r {
@@ -301,6 +332,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 struct CommandReceiver<S, Tr> {
     enforced_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
+    boojum: BoojumConfig,
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
@@ -316,8 +348,12 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
         pubdata_builder: Rc<dyn PubdataBuilder>,
+        all_values: Option<InMemoryStorage>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
+        if self.boojum.use_boojum {
+            tracing::info!("Using BoojumOS VM");
+        }
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
         let mut vm = BatchVm::<S, Tr>::new(
@@ -325,6 +361,8 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             system_env,
             storage_view.clone(),
             self.fast_vm_mode,
+            &self.boojum,
+            all_values,
         );
 
         if self.skip_signature_verification {

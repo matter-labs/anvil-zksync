@@ -9,8 +9,11 @@ use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer, Vm};
 use zksync_types::l2::L2Tx;
 use zksync_types::transaction_request::CallRequest;
+use zksync_types::web3::Bytes;
 use zksync_types::{api, PackedEthSignature, Transaction, H256};
 use zksync_web3_decl::error::Web3Error;
+
+use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
 
 impl InMemoryNode {
     pub async fn trace_block_impl(
@@ -82,7 +85,11 @@ impl InMemoryNode {
         // Match behavior of zksync_core:
         // Protection against infinite-loop eth_calls and alike:
         // limiting the amount of gas the call can use.
-        l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        if self.system_contracts.boojum.use_boojum {
+            l2_tx.common_data.fee.gas_limit = BOOJUM_CALL_GAS_LIMIT.into();
+        } else {
+            l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
+        }
 
         let tx: Transaction = l2_tx.clone().into();
         vm.push_transaction(tx);
@@ -119,6 +126,17 @@ impl InMemoryNode {
             .get_tx_debug_info(&tx_hash, only_top)
             .await
             .map(api::CallTracerResult::CallTrace))
+    }
+
+    pub async fn get_raw_transaction_impl(&self, tx_hash: H256) -> anyhow::Result<Option<Bytes>> {
+        Ok(self.blockchain.get_raw_transaction(tx_hash).await)
+    }
+
+    pub async fn get_raw_transactions_impl(
+        &self,
+        block_number: api::BlockId,
+    ) -> anyhow::Result<Vec<Bytes>> {
+        Ok(self.blockchain.get_raw_transactions(block_number).await)
     }
 }
 

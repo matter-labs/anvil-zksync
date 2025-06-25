@@ -22,7 +22,7 @@ strip = "debuginfo" # Automatically strip symbols from the binary.
 lto = "thin"        # Enable link-time optimization.
 
 [workspace.package]
-version = "0.6.1"                                          # x-release-please-version
+version = "0.6.6"                                          # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -35,21 +35,21 @@ categories = ["cryptography"]
 #########################
 # ZKsync dependencies  #
 #########################
-# zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
-# zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
-# zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
-# zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
-# zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
-# zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
-# zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.0.0" }
+# zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.6.0" }
+# zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.6.0" }
+# zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.6.0" }
+# zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.6.0" }
+# zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.6.0" }
+# zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.6.0" }
+# zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.6.0" }
 
-zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
-zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
-zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "4a642f9a696b4c6cd9a8a88a3952f5d56e82814f" }
+zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "804014ec25072964edb435fef8867bea6b5a911b" }
+zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "804014ec25072964edb435fef8867bea6b5a911b" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "804014ec25072964edb435fef8867bea6b5a911b" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "804014ec25072964edb435fef8867bea6b5a911b" }
+zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "804014ec25072964edb435fef8867bea6b5a911b" }
+zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "804014ec25072964edb435fef8867bea6b5a911b" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "804014ec25072964edb435fef8867bea6b5a911b" }
 
 # zksync_mini_merkle_tree = { path = "/home/popzxc/workspace/zksync-era/core/lib/mini_merkle_tree" }
 # zksync_multivm = { path = "/home/popzxc/workspace/zksync-era/core/lib/multivm" }
@@ -62,6 +62,7 @@ zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "4
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "54e0671189a5bc2ce88e72c36334f98fbbdd228d", default-features = false }
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "54e0671189a5bc2ce88e72c36334f98fbbdd228d" }
+zk_evm_abstractions = "=0.152.3"
 
 #########################
 # External dependencies #
@@ -76,6 +77,7 @@ clap = { version = "4.2.4", features = ["derive", "env"] }
 colored = "2"
 eyre = "0.6"
 flate2 = "1.0"
+function_name = "0.3.0"
 futures = { version = "0.3", features = ["compat"] }
 hex = "0.4"
 http = "1.1.0"
