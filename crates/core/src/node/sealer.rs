@@ -211,7 +211,11 @@ mod tests {
     impl BlockSealerTester {
         fn new(sealer_mode_fn: impl FnOnce(&TxPool) -> BlockSealerMode) -> (Self, TxPool) {
             let (node_executor_tester, node_handle) = NodeExecutorTester::new();
-            let pool = TxPool::new(ImpersonationManager::default(), TransactionOrder::Fifo);
+            let pool = TxPool::new(
+                ImpersonationManager::default(),
+                TransactionOrder::Fifo,
+                None,
+            );
             let (block_sealer, _) =
                 BlockSealer::new(sealer_mode_fn(&pool), pool.clone(), node_handle);
             let _handle = tokio::spawn(block_sealer.run());

@@ -4,8 +4,8 @@ use crate::deps::system_contracts::load_builtin_contract;
 use crate::node::ImpersonationManager;
 use anvil_zksync_config::types::{BoojumConfig, SystemContractsOptions};
 use zksync_contracts::{
-    read_sys_contract_bytecode, BaseSystemContracts, BaseSystemContractsHashes, ContractLanguage,
-    SystemContractCode, SystemContractsRepo,
+    BaseSystemContracts, BaseSystemContractsHashes, ContractLanguage, SystemContractCode,
+    SystemContractsRepo,
 };
 use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::bytecode::BytecodeHash;
@@ -119,6 +119,7 @@ impl SystemContracts {
             %protocol_version,
             use_evm_emulator,
             boojum.use_boojum,
+            ?system_contracts_path,
             "initializing system contracts"
         );
         let path = system_contracts_path.unwrap_or_else(|| SystemContractsRepo::default().root);
@@ -246,7 +247,7 @@ fn bsc_load_with_bootloader(
     let evm_emulator = if use_evm_emulator {
         let evm_emulator_bytecode = match options {
             SystemContractsOptions::Local => {
-                read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul)
+                repo.read_sys_contract_bytecode("", "EvmEmulator", None, ContractLanguage::Yul)
             }
             SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
                 load_builtin_contract(protocol_version, "EvmEmulator")
@@ -342,13 +343,16 @@ fn fee_estimate_impersonating_contracts(
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
             load_builtin_contract(protocol_version, "fee_estimate_impersonating")
         }
-        // Account impersonating is not supported with the local contracts
-        SystemContractsOptions::Local => repo.read_sys_contract_bytecode(
-            "bootloader",
-            "fee_estimate",
-            Some("Bootloader"),
-            ContractLanguage::Yul,
-        ),
+        // TODO: hack to make local development with evm emulator work.
+        SystemContractsOptions::Local => {
+            load_builtin_contract(protocol_version, "fee_estimate_impersonating")
+        } // Account impersonating is not supported with the local contracts
+          // SystemContractsOptions::Local => repo.read_sys_contract_bytecode(
+          //     "bootloader",
+          //     "fee_estimate",
+          //     Some("Bootloader"),
+          //     ContractLanguage::Yul,
+          // ),
     };
 
     bsc_load_with_bootloader(
@@ -398,13 +402,17 @@ fn baseline_impersonating_contracts(
         SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
             load_builtin_contract(protocol_version, "proved_batch_impersonating")
         }
+        // TODO: hack to make local development with evm emulator work.
         // Account impersonating is not supported with the local contracts
-        SystemContractsOptions::Local => repo.read_sys_contract_bytecode(
-            "bootloader",
-            "proved_batch",
-            Some("Bootloader"),
-            ContractLanguage::Yul,
-        ),
+        // SystemContractsOptions::Local => repo.read_sys_contract_bytecode(
+        //     "bootloader",
+        //     "proved_batch",
+        //     Some("Bootloader"),
+        //     ContractLanguage::Yul,
+        // ),
+        SystemContractsOptions::Local => {
+            load_builtin_contract(protocol_version, "proved_batch_impersonating")
+        }
     };
     bsc_load_with_bootloader(
         bootloader_bytecode,

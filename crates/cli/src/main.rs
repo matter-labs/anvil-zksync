@@ -228,12 +228,12 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
         // Enable auto impersonation if configured
         impersonation.set_auto_impersonation(true);
     }
-    let pool = TxPool::new(impersonation.clone(), config.transaction_order);
 
-    let fee_input_provider = TestNodeFeeInputProvider::from_fork(
+    let mut fee_input_provider = TestNodeFeeInputProvider::from_fork(
         fork_client.as_ref().map(|f| &f.details),
         &config.base_token_config,
     );
+    fee_input_provider.estimate_gas_scale_factor = config.get_price_scale() as f32;
     let filters = Arc::new(RwLock::new(EthFilters::default()));
 
     // Build system contracts
@@ -262,6 +262,12 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
         storage_key_layout,
         // Only produce system logs if L1 is enabled
         config.l1_config.is_some(),
+    );
+
+    let pool = TxPool::new(
+        impersonation.clone(),
+        config.transaction_order,
+        Some(storage.clone()),
     );
 
     let mut node_service_tasks: Vec<Pin<Box<dyn Future<Output = anyhow::Result<()>>>>> = Vec::new();

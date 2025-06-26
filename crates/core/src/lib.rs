@@ -50,4 +50,6 @@ pub mod observability;
 pub mod system_contracts;
 pub mod utils;
 
+pub mod console_tracer;
+
 mod testing;

@@ -260,6 +260,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         } else {
             vec![]
         };
+        legacy_tracer.push(crate::console_tracer::ConsoleLogTracer.into_tracer_pointer());
         legacy_tracer
             .push(BootloaderDebugTracer::new(legacy_bootloader_debug_result).into_tracer_pointer());
         legacy_tracer

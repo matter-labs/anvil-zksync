@@ -651,6 +651,7 @@ impl InMemoryNode {
         let pool = TxPool::new(
             impersonation.clone(),
             anvil_zksync_types::TransactionOrder::Fifo,
+            Some(storage.clone()),
         );
         let tx_listener = pool.add_tx_listener();
         let (block_sealer, block_sealer_state) = BlockSealer::new(
