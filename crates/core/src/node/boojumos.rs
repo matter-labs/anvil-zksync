@@ -545,7 +545,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                 VmExecutionResultAndLogs {
                     result: ExecutionResult::Revert {
                         output: VmRevertReason::General {
-                            msg: format!("{:?}", invalid_tx),
+                            msg: format!("{invalid_tx}"),
                             data: vec![],
                         },
                     },
