@@ -60,8 +60,10 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ConsoleLogTracer {
             )
         };
 
-        if let Ok(val) = String::from_utf8(calldata.clone()) {
-            println!("Console log: {}", val);
+        if let Ok(val) =
+            String::from_utf8(calldata.iter().skip_while(|b| **b == 0).cloned().collect())
+        {
+            println!("Console log: {} (hex: {})", val, hex::encode(calldata));
         } else {
             println!("Console log: {}", hex::encode(calldata));
         }
