@@ -1,8 +1,8 @@
-//! Interfaces that use boojumos for VM execution.
+//! Interfaces that use zksync_os for VM execution.
 //! This is still experimental code.
 use std::{alloc::Global, collections::HashMap, vec};
 
-use anvil_zksync_config::types::BoojumConfig;
+use anvil_zksync_config::types::ZKsyncOSConfig;
 use basic_system::system_implementation::flat_storage_model::{
     address_into_special_storage_key, AccountProperties, TestingTree,
     ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
@@ -38,7 +38,7 @@ use crate::deps::InMemoryStorage;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-pub const BOOJUM_CALL_GAS_LIMIT: u64 = 100_000_000;
+pub const ZKSYNC_OS_CALL_GAS_LIMIT: u64 = 100_000_000;
 
 static BATCH_WITNESS: Lazy<Mutex<HashMap<u32, Vec<u8>>>> = Lazy::new(|| {
     let m = HashMap::new();
@@ -56,7 +56,7 @@ pub fn set_batch_witness(key: u32, value: Vec<u8>) {
     map.insert(key, value);
 }
 
-pub fn boojumos_get_batch_witness(key: &u32) -> Option<Vec<u8>> {
+pub fn zksync_os_get_batch_witness(key: &u32) -> Option<Vec<u8>> {
     let map = BATCH_WITNESS.lock().unwrap();
     map.get(key).cloned()
 }
@@ -456,7 +456,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
 
                         for (key, value) in [
                             (
-                                boojumos_get_nonce_key(&dst_address),
+                                zksync_os_get_nonce_key(&dst_address),
                                 u256_to_h256(U256::from(nonce)),
                             ),
                             (
@@ -582,7 +582,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     )
 }
 
-pub fn boojumos_get_nonce_key(account: &Address) -> StorageKey {
+pub fn zksync_os_get_nonce_key(account: &Address) -> StorageKey {
     let nonce_manager = AccountTreeId::new(b160_to_h160(FAKE_NONCE_ADDRESS));
 
     // The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the `NONCE_HOLDER` system contract
@@ -591,12 +591,12 @@ pub fn boojumos_get_nonce_key(account: &Address) -> StorageKey {
     StorageKey::new(nonce_manager, key)
 }
 
-pub fn boojumos_key_for_eth_balance(address: &Address) -> H256 {
+pub fn zksync_os_key_for_eth_balance(address: &Address) -> H256 {
     address_to_h256(address)
 }
 
 /// Create a `key` part of `StorageKey` to access the balance from ERC20 contract balances
-fn zkos_key_for_erc20_balance(address: &Address) -> H256 {
+fn zksync_os_key_for_erc20_balance(address: &Address) -> H256 {
     let address_h256 = address_to_h256(address);
 
     // 20 bytes address first gets aligned to 32 bytes with index of `balanceOf` storage slot
@@ -615,15 +615,15 @@ fn zkos_storage_key_for_standard_token_balance(
     // We have different implementation of the standard ERC20 contract and native
     // eth contract. The key for the balance is different for each.
     let key = if token_contract.address() == &b160_to_h160(BASE_TOKEN_ADDRESS) {
-        boojumos_key_for_eth_balance(address)
+        zksync_os_key_for_eth_balance(address)
     } else {
-        zkos_key_for_erc20_balance(address)
+        zksync_os_key_for_erc20_balance(address)
     };
 
     StorageKey::new(token_contract, key)
 }
 
-pub fn boojumos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
+pub fn zksync_os_storage_key_for_eth_balance(address: &Address) -> StorageKey {
     zkos_storage_key_for_standard_token_balance(
         AccountTreeId::new(b160_to_h160(BASE_TOKEN_ADDRESS)),
         address,
@@ -631,28 +631,28 @@ pub fn boojumos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
 }
 
 #[derive(Debug)]
-pub struct BoojumOsVM<S: WriteStorage, H: HistoryMode> {
+pub struct ZKsyncOSVM<S: WriteStorage, H: HistoryMode> {
     pub storage: StoragePtr<S>,
     pub tree: InMemoryTree,
     preimage: InMemoryPreimageSource,
     transactions: Vec<Transaction>,
     system_env: SystemEnv,
     batch_env: L1BatchEnv,
-    config: BoojumConfig,
+    config: ZKsyncOSConfig,
     witness: Option<Vec<u8>>,
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> BoojumOsVM<S, H> {
+impl<S: WriteStorage, H: HistoryMode> ZKsyncOSVM<S, H> {
     pub fn new(
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
         raw_storage: &InMemoryStorage,
-        config: &BoojumConfig,
+        config: &ZKsyncOSConfig,
     ) -> Self {
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
-        BoojumOsVM {
+        ZKsyncOSVM {
             storage,
             tree,
             preimage,
@@ -674,12 +674,12 @@ impl<S: WriteStorage, H: HistoryMode> BoojumOsVM<S, H> {
     }
 }
 
-pub struct BoojumOsTracerDispatcher<S: WriteStorage, H: HistoryMode> {
+pub struct ZkSyncOSTracerDispatcher<S: WriteStorage, H: HistoryMode> {
     _tracers: Vec<S>,
     _marker: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> Default for BoojumOsTracerDispatcher<S, H> {
+impl<S: WriteStorage, H: HistoryMode> Default for ZkSyncOSTracerDispatcher<S, H> {
     fn default() -> Self {
         Self {
             _tracers: Default::default(),
@@ -689,7 +689,7 @@ impl<S: WriteStorage, H: HistoryMode> Default for BoojumOsTracerDispatcher<S, H>
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
-    for BoojumOsTracerDispatcher<S, H>
+    for ZkSyncOSTracerDispatcher<S, H>
 {
     fn from(_value: Vec<TracerPointer<S, H>>) -> Self {
         Self {
@@ -700,7 +700,7 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<Vec<MultiVmTracerPointer<S, H>>>
-    for BoojumOsTracerDispatcher<S, H>
+    for ZkSyncOSTracerDispatcher<S, H>
 {
     fn from(_value: Vec<MultiVmTracerPointer<S, H>>) -> Self {
         Self {
@@ -711,7 +711,7 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<MultiVmTracerPointer<S, H>>>
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
-    for BoojumOsTracerDispatcher<S, H>
+    for ZkSyncOSTracerDispatcher<S, H>
 {
     fn from(_value: TracerDispatcher<S, H>) -> Self {
         Self {
@@ -721,8 +721,8 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface for BoojumOsVM<S, H> {
-    type TracerDispatcher = BoojumOsTracerDispatcher<S, H>;
+impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKsyncOSVM<S, H> {
+    type TracerDispatcher = ZkSyncOSTracerDispatcher<S, H>;
 
     fn push_transaction(
         &mut self,
@@ -780,7 +780,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for BoojumOsVM<S, H> {
             simulate_only,
             &self.batch_env,
             self.system_env.chain_id.as_u64(),
-            self.config.boojum_bin_path.clone(),
+            self.config.zksync_os_bin_path.clone(),
         );
 
         self.witness = witness;
@@ -811,11 +811,11 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for BoojumOsVM<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for BoojumOsVM<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for ZKsyncOSVM<S, H> {
     fn make_snapshot(&mut self) {}
 
     fn rollback_to_the_latest_snapshot(&mut self) {
-        panic!("Not implemented for boojumos");
+        panic!("Not implemented for zksync_os");
     }
 
     fn pop_snapshot_no_rollback(&mut self) {}

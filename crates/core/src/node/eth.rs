@@ -33,7 +33,7 @@ use crate::{
     utils::TransparentError,
 };
 
-use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
+use super::zksync_os::ZKSYNC_OS_CALL_GAS_LIMIT;
 
 impl InMemoryNode {
     pub async fn call_impl(
@@ -58,8 +58,8 @@ impl InMemoryNode {
             }
         }
 
-        if self.system_contracts.boojum.use_boojum {
-            tx.common_data.fee.gas_limit = BOOJUM_CALL_GAS_LIMIT.into();
+        if self.system_contracts.zksync_os.use_zksync_os {
+            tx.common_data.fee.gas_limit = ZKSYNC_OS_CALL_GAS_LIMIT.into();
         } else {
             tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         }

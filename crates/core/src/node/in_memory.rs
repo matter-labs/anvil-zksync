@@ -411,14 +411,14 @@ impl InMemoryNode {
 
         let storage = StorageView::new(storage_override).to_rc_ptr();
 
-        let mut vm = if self.system_contracts.boojum.use_boojum {
-            AnvilVM::BoojumOs(super::boojumos::BoojumOsVM::<_, HistoryDisabled>::new(
+        let mut vm = if self.system_contracts.zksync_os.use_zksync_os {
+            AnvilVM::ZKsyncOS(super::zksync_os::ZKsyncOSVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
                 // TODO: this might be causing a deadlock.. check..
                 &inner.fork_storage.inner.read().unwrap().raw_storage,
-                &self.system_contracts.boojum,
+                &self.system_contracts.zksync_os,
             ))
         } else {
             AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
@@ -629,10 +629,10 @@ impl InMemoryNode {
             config.system_contracts_path.clone(),
             ProtocolVersionId::latest(),
             config.use_evm_interpreter,
-            config.boojum.clone(),
+            config.zksync_os.clone(),
         );
-        let storage_key_layout = if config.boojum.use_boojum {
-            StorageKeyLayout::BoojumOs
+        let storage_key_layout = if config.zksync_os.use_zksync_os {
+            StorageKeyLayout::ZKsyncOS
         } else {
             StorageKeyLayout::ZkEra
         };

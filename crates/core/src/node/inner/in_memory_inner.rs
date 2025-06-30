@@ -1,6 +1,5 @@
 use crate::filters::EthFilters;
 use crate::formatter::errors::view::EstimationErrorReport;
-use crate::node::boojumos::BoojumOsVM;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
 use crate::node::diagnostics::vm::traces::extract_addresses;
 use crate::node::error::{ToHaltError, ToRevertReason};
@@ -14,6 +13,7 @@ use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::vm::AnvilVM;
+use crate::node::zksync_os::ZKsyncOSVM;
 use crate::node::{
     create_block, ImpersonationManager, Snapshot, TestNodeFeeInputProvider, TransactionResult,
     VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION, MAX_PREVIOUS_STATES, MAX_TX_SIZE,
@@ -25,7 +25,7 @@ use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
-use anvil_zksync_config::types::BoojumConfig;
+use anvil_zksync_config::types::ZKsyncOSConfig;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use anvil_zksync_traces::{
@@ -661,7 +661,7 @@ impl InMemoryNodeInner {
                     batch_env.clone(),
                     system_env.clone(),
                     &self.fork_storage,
-                    &self.system_contracts.boojum,
+                    &self.system_contracts.zksync_os,
                     false,
                 )
                 .tx_result;
@@ -696,7 +696,7 @@ impl InMemoryNodeInner {
                 batch_env,
                 system_env,
                 &self.fork_storage,
-                &self.system_contracts.boojum,
+                &self.system_contracts.zksync_os,
                 false,
             )
             .tx_result;
@@ -782,7 +782,7 @@ impl InMemoryNodeInner {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
-        boojum: &BoojumConfig,
+        zksync_os: &ZKsyncOSConfig,
         trace_calls: bool,
     ) -> BatchTransactionExecutionResult {
         // Set gas_limit for transaction
@@ -838,19 +838,19 @@ impl InMemoryNodeInner {
             ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
         }
 
-        let mut vm = if boojum.use_boojum {
-            let mut vm = BoojumOsVM::<_, HistoryDisabled>::new(
+        let mut vm = if zksync_os.use_zksync_os {
+            let mut vm = ZKsyncOSVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
                 // TODO: this might be causing a deadlock.. check..
                 &fork_storage.inner.read().unwrap().raw_storage,
-                boojum,
+                zksync_os,
             );
-            // Temporary hack - as we update the 'storage' just above, but boojumos loads its full
+            // Temporary hack - as we update the 'storage' just above, but zksync_os loads its full
             // state from fork_storage (that is not updated).
             vm.update_inconsistent_keys(&[&balance_key]);
-            AnvilVM::BoojumOs(vm)
+            AnvilVM::ZKsyncOS(vm)
         } else {
             AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
         };
@@ -867,7 +867,7 @@ impl InMemoryNodeInner {
         };
 
         let tx_result = match &mut vm {
-            AnvilVM::BoojumOs(vm) => {
+            AnvilVM::ZKsyncOS(vm) => {
                 vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
             }
             AnvilVM::ZKSync(vm) => {
@@ -907,7 +907,7 @@ impl InMemoryNodeInner {
             batch_env,
             system_env,
             &self.fork_storage,
-            &self.system_contracts.boojum,
+            &self.system_contracts.zksync_os,
             true,
         );
 
@@ -1283,10 +1283,10 @@ pub mod testing {
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
                 config.use_evm_interpreter,
-                config.boojum.clone(),
+                config.zksync_os.clone(),
             );
-            let storage_key_layout = if config.boojum.use_boojum {
-                StorageKeyLayout::BoojumOs
+            let storage_key_layout = if config.zksync_os.use_zksync_os {
+                StorageKeyLayout::ZKsyncOS
             } else {
                 StorageKeyLayout::ZkEra
             };

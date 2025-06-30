@@ -30,7 +30,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug anvil-zksync with boojum",
+            "name": "Debug anvil-zksync with zksyncos",
             "cargo": {
                 "args": [
                     "build",

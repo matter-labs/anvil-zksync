@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::deps::system_contracts::load_builtin_contract;
 use crate::node::ImpersonationManager;
-use anvil_zksync_config::types::{BoojumConfig, SystemContractsOptions};
+use anvil_zksync_config::types::{SystemContractsOptions, ZKsyncOSConfig};
 use zksync_contracts::{
     read_sys_contract_bytecode, BaseSystemContracts, BaseSystemContractsHashes, ContractLanguage,
     SystemContractCode, SystemContractsRepo,
@@ -18,7 +18,7 @@ pub struct SystemContractsBuilder {
     system_contracts_path: Option<PathBuf>,
     protocol_version: Option<ProtocolVersionId>,
     use_evm_interpreter: bool,
-    boojum: BoojumConfig,
+    zksync_os: ZKsyncOSConfig,
 }
 
 impl SystemContractsBuilder {
@@ -51,9 +51,9 @@ impl SystemContractsBuilder {
         self
     }
 
-    /// Enable or disable Boojum
-    pub fn with_boojum(mut self, config: BoojumConfig) -> Self {
-        self.boojum = config;
+    /// Enable or disable ZKsyncOS
+    pub fn with_zksync_os(mut self, config: ZKsyncOSConfig) -> Self {
+        self.zksync_os = config;
         self
     }
 
@@ -70,7 +70,7 @@ impl SystemContractsBuilder {
             .unwrap_or_else(ProtocolVersionId::latest);
 
         tracing::debug!(
-            %protocol_version, use_evm_interpreter = self.use_evm_interpreter, use_boojum = self.boojum.use_boojum,
+            %protocol_version, use_evm_interpreter = self.use_evm_interpreter, use_zksync_os = self.zksync_os.use_zksync_os,
             "Building SystemContracts"
         );
 
@@ -79,7 +79,7 @@ impl SystemContractsBuilder {
             self.system_contracts_path,
             protocol_version,
             self.use_evm_interpreter,
-            self.boojum,
+            self.zksync_os,
         )
     }
 }
@@ -94,10 +94,10 @@ pub struct SystemContracts {
     baseline_impersonating_contracts: BaseSystemContracts,
     fee_estimate_impersonating_contracts: BaseSystemContracts,
     use_evm_emulator: bool,
-    // For now, store the boojum switch flag here.
+    // For now, store the zksync_os switch flag here.
     // Long term, we should probably refactor this code, and add another struct ('System')
-    // that would hold separate things for BoojumOS and for EraVM. (but that's too early for now).
-    pub boojum: BoojumConfig,
+    // that would hold separate things for ZKsyncOS and for EraVM. (but that's too early for now).
+    pub zksync_os: ZKsyncOSConfig,
 }
 
 impl SystemContracts {
@@ -113,12 +113,12 @@ impl SystemContracts {
         system_contracts_path: Option<PathBuf>,
         protocol_version: ProtocolVersionId,
         use_evm_emulator: bool,
-        boojum: BoojumConfig,
+        zksync_os: ZKsyncOSConfig,
     ) -> Self {
         tracing::info!(
             %protocol_version,
             use_evm_emulator,
-            boojum.use_boojum,
+            zksync_os.use_zksync_os,
             "initializing system contracts"
         );
         let path = system_contracts_path.unwrap_or_else(|| SystemContractsRepo::default().root);
@@ -150,14 +150,14 @@ impl SystemContracts {
                 &path,
             ),
             use_evm_emulator,
-            boojum,
+            zksync_os,
         }
     }
 
     /// Whether it accepts the transactions that have 'null' as target.
-    /// This is used only when EVM emulator is enabled, or we're running in boojumos mode.
+    /// This is used only when EVM emulator is enabled, or we're running in zksync_os mode.
     pub fn allow_no_target(&self) -> bool {
-        self.boojum.use_boojum || self.use_evm_emulator
+        self.zksync_os.use_zksync_os || self.use_evm_emulator
     }
 
     pub fn contracts_for_l2_call(&self) -> &BaseSystemContracts {

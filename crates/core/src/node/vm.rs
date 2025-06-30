@@ -1,10 +1,10 @@
 use zksync_multivm::{interface::storage::WriteStorage, vm_latest::Vm, HistoryMode};
 
-use super::boojumos::BoojumOsVM;
+use super::zksync_os::ZKsyncOSVM;
 
 #[allow(clippy::large_enum_variant)]
 pub enum AnvilVM<W: WriteStorage, H: HistoryMode> {
-    BoojumOs(BoojumOsVM<W, H>),
+    ZKsyncOS(ZKsyncOSVM<W, H>),
     ZKSync(Vm<W, H>),
 }
 
@@ -12,7 +12,7 @@ pub enum AnvilVM<W: WriteStorage, H: HistoryMode> {
 macro_rules! delegate_vm {
     ($variable:expr, $function:ident($($params:tt)*)) => {
         match &mut $variable {
-            AnvilVM::BoojumOs(vm) => vm.$function($($params)*),
+            AnvilVM::ZKsyncOS(vm) => vm.$function($($params)*),
             AnvilVM::ZKSync(vm) => vm.$function($($params)*),
         }
     };

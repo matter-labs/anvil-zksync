@@ -10,7 +10,7 @@ use anvil_zksync_common::{
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
 use anvil_zksync_config::{
     constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID},
-    types::BoojumConfig,
+    types::ZKsyncOSConfig,
 };
 use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
@@ -173,8 +173,8 @@ pub struct Cli {
     pub evm_interpreter: bool,
 
     #[clap(flatten)]
-    /// BoojumOS detailed config.
-    pub boojum_group: BoojumGroup,
+    /// ZKsyncOS detailed config.
+    pub zksync_os_group: ZKsyncOSGroup,
 
     // Logging Configuration
     #[arg(long, help_heading = "Logging Configuration")]
@@ -340,21 +340,25 @@ pub struct Cli {
 }
 
 #[derive(Clone, Debug, clap::Args)]
-pub struct BoojumGroup {
-    /// Enables boojum.
-    #[arg(long, help_heading = "UNSTABLE - Boojum OS")]
-    pub use_boojum: bool,
+pub struct ZKsyncOSGroup {
+    /// Enables ZKsync OS.
+    #[arg(long, help_heading = "UNSTABLE - ZKsync OS")]
+    pub use_zksync_os: bool,
 
-    /// Path to boojum binary (if you need to compute witnesses).
-    #[arg(long, requires = "use_boojum", help_heading = "UNSTABLE - Boojum OS")]
-    pub boojum_bin_path: Option<String>,
+    /// Path to ZKsync binary (if you need to compute witnesses).
+    #[arg(
+        long,
+        requires = "use_zksync_os",
+        help_heading = "UNSTABLE - ZKsync OS"
+    )]
+    pub zksync_os_bin_path: Option<String>,
 }
 
-impl From<BoojumGroup> for BoojumConfig {
-    fn from(group: BoojumGroup) -> Self {
-        BoojumConfig {
-            use_boojum: group.use_boojum,
-            boojum_bin_path: group.boojum_bin_path,
+impl From<ZKsyncOSGroup> for ZKsyncOSConfig {
+    fn from(group: ZKsyncOSGroup) -> Self {
+        ZKsyncOSConfig {
+            use_zksync_os: group.use_zksync_os,
+            zksync_os_bin_path: group.zksync_os_bin_path,
         }
     }
 }
@@ -723,7 +727,7 @@ impl Cli {
             } else {
                 None
             })
-            .with_boojum(self.boojum_group.into())
+            .with_zksync_os(self.zksync_os_group.into())
             .with_health_check_endpoint(if self.health_check_endpoint {
                 Some(true)
             } else {

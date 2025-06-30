@@ -13,7 +13,7 @@ use zksync_types::web3::Bytes;
 use zksync_types::{api, PackedEthSignature, Transaction, H256};
 use zksync_web3_decl::error::Web3Error;
 
-use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
+use super::zksync_os::ZKSYNC_OS_CALL_GAS_LIMIT;
 
 impl InMemoryNode {
     pub async fn trace_block_impl(
@@ -85,8 +85,8 @@ impl InMemoryNode {
         // Match behavior of zksync_core:
         // Protection against infinite-loop eth_calls and alike:
         // limiting the amount of gas the call can use.
-        if self.system_contracts.boojum.use_boojum {
-            l2_tx.common_data.fee.gas_limit = BOOJUM_CALL_GAS_LIMIT.into();
+        if self.system_contracts.zksync_os.use_zksync_os {
+            l2_tx.common_data.fee.gas_limit = ZKSYNC_OS_CALL_GAS_LIMIT.into();
         } else {
             l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         }
