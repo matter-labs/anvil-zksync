@@ -1,2 +1,2 @@
 mod signatures;
-pub use signatures::{CachedSignatures, SignaturesIdentifier, SingleSignaturesIdentifier};
+pub use signatures::{CachedSignatures, SignaturesIdentifier};

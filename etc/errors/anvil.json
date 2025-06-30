@@ -1082,6 +1082,10 @@
                 {
                   "name": "inner",
                   "type": "Revert"
+                },
+                {
+                  "name": "data",
+                  "type": "bytes"
                 }
               ],
               "doc": {
@@ -1156,6 +1160,10 @@
                 {
                   "name": "inner",
                   "type": "Revert"
+                },
+                {
+                  "name": "data",
+                  "type": "bytes"
                 }
               ],
               "doc": {

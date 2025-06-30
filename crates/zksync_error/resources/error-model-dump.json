@@ -1168,6 +1168,10 @@
           {
             "name": "inner",
             "type": "Revert"
+          },
+          {
+            "name": "data",
+            "type": "bytes"
           }
         ],
         "documentation": {
@@ -1313,6 +1317,10 @@
           {
             "name": "inner",
             "type": "Revert"
+          },
+          {
+            "name": "data",
+            "type": "bytes"
           }
         ],
         "documentation": {

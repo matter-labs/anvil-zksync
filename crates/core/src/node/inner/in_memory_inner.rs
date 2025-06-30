@@ -714,6 +714,7 @@ impl InMemoryNodeInner {
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 Err(gas_estim::TransactionRevert {
                     inner: Box::new(revert_reason),
+                    data: output.encoded_data(),
                 })
             }
             ExecutionResult::Halt { reason } => {
@@ -921,6 +922,7 @@ impl InMemoryNodeInner {
 
                     Err(gas_estim::TransactionAlwaysReverts {
                         inner: Box::new(revert_reason),
+                        data: output.encoded_data(),
                     })
                 }
                 ExecutionResult::Halt { ref reason } => {
@@ -940,17 +942,7 @@ impl InMemoryNodeInner {
             if !call_traces.is_empty() && verbosity >= 2 {
                 let mut builder = CallTraceDecoderBuilder::default();
 
-                builder = builder.with_signature_identifier(
-                    SignaturesIdentifier::new(
-                        Some(self.config.get_cache_dir().into()),
-                        self.config.offline,
-                    )
-                    .map_err(|err| {
-                        zksync_error::anvil_zksync::node::generic_error!(
-                            "Failed to create SignaturesIdentifier: {err:#}"
-                        )
-                    })?,
-                );
+                builder = builder.with_signature_identifier(SignaturesIdentifier::global());
 
                 let decoder = builder.build();
                 let mut arena = build_call_trace_arena(&call_traces, &tx_result);
