@@ -602,10 +602,10 @@ impl CustomErrorMessage for GasEstimation {
                 format ! ("[anvil_zksync-gas_estim-11] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, returning unspent gas: {inner}")
             }
             GasEstimation::TransactionAlwaysHalts { inner } => {
-                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and returns unspent gas:\n{inner}")
+                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible: execution reverted when the transaction is executed with maximum gas. Unspent gas is burned. \n{inner}")
             }
             GasEstimation::TransactionAlwaysReverts { inner, data } => {
-                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible because the transaction can not be executed with maximum gas, it reverts and burns all gas:\n{inner}")
+                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible: execution reverted when the transaction is executed with maximum gas. Unspent gas is returned. \n{inner}")
             }
             GasEstimation::GenericError { message } => {
                 format!("[anvil_zksync-gas_estim-0] Generic error: {message}")
