@@ -43,8 +43,8 @@ zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.6.0" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v28.6.0" }
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }
-zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "54e0671189a5bc2ce88e72c36334f98fbbdd228d", default-features = false }
-zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "54e0671189a5bc2ce88e72c36334f98fbbdd228d" }
+zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "c6fd15d0142464196a0364df226454a2b8b6b3b8", default-features = false }
+zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "c6fd15d0142464196a0364df226454a2b8b6b3b8" }
 zk_evm_abstractions = "=0.152.3"
 
 #########################
@@ -120,7 +120,7 @@ anvil_zksync_core = { path = "crates/core" }
 anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
 anvil_zksync_types = { path = "crates/types" }
 anvil_zksync_common = { path = "crates/common" }
-zksync_error = { path = "crates/zksync_error" }
+zksync_error = { path = "crates/zksync_error", default-features = true, features = ["runtime_documentation"] }
 anvil_zksync_console = { path = "crates/console" }
 anvil_zksync_traces = { path = "crates/traces" }
 

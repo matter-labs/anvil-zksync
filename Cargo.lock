@@ -1933,38 +1933,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "camino"
-version = "1.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0da45bc31171d8d6960122e222a67740df867c1dd53b4d51caa297084c185cab"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "cargo-platform"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e35af189006b9c0f00a064685c727031e3ed2d8020f7ba284d78cc2671bd36ea"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "cargo_metadata"
-version = "0.19.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd5eb614ed4c27c5d706420e4320fbe3216ab31fa1c33cd8246ac36dae4479ba"
-dependencies = [
- "camino",
- "cargo-platform",
- "semver 1.0.26",
- "serde",
- "serde_json",
- "thiserror 2.0.12",
-]
-
-[[package]]
 name = "cc"
 version = "1.2.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4383,6 +4351,9 @@ name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+dependencies = [
+ "spin",
+]
 
 [[package]]
 name = "lazycell"
@@ -6247,9 +6218,6 @@ name = "semver"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56e6fa9c48d24d85fb3de5ad847117517440f6beceb7798af16b4a87d616b8d0"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "semver-parser"
@@ -6637,6 +6605,12 @@ dependencies = [
  "rand 0.8.5",
  "sha1",
 ]
+
+[[package]]
+name = "spin"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 
 [[package]]
 name = "spki"
@@ -8631,9 +8605,8 @@ dependencies = [
 [[package]]
 name = "zksync-error-codegen"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=54e0671189a5bc2ce88e72c36334f98fbbdd228d#54e0671189a5bc2ce88e72c36334f98fbbdd228d"
+source = "git+https://github.com/matter-labs/zksync-error?rev=c6fd15d0142464196a0364df226454a2b8b6b3b8#c6fd15d0142464196a0364df226454a2b8b6b3b8"
 dependencies = [
- "cargo_metadata",
  "include_dir",
  "maplit",
  "proc-macro2",
@@ -8654,7 +8627,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-description"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=54e0671189a5bc2ce88e72c36334f98fbbdd228d#54e0671189a5bc2ce88e72c36334f98fbbdd228d"
+source = "git+https://github.com/matter-labs/zksync-error?rev=c6fd15d0142464196a0364df226454a2b8b6b3b8#c6fd15d0142464196a0364df226454a2b8b6b3b8"
 dependencies = [
  "serde",
  "serde_json",
@@ -8664,7 +8637,7 @@ dependencies = [
 [[package]]
 name = "zksync-error-model"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/zksync-error?rev=54e0671189a5bc2ce88e72c36334f98fbbdd228d#54e0671189a5bc2ce88e72c36334f98fbbdd228d"
+source = "git+https://github.com/matter-labs/zksync-error?rev=c6fd15d0142464196a0364df226454a2b8b6b3b8#c6fd15d0142464196a0364df226454a2b8b6b3b8"
 dependencies = [
  "const_format",
  "derive_more 2.0.1",

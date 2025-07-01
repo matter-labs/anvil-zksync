@@ -42,7 +42,6 @@ fn main() -> ExitCode {
                 output_path: format!("{REPOSITORY_ROOT}/crates/zksync_error").into(),
                 backend: Backend::Rust,
                 arguments: vec![
-                    ("use_anyhow".to_owned(), "true".to_owned()),
                     ("generate_cargo_toml".to_owned(), "false".to_owned()),
                 ],
             },
