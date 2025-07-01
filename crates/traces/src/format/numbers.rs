@@ -13,7 +13,7 @@ impl Display for PrettyNumberExponentialRepr<'_> {
             f.write_fmt(format_args!("{}", self.0.value))?;
             if self.0.value.inner > 10_000.into() {
                 let exponential = format!("[{}]", self.0).dimmed();
-                f.write_fmt(format_args!(" {}", exponential))?;
+                f.write_fmt(format_args!(" {exponential}"))?;
             }
             Ok(())
         }

@@ -91,12 +91,12 @@ pub mod anvil_zksync {
         pub use crate::anvil_zksync_env_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> AnvilEnvironmentError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::AnvilEnvironment(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -114,12 +114,12 @@ pub mod anvil_zksync {
         pub use crate::anvil_zksync_gen_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> AnvilGenericError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::AnvilGeneric(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -147,12 +147,12 @@ pub mod anvil_zksync {
         pub use crate::anvil_zksync_node_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> AnvilNodeError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::AnvilNode(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -182,12 +182,12 @@ pub mod anvil_zksync {
         pub use crate::anvil_zksync_gas_estim_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> GasEstimationError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::GasEstimation(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -247,12 +247,12 @@ pub mod anvil_zksync {
         pub use crate::anvil_zksync_halt_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> HaltError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::Halt(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -278,12 +278,12 @@ pub mod anvil_zksync {
         pub use crate::anvil_zksync_revert_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> RevertError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::Revert(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -313,12 +313,12 @@ pub mod anvil_zksync {
         pub use crate::anvil_zksync_state_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> StateLoaderError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::StateLoader(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -345,12 +345,12 @@ pub mod anvil_zksync {
         pub use crate::anvil_zksync_tx_invalid_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> TransactionValidationError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::TransactionValidation(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -379,12 +379,12 @@ pub mod compiler {
         pub use crate::compiler_llvm_evm_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> LLVM_EVMError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::LLVM_EVM(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -402,12 +402,12 @@ pub mod compiler {
         pub use crate::compiler_llvm_era_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> LLVM_EraError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::LLVM_Era(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -425,12 +425,12 @@ pub mod compiler {
         pub use crate::compiler_solc_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> SolcError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::Solc(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -448,12 +448,12 @@ pub mod compiler {
         pub use crate::compiler_solc_fork_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> SolcForkError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::SolcFork(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -471,12 +471,12 @@ pub mod compiler {
         pub use crate::compiler_zksolc_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> ZksolcError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::Zksolc(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -494,12 +494,12 @@ pub mod compiler {
         pub use crate::compiler_zkvyper_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> ZkvyperError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::Zkvyper(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -526,12 +526,12 @@ pub mod core {
         pub use crate::core_api_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> APIError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CoreError {
             super::CoreError::API(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -549,12 +549,12 @@ pub mod core {
         pub use crate::core_eravm_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> EraVMError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CoreError {
             super::CoreError::EraVM(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -572,12 +572,12 @@ pub mod core {
         pub use crate::core_exec_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> ExecutionPlatformError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CoreError {
             super::CoreError::ExecutionPlatform(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -597,12 +597,12 @@ pub mod core {
         pub use crate::core_seq_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> SequencerError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CoreError {
             super::CoreError::Sequencer(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -627,12 +627,12 @@ pub mod foundry {
         pub use crate::foundry_upstream_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> FoundryUpstreamError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::FoundryError {
             super::FoundryError::FoundryUpstream(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -650,12 +650,12 @@ pub mod foundry {
         pub use crate::foundry_zksync_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> FoundryZksyncError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::FoundryError {
             super::FoundryError::FoundryZksync(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -680,12 +680,12 @@ pub mod hardhat {
         pub use crate::hardhat_upstream_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> HardhatUpstreamError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::HardhatError {
             super::HardhatError::HardhatUpstream(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }
@@ -703,12 +703,12 @@ pub mod hardhat {
         pub use crate::hardhat_zksync_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> HardhatZksyncError {
             GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             }
         }
         pub fn to_domain<T: core::fmt::Display>(err: T) -> super::HardhatError {
             super::HardhatError::HardhatZksync(GenericError {
-                message: format!("{}", err),
+                message: format!("{err}"),
             })
         }
     }

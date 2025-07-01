@@ -587,7 +587,7 @@ impl FromStr for ForkUrl {
         }
         Url::parse(s)
             .map(ForkUrl::Custom)
-            .map_err(|e| format!("`{}` is neither a known network nor a valid URL: {}", s, e))
+            .map_err(|e| format!("`{s}` is neither a known network nor a valid URL: {e}"))
     }
 }
 
@@ -835,7 +835,7 @@ impl Cli {
             })
             .insert(
                 "dev_system_contracts",
-                self.dev_system_contracts.map(|v| format!("{:?}", v)),
+                self.dev_system_contracts.map(|v| format!("{v:?}")),
             )
             .insert(
                 "protocol_version",
@@ -847,7 +847,7 @@ impl Cli {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)
             })
             .insert("silent", self.silent)
-            .insert("cache", self.cache.map(|v| format!("{:?}", v)))
+            .insert("cache", self.cache.map(|v| format!("{v:?}")))
             .insert("reset_cache", self.reset_cache)
             .insert_with("cache_dir", self.cache_dir, |v| {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)
@@ -893,7 +893,7 @@ impl Cli {
             .insert_with("auto_impersonate", self.auto_impersonate, |v| {
                 v.then_some(v)
             })
-            .insert("block_time", self.block_time.map(|v| format!("{:?}", v)))
+            .insert("block_time", self.block_time.map(|v| format!("{v:?}")))
             .insert_with("no_mining", self.no_mining, |v| v.then_some(v))
             .insert_with("allow_origin", self.allow_origin, |v| {
                 (v != DEFAULT_ALLOW_ORIGIN).then_some(TELEMETRY_SENSITIVE_VALUE)

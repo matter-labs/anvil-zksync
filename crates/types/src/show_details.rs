@@ -23,8 +23,7 @@ impl FromStr for ShowStorageLogs {
             "paid" => Ok(ShowStorageLogs::Paid),
             "all" => Ok(ShowStorageLogs::All),
             _ => Err(format!(
-                "Unknown ShowStorageLogs value {} - expected one of none|read|write|paid|all.",
-                s
+                "Unknown ShowStorageLogs value {s} - expected one of none|read|write|paid|all."
             )),
         }
     }
@@ -32,7 +31,7 @@ impl FromStr for ShowStorageLogs {
 
 impl Display for ShowStorageLogs {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -51,8 +50,7 @@ impl FromStr for ShowVMDetails {
             "none" => Ok(ShowVMDetails::None),
             "all" => Ok(ShowVMDetails::All),
             _ => Err(format!(
-                "Unknown ShowVMDetails value {} - expected one of none|all.",
-                s
+                "Unknown ShowVMDetails value {s} - expected one of none|all."
             )),
         }
     }
@@ -60,7 +58,7 @@ impl FromStr for ShowVMDetails {
 
 impl Display for ShowVMDetails {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -79,8 +77,7 @@ impl FromStr for ShowGasDetails {
             "none" => Ok(ShowGasDetails::None),
             "all" => Ok(ShowGasDetails::All),
             _ => Err(format!(
-                "Unknown ShowGasDetails value {} - expected one of none|all.",
-                s
+                "Unknown ShowGasDetails value {s} - expected one of none|all."
             )),
         }
     }
@@ -88,6 +85,6 @@ impl FromStr for ShowGasDetails {
 
 impl Display for ShowGasDetails {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }

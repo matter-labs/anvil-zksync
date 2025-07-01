@@ -240,7 +240,7 @@ impl InMemoryNode {
                         }
                         TransactionVariant::Hash(_) => {
                             if full_transactions {
-                                panic!("unexpected non full transaction for block {}", block_hash)
+                                panic!("unexpected non full transaction for block {block_hash}")
                             } else {
                                 transaction
                             }
@@ -1098,8 +1098,7 @@ mod tests {
             assert_eq!(
                 U64::from(input_block_number),
                 actual_block.number,
-                "case {}",
-                block_number,
+                "case {block_number}",
             );
         }
     }
@@ -1247,8 +1246,7 @@ mod tests {
             assert_eq!(
                 U256::from(input_transaction_count),
                 actual_transaction_count,
-                "case {}",
-                block_number,
+                "case {block_number}",
             );
         }
     }
@@ -1350,7 +1348,7 @@ mod tests {
                 assert_eq!(2, result.len());
                 assert_eq!(block_hash, result[0]);
             }
-            changes => panic!("unexpected filter changes: {:?}", changes),
+            changes => panic!("unexpected filter changes: {changes:?}"),
         }
 
         match node
@@ -1359,7 +1357,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Empty(_) => (),
-            changes => panic!("expected no changes in the second call, got {:?}", changes),
+            changes => panic!("expected no changes in the second call, got {changes:?}"),
         }
     }
 
@@ -1384,7 +1382,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Logs(result) => assert_eq!(4, result.len()),
-            changes => panic!("unexpected filter changes: {:?}", changes),
+            changes => panic!("unexpected filter changes: {changes:?}"),
         }
 
         match node
@@ -1393,7 +1391,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Empty(_) => (),
-            changes => panic!("expected no changes in the second call, got {:?}", changes),
+            changes => panic!("expected no changes in the second call, got {changes:?}"),
         }
     }
 
@@ -1412,7 +1410,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Hashes(result) => assert_eq!(vec![tx.hash()], result),
-            changes => panic!("unexpected filter changes: {:?}", changes),
+            changes => panic!("unexpected filter changes: {changes:?}"),
         }
 
         match node
@@ -1421,7 +1419,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Empty(_) => (),
-            changes => panic!("expected no changes in the second call, got {:?}", changes),
+            changes => panic!("expected no changes in the second call, got {changes:?}"),
         }
     }
 
@@ -1456,8 +1454,7 @@ mod tests {
             assert_eq!(
                 Some(input_storage_value),
                 actual_cached_value,
-                "unexpected cached state value for block {}",
-                miniblock
+                "unexpected cached state value for block {miniblock}"
             );
         }
     }
@@ -1757,7 +1754,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Logs(result) => assert_eq!(2, result.len()),
-            changes => panic!("unexpected filter changes: {:?}", changes),
+            changes => panic!("unexpected filter changes: {changes:?}"),
         }
     }
 
@@ -1883,7 +1880,7 @@ mod tests {
                 assert_eq!(expected_accounts, accounts);
             }
             Err(e) => {
-                panic!("Failed to fetch accounts: {:?}", e);
+                panic!("Failed to fetch accounts: {e:?}");
             }
         }
     }

@@ -129,7 +129,7 @@ impl Formatter {
     /// Logs a formatted error message with a hierarchical prefix.
     pub fn format_error(&self, is_last_sibling: bool, message: &str) {
         let prefix = build_prefix(&self.sibling_stack, is_last_sibling);
-        sh_println!("{}", format!("{}{}", prefix, message).red());
+        sh_println!("{}", format!("{prefix}{message}").red());
     }
     /// Prints gas details for the transaction in a structured log.
     pub fn print_gas_details(
@@ -361,7 +361,7 @@ impl Formatter {
         log_index: usize,
         is_last: bool,
     ) {
-        self.section(&format!("Log #{}", log_index), is_last, |log_section| {
+        self.section(&format!("Log #{log_index}"), is_last, |log_section| {
             let mut items = vec![
                 ("Kind", format!("{:?}", log_query.log.kind)),
                 (
@@ -378,7 +378,7 @@ impl Formatter {
             }
 
             let pubdata_bytes_str = pubdata_bytes
-                .map(|p| format!("{}", p))
+                .map(|p| format!("{p}"))
                 .unwrap_or_else(|| "None".to_string());
             items.push(("Pubdata Bytes", pubdata_bytes_str));
 
@@ -425,7 +425,7 @@ impl Formatter {
                 }
                 zksync_multivm::interface::ExecutionResult::Halt { reason } => {
                     section.item(false, "Execution Outcome", "Failure");
-                    section.format_error(true, &format!("Halt Reason: {}", reason));
+                    section.format_error(true, &format!("Halt Reason: {reason}"));
                 }
             }
         });

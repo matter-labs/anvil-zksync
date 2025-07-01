@@ -833,7 +833,7 @@ mod tests {
             .expect("get base token l1 address");
         assert_eq!(
             "0x0000000000000000000000000000000000000001",
-            format!("{:?}", token_address)
+            format!("{token_address:?}")
         );
     }
 }

@@ -80,14 +80,14 @@ pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
     let artifact: Value = serde_json::from_slice(contents).expect(artifact_name);
     let bytecode = artifact["bytecode"]
         .as_object()
-        .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_name))
+        .unwrap_or_else(|| panic!("Bytecode not found in {artifact_name:?}"))
         .get("object")
-        .unwrap_or_else(|| panic!("Bytecode object not found in {:?}", artifact_name))
+        .unwrap_or_else(|| panic!("Bytecode object not found in {artifact_name:?}"))
         .as_str()
-        .unwrap_or_else(|| panic!("Bytecode object is not a string in {:?}", artifact_name));
+        .unwrap_or_else(|| panic!("Bytecode object is not a string in {artifact_name:?}"));
 
     hex::decode(bytecode)
-        .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_name, err))
+        .unwrap_or_else(|err| panic!("Can't decode bytecode in {artifact_name:?}: {err}"))
 }
 
 pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name: &str) -> Vec<u8> {

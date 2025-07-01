@@ -16,7 +16,7 @@ use zksync_web3_decl::error::Web3Error;
 /// Takes long integers and returns them in human friendly format with "_".
 /// For example: 12_334_093
 pub fn to_human_size(input: U256) -> String {
-    let input = format!("{:?}", input);
+    let input = format!("{input:?}");
     let tmp: Vec<_> = input
         .chars()
         .rev()

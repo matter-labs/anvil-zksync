@@ -436,7 +436,7 @@ mod tests {
             FilterChanges::Hashes(result) => {
                 assert_eq!(vec![H256::repeat_byte(0x1)], result);
             }
-            _ => panic!("unexpected filter changes {:?}", changes),
+            _ => panic!("unexpected filter changes {changes:?}"),
         }
         match filters.filters.get(&id).unwrap() {
             FilterType::Block(f) => {
@@ -473,7 +473,7 @@ mod tests {
             FilterChanges::Logs(result) => {
                 assert_eq!(vec![log], result);
             }
-            _ => panic!("unexpected filter changes {:?}", changes),
+            _ => panic!("unexpected filter changes {changes:?}"),
         }
         match filters.filters.get(&id).unwrap() {
             FilterType::Log(f) => {
@@ -500,7 +500,7 @@ mod tests {
             FilterChanges::Hashes(result) => {
                 assert_eq!(vec![H256::repeat_byte(0x1)], result);
             }
-            _ => panic!("unexpected filter changes {:?}", changes),
+            _ => panic!("unexpected filter changes {changes:?}"),
         }
         match filters.filters.get(&id).unwrap() {
             FilterType::PendingTransaction(f) => {
@@ -535,11 +535,7 @@ mod log_filter_tests {
                 &LogBuilder::new().set_block(U64::from(log_block)).build(),
                 U64::from(latest_block_number),
             );
-            assert!(
-                matched,
-                "failed matching log for block_number {}",
-                log_block
-            );
+            assert!(matched, "failed matching log for block_number {log_block}");
         }
     }
 
@@ -597,11 +593,7 @@ mod log_filter_tests {
                 &LogBuilder::new().set_block(U64::from(log_block)).build(),
                 U64::from(latest_block_number),
             );
-            assert!(
-                matched,
-                "failed matching log for block_number {}",
-                log_block
-            );
+            assert!(matched, "failed matching log for block_number {log_block}");
         }
     }
 
@@ -642,11 +634,7 @@ mod log_filter_tests {
                 &LogBuilder::new().set_block(U64::from(log_block)).build(),
                 U64::from(latest_block_number),
             );
-            assert!(
-                matched,
-                "failed matching log for block_number {}",
-                log_block
-            );
+            assert!(matched, "failed matching log for block_number {log_block}");
         }
     }
 
@@ -667,11 +655,7 @@ mod log_filter_tests {
                 &LogBuilder::new().set_block(U64::from(log_block)).build(),
                 U64::from(latest_block_number),
             );
-            assert!(
-                matched,
-                "failed matching log for block_number {}",
-                log_block
-            );
+            assert!(matched, "failed matching log for block_number {log_block}");
         }
     }
 
@@ -758,11 +742,7 @@ mod log_filter_tests {
                 &LogBuilder::new().set_block(U64::from(log_block)).build(),
                 U64::from(latest_block_number),
             );
-            assert!(
-                matched,
-                "failed matching log for block_number {}",
-                log_block
-            );
+            assert!(matched, "failed matching log for block_number {log_block}");
         }
     }
 
@@ -841,7 +821,7 @@ mod log_filter_tests {
                 &LogBuilder::new().set_topics(input_topics).build(),
                 U64::from(100),
             );
-            assert!(matched, "failed matching log for topic index {}", topic_idx);
+            assert!(matched, "failed matching log for topic index {topic_idx}");
         }
     }
 
@@ -865,7 +845,7 @@ mod log_filter_tests {
                 &LogBuilder::new().set_topics(input_topics).build(),
                 U64::from(100),
             );
-            assert!(matched, "failed matching log for topic index {}", topic_idx);
+            assert!(matched, "failed matching log for topic index {topic_idx}");
         }
     }
 
@@ -892,8 +872,7 @@ mod log_filter_tests {
             );
             assert!(
                 matched,
-                "failed matching log for topic index {} for {}",
-                topic_idx, match_topic_1
+                "failed matching log for topic index {topic_idx} for {match_topic_1}"
             );
 
             let mut input_topics = [H256::zero(); 4].to_vec();
@@ -904,8 +883,7 @@ mod log_filter_tests {
             );
             assert!(
                 matched,
-                "failed matching log for topic index {} for {}",
-                topic_idx, match_topic_2
+                "failed matching log for topic index {topic_idx} for {match_topic_2}"
             );
         }
     }
@@ -932,8 +910,7 @@ mod log_filter_tests {
             );
             assert!(
                 !matched,
-                "erroneously matched log for topic index {}",
-                topic_idx
+                "erroneously matched log for topic index {topic_idx}"
             );
         }
     }
@@ -961,8 +938,7 @@ mod log_filter_tests {
             );
             assert!(
                 !matched,
-                "erroneously matched log for topic index {}",
-                topic_idx
+                "erroneously matched log for topic index {topic_idx}"
             );
         }
     }
