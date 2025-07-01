@@ -193,7 +193,7 @@ where
         *self
             .rich_accounts
             .get(index)
-            .unwrap_or_else(|| panic!("not enough rich accounts (#{} was requested)", index,))
+            .unwrap_or_else(|| panic!("not enough rich accounts (#{index} was requested)",))
     }
 
     pub fn l1_provider(&self) -> DynProvider<Ethereum> {
@@ -282,7 +282,7 @@ where
             .get_block_by_hash(receipt.block_hash_ext()?)
             .full()
             .await?
-            .with_context(|| format!("block (hash={}) not found", hash))
+            .with_context(|| format!("block (hash={hash}) not found"))
     }
 
     pub async fn get_blocks_by_receipts(

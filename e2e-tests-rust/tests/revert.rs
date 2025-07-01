@@ -15,7 +15,7 @@ async fn revert_during_estimation() -> anyhow::Result<()> {
     let Err(err) = estimate_gas_result else {
         anyhow::bail!("gas estimation should fail for reverting transactions")
     };
-    println!("err: {:?}", err);
+    println!("err: {err:?}");
     assert!(err
         .to_string()
         .contains(&hex::encode("This method always reverts")));

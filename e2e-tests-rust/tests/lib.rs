@@ -645,8 +645,7 @@ async fn dump_state_on_run() -> anyhow::Result<()> {
 
     assert!(
         dump_path.exists(),
-        "State dump file should exist at {:?}",
-        dump_path
+        "State dump file should exist at {dump_path:?}"
     );
 
     let dumped_data = fs::read_to_string(&dump_path)?;
@@ -671,12 +670,11 @@ async fn dump_state_on_run() -> anyhow::Result<()> {
 
             assert!(
                 tx_exists,
-                "The state dump should contain the transaction with hash: {:?}",
-                tx_hash
+                "The state dump should contain the transaction with hash: {tx_hash:?}"
             );
         }
         VersionedState::Unknown { version } => {
-            panic!("Encountered unknown state version: {}", version);
+            panic!("Encountered unknown state version: {version}");
         }
     }
 
@@ -712,8 +710,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
 
     assert!(
         dump_path.exists(),
-        "State dump file should exist at {:?}",
-        dump_path
+        "State dump file should exist at {dump_path:?}"
     );
 
     let dumped_data = fs::read_to_string(&dump_path)?;
@@ -737,12 +734,11 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
             });
             assert!(
                 tx_exists,
-                "The state dump should contain the transaction with hash: {:?}",
-                tx_hash
+                "The state dump should contain the transaction with hash: {tx_hash:?}"
             );
         }
         VersionedState::Unknown { version } => {
-            panic!("Encountered unknown state version: {}", version);
+            panic!("Encountered unknown state version: {version}");
         }
     }
 
@@ -790,8 +786,7 @@ async fn load_state_on_run() -> anyhow::Result<()> {
 
     assert!(
         dump_path.exists(),
-        "State dump file should still exist at {:?}",
-        dump_path
+        "State dump file should still exist at {dump_path:?}"
     );
 
     Ok(())
@@ -841,8 +836,7 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
 
     assert!(
         dump_path.exists(),
-        "State dump file should still exist at {:?}",
-        dump_path
+        "State dump file should still exist at {dump_path:?}"
     );
 
     Ok(())
