@@ -9,7 +9,10 @@ use crate::error::domains::HardhatCode;
 use crate::error::NamedError;
 use crate::kind::DomainCode;
 use crate::kind::Kind;
-#[derive(Clone, Debug, Eq, PartialEq, serde :: Deserialize, serde :: Serialize)]
+#[cfg(not(feature = "std"))]
+use alloc::{format, string::String};
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StructuredErrorCode {
     pub domain_code: u32,
     pub component_code: u32,
@@ -30,7 +33,8 @@ impl StructuredErrorCode {
         }
     }
 }
-#[derive(Clone, Debug, Eq, PartialEq, serde :: Deserialize, serde :: Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Identifier {
     pub kind: Kind,
     pub code: u32,
@@ -217,6 +221,7 @@ impl NamedError for Identifier {
         }
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl crate::documentation::Documented for Identifier {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(

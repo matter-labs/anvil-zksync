@@ -15,9 +15,6 @@
         "bindings": {
           "rust": {
             "expression": "Box<API>"
-          },
-          "typescript": {
-            "expression": "Box<API>"
           }
         }
       },
@@ -28,9 +25,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<AnvilEnvironment>"
-          },
-          "typescript": {
             "expression": "Box<AnvilEnvironment>"
           }
         }
@@ -43,9 +37,6 @@
         "bindings": {
           "rust": {
             "expression": "Box<AnvilGeneric>"
-          },
-          "typescript": {
-            "expression": "Box<AnvilGeneric>"
           }
         }
       },
@@ -57,9 +48,39 @@
         "bindings": {
           "rust": {
             "expression": "Box<AnvilNode>"
-          },
-          "typescript": {
-            "expression": "Box<AnvilNode>"
+          }
+        }
+      },
+      "AnvilZKsync": {
+        "name": "AnvilZKsync",
+        "meta": {
+          "description": "Errors originating in Anvil for ZKsync."
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<AnvilZksync>"
+          }
+        }
+      },
+      "Compiler": {
+        "name": "Compiler",
+        "meta": {
+          "description": "Compilers such as zksolc, zkvyper, solc."
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<Compiler>"
+          }
+        }
+      },
+      "Core": {
+        "name": "Core",
+        "meta": {
+          "description": "Errors in core ZKsync components such as sequencer or mempool."
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<Core>"
           }
         }
       },
@@ -70,9 +91,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<EraVM>"
-          },
-          "typescript": {
             "expression": "Box<EraVM>"
           }
         }
@@ -85,9 +103,17 @@
         "bindings": {
           "rust": {
             "expression": "Box<ExecutionPlatform>"
-          },
-          "typescript": {
-            "expression": "Box<ExecutionPlatform>"
+          }
+        }
+      },
+      "Foundry": {
+        "name": "Foundry",
+        "meta": {
+          "description": "Errors originating in Foundry."
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<Foundry>"
           }
         }
       },
@@ -98,9 +124,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<FoundryUpstream>"
-          },
-          "typescript": {
             "expression": "Box<FoundryUpstream>"
           }
         }
@@ -113,9 +136,6 @@
         "bindings": {
           "rust": {
             "expression": "Box<FoundryZksync>"
-          },
-          "typescript": {
-            "expression": "Box<FoundryZksync>"
           }
         }
       },
@@ -126,9 +146,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<GasEstimation>"
-          },
-          "typescript": {
             "expression": "Box<GasEstimation>"
           }
         }
@@ -163,9 +180,17 @@
         "bindings": {
           "rust": {
             "expression": "Box<Halt>"
-          },
-          "typescript": {
-            "expression": "Box<Halt>"
+          }
+        }
+      },
+      "Hardhat": {
+        "name": "Hardhat",
+        "meta": {
+          "description": "Errors originating in HardHat."
+        },
+        "bindings": {
+          "rust": {
+            "expression": "Box<Hardhat>"
           }
         }
       },
@@ -176,9 +201,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<HardhatUpstream>"
-          },
-          "typescript": {
             "expression": "Box<HardhatUpstream>"
           }
         }
@@ -191,9 +213,6 @@
         "bindings": {
           "rust": {
             "expression": "Box<HardhatZksync>"
-          },
-          "typescript": {
-            "expression": "Box<HardhatZksync>"
           }
         }
       },
@@ -204,9 +223,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<LLVM_EVM>"
-          },
-          "typescript": {
             "expression": "Box<LLVM_EVM>"
           }
         }
@@ -219,9 +235,6 @@
         "bindings": {
           "rust": {
             "expression": "Box<LLVM_Era>"
-          },
-          "typescript": {
-            "expression": "Box<LLVM_Era>"
           }
         }
       },
@@ -232,9 +245,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<Revert>"
-          },
-          "typescript": {
             "expression": "Box<Revert>"
           }
         }
@@ -247,9 +257,6 @@
         "bindings": {
           "rust": {
             "expression": "Box<Sequencer>"
-          },
-          "typescript": {
-            "expression": "Box<Sequencer>"
           }
         }
       },
@@ -260,9 +267,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<Solc>"
-          },
-          "typescript": {
             "expression": "Box<Solc>"
           }
         }
@@ -275,9 +279,6 @@
         "bindings": {
           "rust": {
             "expression": "Box<SolcFork>"
-          },
-          "typescript": {
-            "expression": "Box<SolcFork>"
           }
         }
       },
@@ -289,9 +290,6 @@
         "bindings": {
           "rust": {
             "expression": "Box<StateLoader>"
-          },
-          "typescript": {
-            "expression": "Box<StateLoader>"
           }
         }
       },
@@ -302,9 +300,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<TransactionValidation>"
-          },
-          "typescript": {
             "expression": "Box<TransactionValidation>"
           }
         }
@@ -339,9 +334,6 @@
         "bindings": {
           "rust": {
             "expression": "Box<Zksolc>"
-          },
-          "typescript": {
-            "expression": "Box<Zksolc>"
           }
         }
       },
@@ -352,9 +344,6 @@
         },
         "bindings": {
           "rust": {
-            "expression": "Box<Zkvyper>"
-          },
-          "typescript": {
             "expression": "Box<Zkvyper>"
           }
         }
@@ -410,7 +399,7 @@
         },
         "bindings": {
           "rust": {
-            "expression": "zksync_basic_types::U64"
+            "expression": "u64"
           }
         }
       },
@@ -448,7 +437,7 @@
         "description": "Errors originating in Anvil for ZKsync.",
         "origins": [
           "../../etc/errors/anvil.json",
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "Compiler": {
@@ -469,7 +458,7 @@
         "identifier": "compiler",
         "description": "Compilers such as zksolc, zkvyper, solc.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "Core": {
@@ -488,7 +477,7 @@
         "identifier": "core",
         "description": "Errors in core ZKsync components such as sequencer or mempool.",
         "origins": [
-          "<default zksync-root.json>",
+          "<embedded: zksync-root.json>",
           "../../etc/errors/core.json"
         ]
       },
@@ -506,7 +495,7 @@
         "identifier": "foundry",
         "description": "Errors originating in Foundry.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "Hardhat": {
@@ -523,7 +512,7 @@
         "identifier": "hardhat",
         "description": "Errors originating in HardHat.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       }
     },
@@ -539,7 +528,7 @@
         "identifier": "api",
         "description": "Errors originating in the web3 API.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "AnvilEnvironment": {
@@ -595,7 +584,7 @@
         "identifier": "eravm",
         "description": "Errors in EraVM virtual machine executing contracts.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "ExecutionPlatform": {
@@ -609,7 +598,7 @@
         "identifier": "exec",
         "description": "Errors in the contract execution environment, bootloader, etc.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "FoundryUpstream": {
@@ -623,7 +612,7 @@
         "identifier": "upstream",
         "description": "Errors originating in the upstream Foundry implementation.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "FoundryZksync": {
@@ -637,7 +626,7 @@
         "identifier": "zksync",
         "description": "Errors originating in the ZKsync codebase for Foundry.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "GasEstimation": {
@@ -679,7 +668,7 @@
         "identifier": "upstream",
         "description": "Errors originating in the upstream Hardhat implementation.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "HardhatZksync": {
@@ -693,7 +682,7 @@
         "identifier": "zksync",
         "description": "Errors originating in the ZKsync codebase for HardHat.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "LLVM_EVM": {
@@ -707,7 +696,7 @@
         "identifier": "llvm+evm",
         "description": "Errors originating in the compiler backend for Ethereum VM (EVM).",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "LLVM_Era": {
@@ -721,7 +710,7 @@
         "identifier": "llvm+era",
         "description": "Errors originating in the compiler backend for EraVM.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "Revert": {
@@ -749,7 +738,7 @@
         "identifier": "seq",
         "description": "Errors in the sequencer node",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "Solc": {
@@ -763,7 +752,7 @@
         "identifier": "solc",
         "description": "Errors originating in the official Solidity compiler.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "SolcFork": {
@@ -777,7 +766,7 @@
         "identifier": "solc+fork",
         "description": "Errors originating in the ZKsync fork of Solidity compiler.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "StateLoader": {
@@ -819,7 +808,7 @@
         "identifier": "zksolc",
         "description": "Errors originating in the ZKsync Solidity compiler for EraVM and EVM.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "Zkvyper": {
@@ -833,7 +822,7 @@
         "identifier": "zkvyper",
         "description": "Errors originating in the ZKsync Vyper compiler for EraVM.",
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       }
     },
@@ -3607,7 +3596,7 @@
           }
         },
         "origins": [
-          "<default zksync-root.json>"
+          "<embedded: zksync-root.json>"
         ]
       },
       "[foundry-upstream-0]": {

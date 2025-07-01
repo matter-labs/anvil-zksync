@@ -49,20 +49,15 @@ use crate::error::definitions::LLVM_EVM;
 use crate::error::ICustomError;
 use crate::error::IUnifiedError;
 use crate::kind::Kind;
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+use core::fmt;
 use strum_macros::AsRefStr;
 use strum_macros::EnumDiscriminants;
 use strum_macros::FromRepr;
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    EnumDiscriminants,
-    Eq,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, EnumDiscriminants, Eq, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ZksyncError {
     AnvilZksync(AnvilZksync),
     Compiler(Compiler),
@@ -70,6 +65,7 @@ pub enum ZksyncError {
     Foundry(Foundry),
     Hardhat(Hardhat),
 }
+#[cfg(feature = "runtime_documentation")]
 impl crate::documentation::Documented for ZksyncError {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -84,8 +80,8 @@ impl crate::documentation::Documented for ZksyncError {
         }
     }
 }
-impl std::fmt::Display for ZksyncError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ZksyncError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ZksyncError::AnvilZksync(domain_error) => domain_error.fmt(f),
             ZksyncError::Compiler(domain_error) => domain_error.fmt(f),
@@ -212,20 +208,17 @@ impl ZksyncError {
     }
 }
 impl IUnifiedError<ZksyncError> for ZksyncError {}
-impl std::error::Error for ZksyncError {}
+impl core::error::Error for ZksyncError {}
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    EnumDiscriminants,
-    Eq,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, EnumDiscriminants, Eq, PartialEq)]
+#[strum_discriminants(derive(FromRepr))]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(AnvilZksyncCode))]
-#[strum_discriminants(derive(serde::Serialize, serde::Deserialize, FromRepr))]
+#[cfg_attr(
+    feature = "use_serde",
+    strum_discriminants(derive(serde::Serialize, serde::Deserialize))
+)]
 #[strum_discriminants(vis(pub))]
 pub enum AnvilZksync {
     AnvilEnvironment(AnvilEnvironment),
@@ -332,6 +325,7 @@ impl From<AnvilZksync> for ZksyncError {
         value.to_unified()
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl crate::documentation::Documented for AnvilZksync {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -349,8 +343,8 @@ impl crate::documentation::Documented for AnvilZksync {
         }
     }
 }
-impl std::fmt::Display for AnvilZksync {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for AnvilZksync {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AnvilZksync::AnvilEnvironment(component) => component.fmt(f),
             AnvilZksync::AnvilGeneric(component) => component.fmt(f),
@@ -363,20 +357,17 @@ impl std::fmt::Display for AnvilZksync {
         }
     }
 }
-impl std::error::Error for AnvilZksync {}
+impl core::error::Error for AnvilZksync {}
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    EnumDiscriminants,
-    Eq,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, EnumDiscriminants, Eq, PartialEq)]
+#[strum_discriminants(derive(FromRepr))]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(CompilerCode))]
-#[strum_discriminants(derive(serde::Serialize, serde::Deserialize, FromRepr))]
+#[cfg_attr(
+    feature = "use_serde",
+    strum_discriminants(derive(serde::Serialize, serde::Deserialize))
+)]
 #[strum_discriminants(vis(pub))]
 pub enum Compiler {
     LLVM_EVM(LLVM_EVM),
@@ -461,6 +452,7 @@ impl From<Compiler> for ZksyncError {
         value.to_unified()
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl crate::documentation::Documented for Compiler {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -476,8 +468,8 @@ impl crate::documentation::Documented for Compiler {
         }
     }
 }
-impl std::fmt::Display for Compiler {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Compiler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Compiler::LLVM_EVM(component) => component.fmt(f),
             Compiler::LLVM_Era(component) => component.fmt(f),
@@ -488,20 +480,17 @@ impl std::fmt::Display for Compiler {
         }
     }
 }
-impl std::error::Error for Compiler {}
+impl core::error::Error for Compiler {}
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    EnumDiscriminants,
-    Eq,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, EnumDiscriminants, Eq, PartialEq)]
+#[strum_discriminants(derive(FromRepr))]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(CoreCode))]
-#[strum_discriminants(derive(serde::Serialize, serde::Deserialize, FromRepr))]
+#[cfg_attr(
+    feature = "use_serde",
+    strum_discriminants(derive(serde::Serialize, serde::Deserialize))
+)]
 #[strum_discriminants(vis(pub))]
 pub enum Core {
     API(API),
@@ -564,6 +553,7 @@ impl From<Core> for ZksyncError {
         value.to_unified()
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl crate::documentation::Documented for Core {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -577,8 +567,8 @@ impl crate::documentation::Documented for Core {
         }
     }
 }
-impl std::fmt::Display for Core {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Core {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Core::API(component) => component.fmt(f),
             Core::EraVM(component) => component.fmt(f),
@@ -587,20 +577,17 @@ impl std::fmt::Display for Core {
         }
     }
 }
-impl std::error::Error for Core {}
+impl core::error::Error for Core {}
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    EnumDiscriminants,
-    Eq,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, EnumDiscriminants, Eq, PartialEq)]
+#[strum_discriminants(derive(FromRepr))]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(FoundryCode))]
-#[strum_discriminants(derive(serde::Serialize, serde::Deserialize, FromRepr))]
+#[cfg_attr(
+    feature = "use_serde",
+    strum_discriminants(derive(serde::Serialize, serde::Deserialize))
+)]
 #[strum_discriminants(vis(pub))]
 pub enum Foundry {
     FoundryUpstream(FoundryUpstream),
@@ -641,6 +628,7 @@ impl From<Foundry> for ZksyncError {
         value.to_unified()
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl crate::documentation::Documented for Foundry {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -652,28 +640,25 @@ impl crate::documentation::Documented for Foundry {
         }
     }
 }
-impl std::fmt::Display for Foundry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Foundry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Foundry::FoundryUpstream(component) => component.fmt(f),
             Foundry::FoundryZksync(component) => component.fmt(f),
         }
     }
 }
-impl std::error::Error for Foundry {}
+impl core::error::Error for Foundry {}
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    EnumDiscriminants,
-    Eq,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, EnumDiscriminants, Eq, PartialEq)]
+#[strum_discriminants(derive(FromRepr))]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(HardhatCode))]
-#[strum_discriminants(derive(serde::Serialize, serde::Deserialize, FromRepr))]
+#[cfg_attr(
+    feature = "use_serde",
+    strum_discriminants(derive(serde::Serialize, serde::Deserialize))
+)]
 #[strum_discriminants(vis(pub))]
 pub enum Hardhat {
     HardhatUpstream(HardhatUpstream),
@@ -714,6 +699,7 @@ impl From<Hardhat> for ZksyncError {
         value.to_unified()
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl crate::documentation::Documented for Hardhat {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -725,12 +711,12 @@ impl crate::documentation::Documented for Hardhat {
         }
     }
 }
-impl std::fmt::Display for Hardhat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Hardhat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Hardhat::HardhatUpstream(component) => component.fmt(f),
             Hardhat::HardhatZksync(component) => component.fmt(f),
         }
     }
 }
-impl std::error::Error for Hardhat {}
+impl core::error::Error for Hardhat {}

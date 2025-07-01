@@ -4,11 +4,16 @@
 #![allow(unused)]
 #![allow(clippy::useless_format)]
 #![allow(non_camel_case_types)]
+#[cfg(feature = "runtime_documentation")]
 use crate::documentation::Documented;
+use crate::error::domains::*;
 use crate::error::CustomErrorMessage;
 use crate::error::ICustomError as _;
 use crate::error::IError as _;
 use crate::error::NamedError;
+#[cfg(not(feature = "std"))]
+use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
+use core::fmt;
 use strum_macros::AsRefStr;
 use strum_macros::EnumDiscriminants;
 use strum_macros::FromRepr;
@@ -16,16 +21,9 @@ use strum_macros::FromRepr;
 #[doc = ""]
 #[doc = "Domain: AnvilZKsync"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(AnvilEnvironmentCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -86,7 +84,7 @@ pub enum AnvilEnvironment {
         message: String,
     } = 0u32,
 }
-impl std::error::Error for AnvilEnvironment {}
+impl core::error::Error for AnvilEnvironment {}
 impl NamedError for AnvilEnvironment {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -102,11 +100,12 @@ impl From<AnvilEnvironment> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for AnvilEnvironment {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for AnvilEnvironment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for AnvilEnvironment {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -115,17 +114,20 @@ impl Documented for AnvilEnvironment {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for AnvilEnvironment {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         AnvilEnvironment::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<AnvilEnvironment> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: AnvilEnvironment) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<AnvilEnvironment> for crate::serialized::SerializedError {
     fn from(value: AnvilEnvironment) -> Self {
         let packed = crate::packed::pack(value);
@@ -167,16 +169,9 @@ impl CustomErrorMessage for AnvilEnvironment {
 #[doc = ""]
 #[doc = "Domain: AnvilZKsync"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(AnvilGenericCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -184,7 +179,7 @@ impl CustomErrorMessage for AnvilEnvironment {
 pub enum AnvilGeneric {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for AnvilGeneric {}
+impl core::error::Error for AnvilGeneric {}
 impl NamedError for AnvilGeneric {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -200,11 +195,12 @@ impl From<AnvilGeneric> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for AnvilGeneric {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for AnvilGeneric {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for AnvilGeneric {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -213,17 +209,20 @@ impl Documented for AnvilGeneric {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for AnvilGeneric {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         AnvilGeneric::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<AnvilGeneric> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: AnvilGeneric) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<AnvilGeneric> for crate::serialized::SerializedError {
     fn from(value: AnvilGeneric) -> Self {
         let packed = crate::packed::pack(value);
@@ -243,16 +242,9 @@ impl CustomErrorMessage for AnvilGeneric {
 #[doc = ""]
 #[doc = "Domain: AnvilZKsync"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(AnvilNodeCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -321,8 +313,8 @@ pub enum AnvilNode {
     #[doc = ""]
     #[doc = "When testing contracts that have time-dependent logic, it's important to ensure that any manipulated timestamps move forward in time, not backward."]
     TimestampBackwardsError {
-        timestamp_requested: zksync_basic_types::U64,
-        timestamp_now: zksync_basic_types::U64,
+        timestamp_requested: u64,
+        timestamp_now: u64,
     } = 20u32,
     #[doc = "# Summary "]
     #[doc = "Failed to serialize transaction request into a valid transaction."]
@@ -340,7 +332,7 @@ pub enum AnvilNode {
         message: String,
     } = 0u32,
 }
-impl std::error::Error for AnvilNode {}
+impl core::error::Error for AnvilNode {}
 impl NamedError for AnvilNode {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -356,11 +348,12 @@ impl From<AnvilNode> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for AnvilNode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for AnvilNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for AnvilNode {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -369,17 +362,20 @@ impl Documented for AnvilNode {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for AnvilNode {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         AnvilNode::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<AnvilNode> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: AnvilNode) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<AnvilNode> for crate::serialized::SerializedError {
     fn from(value: AnvilNode) -> Self {
         let packed = crate::packed::pack(value);
@@ -431,16 +427,9 @@ impl CustomErrorMessage for AnvilNode {
 #[doc = ""]
 #[doc = "Domain: AnvilZKsync"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(GasEstimationCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -463,9 +452,9 @@ pub enum GasEstimation {
     #[doc = "The total gas is calculated by summing three components: the gas needed for publishing pubdata, the fixed overhead costs,"]
     #[doc = "and the estimated gas for the transaction body itself. When this sum overflows or exceeds the block limit, this error is thrown."]
     ExceedsBlockGasLimit {
-        overhead: zksync_basic_types::U64,
-        gas_for_pubdata: zksync_basic_types::U64,
-        estimated_body_cost: zksync_basic_types::U64,
+        overhead: u64,
+        gas_for_pubdata: u64,
+        estimated_body_cost: u64,
     } = 2u32,
     #[doc = "# Summary "]
     #[doc = "Transaction execution reverts and burns all gas while estimating required gas in anvil-zksync."]
@@ -533,7 +522,7 @@ pub enum GasEstimation {
         message: String,
     } = 0u32,
 }
-impl std::error::Error for GasEstimation {}
+impl core::error::Error for GasEstimation {}
 impl NamedError for GasEstimation {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -549,11 +538,12 @@ impl From<GasEstimation> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for GasEstimation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for GasEstimation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for GasEstimation {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -562,17 +552,20 @@ impl Documented for GasEstimation {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for GasEstimation {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         GasEstimation::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<GasEstimation> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: GasEstimation) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<GasEstimation> for crate::serialized::SerializedError {
     fn from(value: GasEstimation) -> Self {
         let packed = crate::packed::pack(value);
@@ -617,16 +610,9 @@ impl CustomErrorMessage for GasEstimation {
 #[doc = ""]
 #[doc = "Domain: AnvilZKsync"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(HaltCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -791,7 +777,7 @@ pub enum Halt {
         message: String,
     } = 0u32,
 }
-impl std::error::Error for Halt {}
+impl core::error::Error for Halt {}
 impl NamedError for Halt {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -807,11 +793,12 @@ impl From<Halt> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for Halt {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Halt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for Halt {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -820,17 +807,20 @@ impl Documented for Halt {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for Halt {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         Halt::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<Halt> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: Halt) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<Halt> for crate::serialized::SerializedError {
     fn from(value: Halt) -> Self {
         let packed = crate::packed::pack(value);
@@ -915,16 +905,9 @@ impl CustomErrorMessage for Halt {
 #[doc = ""]
 #[doc = "Domain: AnvilZKsync"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(RevertCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -965,7 +948,7 @@ pub enum Revert {
         message: String,
     } = 0u32,
 }
-impl std::error::Error for Revert {}
+impl core::error::Error for Revert {}
 impl NamedError for Revert {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -981,11 +964,12 @@ impl From<Revert> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for Revert {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Revert {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for Revert {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -994,17 +978,20 @@ impl Documented for Revert {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for Revert {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         Revert::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<Revert> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: Revert) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<Revert> for crate::serialized::SerializedError {
     fn from(value: Revert) -> Self {
         let packed = crate::packed::pack(value);
@@ -1039,16 +1026,9 @@ impl CustomErrorMessage for Revert {
 #[doc = ""]
 #[doc = "Domain: AnvilZKsync"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(StateLoaderCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1103,7 +1083,7 @@ pub enum StateLoader {
         message: String,
     } = 0u32,
 }
-impl std::error::Error for StateLoader {}
+impl core::error::Error for StateLoader {}
 impl NamedError for StateLoader {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1119,11 +1099,12 @@ impl From<StateLoader> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for StateLoader {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for StateLoader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for StateLoader {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1132,17 +1113,20 @@ impl Documented for StateLoader {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for StateLoader {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         StateLoader::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<StateLoader> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: StateLoader) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<StateLoader> for crate::serialized::SerializedError {
     fn from(value: StateLoader) -> Self {
         let packed = crate::packed::pack(value);
@@ -1180,16 +1164,9 @@ impl CustomErrorMessage for StateLoader {
 #[doc = ""]
 #[doc = "Domain: AnvilZKsync"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(TransactionValidationCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1250,7 +1227,7 @@ pub enum TransactionValidation {
         message: String,
     } = 0u32,
 }
-impl std::error::Error for TransactionValidation {}
+impl core::error::Error for TransactionValidation {}
 impl NamedError for TransactionValidation {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1266,11 +1243,12 @@ impl From<TransactionValidation> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for TransactionValidation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for TransactionValidation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for TransactionValidation {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1279,12 +1257,14 @@ impl Documented for TransactionValidation {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for TransactionValidation {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         TransactionValidation::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<TransactionValidation>
     for crate::packed::PackedError<crate::error::domains::ZksyncError>
 {
@@ -1292,6 +1272,7 @@ impl From<TransactionValidation>
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<TransactionValidation> for crate::serialized::SerializedError {
     fn from(value: TransactionValidation) -> Self {
         let packed = crate::packed::pack(value);
@@ -1335,16 +1316,9 @@ impl CustomErrorMessage for TransactionValidation {
 #[doc = ""]
 #[doc = "Domain: Compiler"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(LLVM_EVMCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1352,7 +1326,7 @@ impl CustomErrorMessage for TransactionValidation {
 pub enum LLVM_EVM {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for LLVM_EVM {}
+impl core::error::Error for LLVM_EVM {}
 impl NamedError for LLVM_EVM {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1368,11 +1342,12 @@ impl From<LLVM_EVM> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for LLVM_EVM {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for LLVM_EVM {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for LLVM_EVM {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1381,17 +1356,20 @@ impl Documented for LLVM_EVM {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for LLVM_EVM {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         LLVM_EVM::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<LLVM_EVM> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: LLVM_EVM) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<LLVM_EVM> for crate::serialized::SerializedError {
     fn from(value: LLVM_EVM) -> Self {
         let packed = crate::packed::pack(value);
@@ -1411,16 +1389,9 @@ impl CustomErrorMessage for LLVM_EVM {
 #[doc = ""]
 #[doc = "Domain: Compiler"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(LLVM_EraCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1428,7 +1399,7 @@ impl CustomErrorMessage for LLVM_EVM {
 pub enum LLVM_Era {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for LLVM_Era {}
+impl core::error::Error for LLVM_Era {}
 impl NamedError for LLVM_Era {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1444,11 +1415,12 @@ impl From<LLVM_Era> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for LLVM_Era {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for LLVM_Era {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for LLVM_Era {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1457,17 +1429,20 @@ impl Documented for LLVM_Era {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for LLVM_Era {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         LLVM_Era::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<LLVM_Era> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: LLVM_Era) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<LLVM_Era> for crate::serialized::SerializedError {
     fn from(value: LLVM_Era) -> Self {
         let packed = crate::packed::pack(value);
@@ -1487,16 +1462,9 @@ impl CustomErrorMessage for LLVM_Era {
 #[doc = ""]
 #[doc = "Domain: Compiler"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(SolcCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1504,7 +1472,7 @@ impl CustomErrorMessage for LLVM_Era {
 pub enum Solc {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for Solc {}
+impl core::error::Error for Solc {}
 impl NamedError for Solc {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1520,11 +1488,12 @@ impl From<Solc> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for Solc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Solc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for Solc {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1533,17 +1502,20 @@ impl Documented for Solc {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for Solc {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         Solc::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<Solc> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: Solc) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<Solc> for crate::serialized::SerializedError {
     fn from(value: Solc) -> Self {
         let packed = crate::packed::pack(value);
@@ -1563,16 +1535,9 @@ impl CustomErrorMessage for Solc {
 #[doc = ""]
 #[doc = "Domain: Compiler"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(SolcForkCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1580,7 +1545,7 @@ impl CustomErrorMessage for Solc {
 pub enum SolcFork {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for SolcFork {}
+impl core::error::Error for SolcFork {}
 impl NamedError for SolcFork {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1596,11 +1561,12 @@ impl From<SolcFork> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for SolcFork {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for SolcFork {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for SolcFork {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1609,17 +1575,20 @@ impl Documented for SolcFork {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for SolcFork {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         SolcFork::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<SolcFork> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: SolcFork) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<SolcFork> for crate::serialized::SerializedError {
     fn from(value: SolcFork) -> Self {
         let packed = crate::packed::pack(value);
@@ -1639,16 +1608,9 @@ impl CustomErrorMessage for SolcFork {
 #[doc = ""]
 #[doc = "Domain: Compiler"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(ZksolcCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1656,7 +1618,7 @@ impl CustomErrorMessage for SolcFork {
 pub enum Zksolc {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for Zksolc {}
+impl core::error::Error for Zksolc {}
 impl NamedError for Zksolc {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1672,11 +1634,12 @@ impl From<Zksolc> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for Zksolc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Zksolc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for Zksolc {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1685,17 +1648,20 @@ impl Documented for Zksolc {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for Zksolc {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         Zksolc::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<Zksolc> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: Zksolc) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<Zksolc> for crate::serialized::SerializedError {
     fn from(value: Zksolc) -> Self {
         let packed = crate::packed::pack(value);
@@ -1715,16 +1681,9 @@ impl CustomErrorMessage for Zksolc {
 #[doc = ""]
 #[doc = "Domain: Compiler"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(ZkvyperCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1732,7 +1691,7 @@ impl CustomErrorMessage for Zksolc {
 pub enum Zkvyper {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for Zkvyper {}
+impl core::error::Error for Zkvyper {}
 impl NamedError for Zkvyper {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1748,11 +1707,12 @@ impl From<Zkvyper> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for Zkvyper {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Zkvyper {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for Zkvyper {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1761,17 +1721,20 @@ impl Documented for Zkvyper {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for Zkvyper {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         Zkvyper::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<Zkvyper> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: Zkvyper) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<Zkvyper> for crate::serialized::SerializedError {
     fn from(value: Zkvyper) -> Self {
         let packed = crate::packed::pack(value);
@@ -1791,16 +1754,9 @@ impl CustomErrorMessage for Zkvyper {
 #[doc = ""]
 #[doc = "Domain: Core"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(APICode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1808,7 +1764,7 @@ impl CustomErrorMessage for Zkvyper {
 pub enum API {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for API {}
+impl core::error::Error for API {}
 impl NamedError for API {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1824,11 +1780,12 @@ impl From<API> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for API {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for API {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for API {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1837,17 +1794,20 @@ impl Documented for API {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for API {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         API::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<API> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: API) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<API> for crate::serialized::SerializedError {
     fn from(value: API) -> Self {
         let packed = crate::packed::pack(value);
@@ -1867,16 +1827,9 @@ impl CustomErrorMessage for API {
 #[doc = ""]
 #[doc = "Domain: Core"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(EraVMCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1884,7 +1837,7 @@ impl CustomErrorMessage for API {
 pub enum EraVM {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for EraVM {}
+impl core::error::Error for EraVM {}
 impl NamedError for EraVM {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1900,11 +1853,12 @@ impl From<EraVM> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for EraVM {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for EraVM {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for EraVM {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1913,17 +1867,20 @@ impl Documented for EraVM {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for EraVM {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         EraVM::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<EraVM> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: EraVM) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<EraVM> for crate::serialized::SerializedError {
     fn from(value: EraVM) -> Self {
         let packed = crate::packed::pack(value);
@@ -1943,16 +1900,9 @@ impl CustomErrorMessage for EraVM {
 #[doc = ""]
 #[doc = "Domain: Core"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(ExecutionPlatformCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -1960,7 +1910,7 @@ impl CustomErrorMessage for EraVM {
 pub enum ExecutionPlatform {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for ExecutionPlatform {}
+impl core::error::Error for ExecutionPlatform {}
 impl NamedError for ExecutionPlatform {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -1976,11 +1926,12 @@ impl From<ExecutionPlatform> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for ExecutionPlatform {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ExecutionPlatform {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for ExecutionPlatform {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -1989,17 +1940,20 @@ impl Documented for ExecutionPlatform {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for ExecutionPlatform {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         ExecutionPlatform::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<ExecutionPlatform> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: ExecutionPlatform) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<ExecutionPlatform> for crate::serialized::SerializedError {
     fn from(value: ExecutionPlatform) -> Self {
         let packed = crate::packed::pack(value);
@@ -2019,16 +1973,9 @@ impl CustomErrorMessage for ExecutionPlatform {
 #[doc = ""]
 #[doc = "Domain: Core"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(SequencerCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -2037,7 +1984,7 @@ pub enum Sequencer {
     GenericSequencerError { message: String } = 1u32,
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for Sequencer {}
+impl core::error::Error for Sequencer {}
 impl NamedError for Sequencer {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -2053,11 +2000,12 @@ impl From<Sequencer> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for Sequencer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Sequencer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for Sequencer {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -2066,17 +2014,20 @@ impl Documented for Sequencer {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for Sequencer {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         Sequencer::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<Sequencer> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: Sequencer) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<Sequencer> for crate::serialized::SerializedError {
     fn from(value: Sequencer) -> Self {
         let packed = crate::packed::pack(value);
@@ -2099,16 +2050,9 @@ impl CustomErrorMessage for Sequencer {
 #[doc = ""]
 #[doc = "Domain: Foundry"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(FoundryUpstreamCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -2116,7 +2060,7 @@ impl CustomErrorMessage for Sequencer {
 pub enum FoundryUpstream {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for FoundryUpstream {}
+impl core::error::Error for FoundryUpstream {}
 impl NamedError for FoundryUpstream {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -2132,11 +2076,12 @@ impl From<FoundryUpstream> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for FoundryUpstream {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for FoundryUpstream {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for FoundryUpstream {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -2145,17 +2090,20 @@ impl Documented for FoundryUpstream {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for FoundryUpstream {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         FoundryUpstream::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<FoundryUpstream> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: FoundryUpstream) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<FoundryUpstream> for crate::serialized::SerializedError {
     fn from(value: FoundryUpstream) -> Self {
         let packed = crate::packed::pack(value);
@@ -2175,16 +2123,9 @@ impl CustomErrorMessage for FoundryUpstream {
 #[doc = ""]
 #[doc = "Domain: Foundry"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(FoundryZksyncCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -2192,7 +2133,7 @@ impl CustomErrorMessage for FoundryUpstream {
 pub enum FoundryZksync {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for FoundryZksync {}
+impl core::error::Error for FoundryZksync {}
 impl NamedError for FoundryZksync {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -2208,11 +2149,12 @@ impl From<FoundryZksync> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for FoundryZksync {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for FoundryZksync {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for FoundryZksync {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -2221,17 +2163,20 @@ impl Documented for FoundryZksync {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for FoundryZksync {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         FoundryZksync::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<FoundryZksync> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: FoundryZksync) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<FoundryZksync> for crate::serialized::SerializedError {
     fn from(value: FoundryZksync) -> Self {
         let packed = crate::packed::pack(value);
@@ -2251,16 +2196,9 @@ impl CustomErrorMessage for FoundryZksync {
 #[doc = ""]
 #[doc = "Domain: Hardhat"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(HardhatUpstreamCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -2268,7 +2206,7 @@ impl CustomErrorMessage for FoundryZksync {
 pub enum HardhatUpstream {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for HardhatUpstream {}
+impl core::error::Error for HardhatUpstream {}
 impl NamedError for HardhatUpstream {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -2284,11 +2222,12 @@ impl From<HardhatUpstream> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for HardhatUpstream {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for HardhatUpstream {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for HardhatUpstream {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -2297,17 +2236,20 @@ impl Documented for HardhatUpstream {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for HardhatUpstream {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         HardhatUpstream::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<HardhatUpstream> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: HardhatUpstream) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<HardhatUpstream> for crate::serialized::SerializedError {
     fn from(value: HardhatUpstream) -> Self {
         let packed = crate::packed::pack(value);
@@ -2327,16 +2269,9 @@ impl CustomErrorMessage for HardhatUpstream {
 #[doc = ""]
 #[doc = "Domain: Hardhat"]
 #[repr(u32)]
-#[derive(
-    AsRefStr,
-    Clone,
-    Debug,
-    Eq,
-    EnumDiscriminants,
-    PartialEq,
-    serde :: Serialize,
-    serde :: Deserialize,
-)]
+#[derive(AsRefStr, Clone, Debug, Eq, EnumDiscriminants, PartialEq)]
+#[cfg_attr(feature = "use_serde", derive(serde::Serialize))]
+#[cfg_attr(feature = "use_serde", derive(serde::Deserialize))]
 #[strum_discriminants(name(HardhatZksyncCode))]
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(derive(AsRefStr, FromRepr))]
@@ -2344,7 +2279,7 @@ impl CustomErrorMessage for HardhatUpstream {
 pub enum HardhatZksync {
     GenericError { message: String } = 0u32,
 }
-impl std::error::Error for HardhatZksync {}
+impl core::error::Error for HardhatZksync {}
 impl NamedError for HardhatZksync {
     fn get_error_name(&self) -> String {
         self.as_ref().to_owned()
@@ -2360,11 +2295,12 @@ impl From<HardhatZksync> for crate::ZksyncError {
         val.to_unified()
     }
 }
-impl std::fmt::Display for HardhatZksync {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for HardhatZksync {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.get_message())
     }
 }
+#[cfg(feature = "runtime_documentation")]
 impl Documented for HardhatZksync {
     type Documentation = &'static zksync_error_description::ErrorDocumentation;
     fn get_documentation(
@@ -2373,17 +2309,20 @@ impl Documented for HardhatZksync {
         self.to_unified().get_identifier().get_documentation()
     }
 }
+#[cfg(feature = "use_anyhow")]
 impl From<anyhow::Error> for HardhatZksync {
     fn from(value: anyhow::Error) -> Self {
         let message = format!("{value:#?}");
         HardhatZksync::GenericError { message }
     }
 }
+#[cfg(feature = "packed_errors")]
 impl From<HardhatZksync> for crate::packed::PackedError<crate::error::domains::ZksyncError> {
     fn from(value: HardhatZksync) -> Self {
         crate::packed::pack(value)
     }
 }
+#[cfg(feature = "serialized_errors")]
 impl From<HardhatZksync> for crate::serialized::SerializedError {
     fn from(value: HardhatZksync) -> Self {
         let packed = crate::packed::pack(value);
