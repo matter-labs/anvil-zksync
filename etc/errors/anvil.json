@@ -1115,6 +1115,7 @@
               "name": "TransactionAlwaysHalts",
               "code": 20,
               "message": "Gas estimation is impossible: execution reverted when the transaction is executed with maximum gas. Unspent gas is burned. \n{inner}",
+              "comment": "Message should include 'execution reverted'",
               "fields": [
                 {
                   "name": "inner",
@@ -1156,6 +1157,7 @@
               "name": "TransactionAlwaysReverts",
               "code": 21,
               "message": "Gas estimation is impossible: execution reverted when the transaction is executed with maximum gas. Unspent gas is returned. \n{inner}",
+              "comment": "Message should include 'execution reverted'",
               "fields": [
                 {
                   "name": "inner",
