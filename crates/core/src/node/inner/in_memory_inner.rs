@@ -729,9 +729,9 @@ impl InMemoryNodeInner {
                     (value, false) => Ok(value),
                     (_, true) => Err(
                         zksync_error::anvil_zksync::gas_estim::ExceedsBlockGasLimit {
-                            overhead: overhead.into(),
-                            gas_for_pubdata: additional_gas_for_pubdata.into(),
-                            estimated_body_cost: tx_body_gas_limit.into(),
+                            overhead,
+                            gas_for_pubdata: additional_gas_for_pubdata,
+                            estimated_body_cost: tx_body_gas_limit,
                         },
                     ),
                 };
