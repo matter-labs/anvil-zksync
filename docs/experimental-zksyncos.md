@@ -1,6 +1,6 @@
-# ZKsyncOS (experimental)
+# ZKsync OS (experimental)
 
-ZKsyncOS is the new backend for proving. The features below are still experimental and might break without warning.
+ZKsync OS is the new backend for proving. The features below are still experimental and might break without warning.
 
 
 Currently the code resides in `boojumos-dev` branch (due to dependencies on private crates).

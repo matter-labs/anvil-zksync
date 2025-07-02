@@ -345,7 +345,7 @@ pub struct ZKsyncOSGroup {
     #[arg(long, help_heading = "UNSTABLE - ZKsync OS")]
     pub use_zksync_os: bool,
 
-    /// Path to ZKsync binary (if you need to compute witnesses).
+    /// Path to ZKsync OS binary (if you need to compute witnesses).
     #[arg(
         long,
         requires = "use_zksync_os",

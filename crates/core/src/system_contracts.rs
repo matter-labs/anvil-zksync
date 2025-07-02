@@ -51,7 +51,7 @@ impl SystemContractsBuilder {
         self
     }
 
-    /// Enable or disable ZKsyncOS
+    /// Enable or disable ZKsync OS
     pub fn with_zksync_os(mut self, config: ZKsyncOSConfig) -> Self {
         self.zksync_os = config;
         self
@@ -155,7 +155,7 @@ impl SystemContracts {
     }
 
     /// Whether it accepts the transactions that have 'null' as target.
-    /// This is used only when EVM emulator is enabled, or we're running in zksync_os mode.
+    /// This is used only when EVM emulator is enabled, or we're running in ZKsync OS mode.
     pub fn allow_no_target(&self) -> bool {
         self.zksync_os.use_zksync_os || self.use_evm_emulator
     }

@@ -433,7 +433,7 @@ Node Configuration
 Port:                  {}
 EVM Interpreter:       {}
 Health Check Endpoint: {}
-ZKsyncOS:              {}
+ZKsync OS:              {}
 L1:                    {}
 "#,
             self.port,
@@ -654,7 +654,7 @@ Address: {address}
         self
     }
 
-    /// Enable or disable ZKsyncOS
+    /// Enable or disable ZKsync OS
     #[must_use]
     pub fn with_zksync_os(mut self, zksync_os: ZKsyncOSConfig) -> Self {
         self.zksync_os = zksync_os;

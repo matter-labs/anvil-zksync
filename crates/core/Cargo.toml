@@ -25,7 +25,7 @@ zksync_basic_types.workspace = true
 zksync_error.workspace = true
 zksync-error-description.workspace = true
 
-# ZK os dependencies
+# ZKsync OS dependencies
 forward_system.workspace = true
 basic_system.workspace = true
 zk_ee.workspace = true
