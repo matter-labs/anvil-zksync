@@ -4,8 +4,10 @@ import "@matterlabs/hardhat-zksync";
 
 const config: HardhatUserConfig = {
   zksolc: {
-    version: "1.5.11",
-    settings: {},
+    version: "1.5.15",
+    settings: {
+      codegen: 'yul'
+    },
   },
   defaultNetwork: "zkSyncTestnet",
   networks: {
@@ -18,7 +20,7 @@ const config: HardhatUserConfig = {
     },
   },
   solidity: {
-    version: "0.8.17",
+    version: "0.8.30",
   },
   mocha: {
     // Multiple reports allow view of the ouput in the console and as a JSON for the test result exporter in CI
