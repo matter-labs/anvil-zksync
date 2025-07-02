@@ -6,7 +6,7 @@ const config: HardhatUserConfig = {
   zksolc: {
     version: "1.5.15",
     settings: {
-      codegen: 'yul'
+      codegen: "yul",
     },
   },
   defaultNetwork: "zkSyncTestnet",
