@@ -201,12 +201,10 @@ impl InMemoryNode {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use zksync_types::{
-        api, transaction_request::CallRequest, Address, ProtocolVersionId, H160, H256,
+        api, transaction_request::CallRequest, ProtocolVersionId, H160, H256,
     };
-    use zksync_types::{u256_to_h256, L1BatchNumber};
+    use zksync_types::L1BatchNumber;
 
     use super::*;
     use crate::node::fork::{ForkClient, ForkConfig};
