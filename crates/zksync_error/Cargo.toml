@@ -21,11 +21,11 @@ packed_errors = ["use_serde"]
 
 [dependencies]
 anyhow = { workspace = true, optional = true }
-lazy_static = { version = "1.5.0", default-features = false, optional = true }
-serde = { version = "1.0.210", features = [ "derive", "alloc" ], default-features = false, optional = true }
-serde_json = { version = "1.0.128", optional = true }
-strum = { version = "0.26.3", default-features = false, features = ["derive"] }
-strum_macros = { version = "0.26.4", default-features = false }
+lazy_static = { workspace = true, optional = true }
+serde = { workspace = true, features = [ "derive", "alloc" ], optional = true }
+serde_json = { workspace = true, optional = true }
+strum = { workspace = true, features = ["derive"] }
+strum_macros = { workspace = true }
 
 zksync_basic_types.workspace = true
 zksync-error-description.workspace = true
