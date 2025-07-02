@@ -1,6 +1,5 @@
 use crate::node::InMemoryNode;
 use anyhow::Context;
-use std::collections::HashMap;
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::api;
@@ -11,11 +10,8 @@ use zksync_types::l2_to_l1_log::{
     l2_to_l1_logs_tree_size, L2ToL1Log, LOG_PROOF_SUPPORTED_METADATA_VERSION,
 };
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::utils::storage_key_for_standard_token_balance;
-use zksync_types::{h256_to_u256, L1BatchNumber};
-use zksync_types::{
-    AccountTreeId, Address, L2BlockNumber, Transaction, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
-};
+use zksync_types::L1BatchNumber;
+use zksync_types::{Address, L2BlockNumber, Transaction, H160, H256, U256};
 use zksync_web3_decl::error::Web3Error;
 
 impl InMemoryNode {
@@ -69,49 +65,6 @@ impl InMemoryNode {
                 l2_weth_bridge: Default::default(),
                 l2_legacy_shared_bridge: Default::default(),
             }))
-    }
-
-    pub async fn get_confirmed_tokens_impl(
-        &self,
-        from: u32,
-        limit: u8,
-    ) -> anyhow::Result<Vec<zksync_web3_decl::types::Token>> {
-        Ok(self
-            .fork
-            .get_confirmed_tokens(from, limit)
-            .await?
-            .unwrap_or(vec![zksync_web3_decl::types::Token {
-                l1_address: Address::zero(),
-                l2_address: L2_BASE_TOKEN_ADDRESS,
-                name: "Ether".to_string(),
-                symbol: "ETH".to_string(),
-                decimals: 18,
-            }]))
-    }
-
-    pub async fn get_all_account_balances_impl(
-        &self,
-        address: Address,
-    ) -> Result<HashMap<Address, U256>, Web3Error> {
-        let tokens = self.get_confirmed_tokens_impl(0, 100).await?;
-
-        let balances = {
-            let mut balances = HashMap::new();
-            for token in tokens {
-                // TODO: Use StorageKeyLayout once boojumos can lookup other tokens
-                let balance_key = storage_key_for_standard_token_balance(
-                    AccountTreeId::new(token.l2_address),
-                    &address,
-                );
-                let balance = self.storage.read_value_alt(&balance_key).await?;
-                if !balance.is_zero() {
-                    balances.insert(token.l2_address, h256_to_u256(balance));
-                }
-            }
-            balances
-        };
-
-        Ok(balances)
     }
 
     pub async fn get_block_details_impl(
@@ -231,6 +184,18 @@ impl InMemoryNode {
             root,
             id: l1_log_index as u32,
         }))
+    }
+
+    pub async fn gas_per_pubdata_impl(&self) -> AnvilNodeResult<U256> {
+        let reader = self.inner.read().await;
+
+        let mut gas_per_pubdata: u64 = reader.fee_input_provider.fair_pubdata_price();
+
+        if gas_per_pubdata == 0 {
+            gas_per_pubdata = 1;
+        }
+
+        Ok(U256::from(gas_per_pubdata))
     }
 }
 
@@ -679,152 +644,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_all_account_balances_empty() {
-        let node = InMemoryNode::test(None);
-        let balances = node
-            .get_all_account_balances_impl(Address::zero())
-            .await
-            .expect("get balances");
-        assert!(balances.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_get_confirmed_tokens_eth() {
-        let node = InMemoryNode::test(None);
-        let balances = node
-            .get_confirmed_tokens_impl(0, 100)
-            .await
-            .expect("get balances");
-        assert_eq!(balances.len(), 1);
-        assert_eq!(&balances[0].name, "Ether");
-    }
-
-    #[tokio::test]
-    async fn test_get_all_account_balances_forked() {
-        let cbeth_address = Address::from_str("0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5")
-            .expect("failed to parse address");
-        let mock_server = testing::MockServer::run();
-        mock_server.expect("eth_chainId", None, serde_json::json!("0x104"));
-
-        mock_server.expect(
-            "zks_getBlockDetails",
-            Some(serde_json::json!([1])),
-            serde_json::json!({
-                "baseSystemContractsHashes": {
-                    "bootloader": "0x010008a5c30072f79f8e04f90b31f34e554279957e7e2bf85d3e9c7c1e0f834d",
-                    "default_aa": "0x01000663d7941c097ba2631096508cf9ec7769ddd40e081fd81b0d04dc07ea0e"
-                },
-                "commitTxHash": null,
-                "committedAt": null,
-                "executeTxHash": null,
-                "executedAt": null,
-                "l1BatchNumber": 0,
-                "l1GasPrice": 0,
-                "l1TxCount": 1,
-                "l2FairGasPrice": 50000000,
-                "l2TxCount": 0,
-                "number": 0,
-                "operatorAddress": "0x0000000000000000000000000000000000000000",
-                "protocolVersion": ProtocolVersionId::Version26,
-                "proveTxHash": null,
-                "provenAt": null,
-                "rootHash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
-                "status": "verified",
-                "timestamp": 1000
-            }),
-        );
-        mock_server.expect(
-            "eth_getBlockByHash",
-            Some(serde_json::json!(["0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b", true])),
-            serde_json::json!({
-                "baseFeePerGas": "0x0",
-                "difficulty": "0x0",
-                "extraData": "0x",
-                "gasLimit": "0xffffffff",
-                "gasUsed": "0x0",
-                "hash": "0xdaa77426c30c02a43d9fba4e841a6556c524d47030762eb14dc4af897e605d9b",
-                "l1BatchNumber": "0x0",
-                "l1BatchTimestamp": null,
-                "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                "miner": "0x0000000000000000000000000000000000000000",
-                "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "nonce": "0x0000000000000000",
-                "number": "0x0",
-                "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "sealFields": [],
-                "sha3Uncles": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "size": "0x0",
-                "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "timestamp": "0x3e8",
-                "totalDifficulty": "0x0",
-                "transactions": [],
-                "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "uncles": []
-            }),
-        );
-        mock_server.expect(
-            "zks_getConfirmedTokens",
-            Some(serde_json::json!([0, 100])),
-            serde_json::json!([
-              {
-                "decimals": 18,
-                "l1Address": "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
-                "l2Address": "0x75af292c1c9a37b3ea2e6041168b4e48875b9ed5",
-                "name": "Coinbase Wrapped Staked ETH",
-                "symbol": "cbETH"
-              }
-            ]),
-        );
-        mock_server.expect(
-            "zks_getFeeParams",
-            None,
-            serde_json::json!({
-              "V2": {
-                "config": {
-                  "minimal_l2_gas_price": 25000000,
-                  "compute_overhead_part": 0,
-                  "pubdata_overhead_part": 1,
-                  "batch_overhead_l1_gas": 800000,
-                  "max_gas_per_batch": 200000000,
-                  "max_pubdata_per_batch": 240000
-                },
-                "l1_gas_price": 46226388803u64,
-                "l1_pubdata_price": 100780475095u64,
-                "conversion_ratio": {
-                  "numerator": 1,
-                  "denominator": 1
-                }
-              }
-            }),
-        );
-
-        let node = InMemoryNode::test(Some(
-            ForkClient::at_block_number(ForkConfig::unknown(mock_server.url()), Some(1.into()))
-                .await
-                .unwrap(),
-        ));
-
-        {
-            let writer = node.inner.write().await;
-            let mut fork = writer.fork_storage.inner.write().unwrap();
-            fork.raw_storage.set_value(
-                storage_key_for_standard_token_balance(
-                    AccountTreeId::new(cbeth_address),
-                    &Address::repeat_byte(0x1),
-                ),
-                u256_to_h256(U256::from(1337)),
-            );
-        }
-
-        let balances = node
-            .get_all_account_balances_impl(Address::repeat_byte(0x1))
-            .await
-            .expect("get balances");
-        assert_eq!(balances.get(&cbeth_address).unwrap(), &U256::from(1337));
-    }
-
-    #[tokio::test]
     async fn test_get_base_token_l1_address() {
         let node = InMemoryNode::test(None);
         let token_address = node
@@ -835,5 +654,23 @@ mod tests {
             "0x0000000000000000000000000000000000000001",
             format!("{:?}", token_address)
         );
+    }
+
+    #[tokio::test]
+    async fn test_gas_per_pubdata_local() {
+        let node = InMemoryNode::test(None);
+
+        let expected = {
+            let reader = node.inner.read().await;
+            reader.fee_input_provider.fair_pubdata_price()
+        };
+        let expected = if expected == 0 { 1 } else { expected };
+
+        let actual = node
+            .gas_per_pubdata_impl()
+            .await
+            .expect("failed to get gas_per_pubdata");
+
+        assert_eq!(actual, zksync_types::U256::from(expected));
     }
 }

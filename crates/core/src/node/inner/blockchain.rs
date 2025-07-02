@@ -778,6 +778,7 @@ impl BlockchainState {
             pubdata_input: finished_l1_batch.pubdata_input,
             fee_address: Default::default(), // TODO: Use real fee address
             batch_fee_input: Default::default(), // TODO: Use real batch fee input
+            pubdata_limit: Default::default(), // TODO: Use real pubdata limit
         };
         let batch_info = StoredL1BatchInfo {
             header,
