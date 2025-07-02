@@ -111,7 +111,7 @@ impl NodeServerBuilder {
                     run_fn: Box::new(move || server.start(rpc)),
                 })
             }
-            Err(e) => Err(format!("Failed to bind to address {}: {}", addr, e)),
+            Err(e) => Err(format!("Failed to bind to address {addr}: {e}")),
         }
     }
 }

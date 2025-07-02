@@ -32,19 +32,19 @@ pub async fn override_bytecodes(node: &InMemoryNode, bytecodes_dir: String) -> a
             // Look only at .json files.
             if let Some(filename) = filename.strip_suffix(".json") {
                 let address = Address::from_str(filename)
-                    .with_context(|| format!("Cannot parse {} as address", filename))?;
+                    .with_context(|| format!("Cannot parse {filename} as address"))?;
 
                 let file_content = fs::read_to_string(&path).await?;
                 let contract: ContractJson = serde_json::from_str(&file_content)
-                    .with_context(|| format!("Failed to  parse json file {:?}", path))?;
+                    .with_context(|| format!("Failed to  parse json file {path:?}"))?;
 
                 let bytecode = Vec::from_hex(contract.bytecode.object)
-                    .with_context(|| format!("Failed to parse hex from {:?}", path))?;
+                    .with_context(|| format!("Failed to parse hex from {path:?}"))?;
 
                 node.override_bytecode(address, bytecode)
                     .await
                     .expect("Failed to override bytecode");
-                tracing::debug!("Replacing bytecode at address {:?}", address);
+                tracing::debug!("Replacing bytecode at address {address:?}");
             }
         }
     }
