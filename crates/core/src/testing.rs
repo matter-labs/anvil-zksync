@@ -52,7 +52,7 @@ pub struct MockServer {
 
 impl MockServer {
     /// Start the mock server.
-    pub fn run() -> Self {
+    pub fn _run() -> Self {
         MockServer {
             inner: Server::run(),
         }
