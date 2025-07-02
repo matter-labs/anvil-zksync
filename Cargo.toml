@@ -48,7 +48,7 @@ zksync-error-description = { git = "https://github.com/matter-labs/zksync-error"
 zk_evm_abstractions = "=0.152.3"
 
 #########################
-# ZKsyncOs dependencies  #
+# ZKsync Os dependencies  #
 #########################
 forward_system = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
 basic_system = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
@@ -56,6 +56,7 @@ zk_ee = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
 system_hooks = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
 zksync_os_api = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
 rig = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
+ruint = { version = "1.12.3", default-features = false, features = ["alloc"] }
 
 #########################
 # External dependencies #

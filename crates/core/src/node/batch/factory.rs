@@ -3,8 +3,8 @@ use super::shared::Sealed;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::deps::InMemoryStorage;
 use crate::node::traces::call_error::CallErrorTracer;
-use crate::node::zksync_os::ZKsyncOSVM;
-use anvil_zksync_config::types::ZKsyncOSConfig;
+use crate::node::zksync_os::ZKsyncOsVM;
+use anvil_zksync_config::types::ZKsyncOsConfig;
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use std::sync::RwLock;
@@ -93,7 +93,7 @@ pub struct MainBatchExecutorFactory<Tr> {
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
-    zksync_os: ZKsyncOSConfig,
+    zksync_os: ZKsyncOsConfig,
     _tracer: PhantomData<Tr>,
 }
 
@@ -101,7 +101,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
     pub fn new(
         enforced_bytecode_compression: bool,
         legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
-        zksync_os: ZKsyncOSConfig,
+        zksync_os: ZKsyncOsConfig,
     ) -> Self {
         Self {
             enforced_bytecode_compression,
@@ -173,7 +173,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
     Fast(FastVmInstance<S, Tr::Fast>),
-    ZKsyncOS(ZKsyncOSVM<StorageView<S>, HistoryEnabled>),
+    ZKsyncOs(ZKsyncOsVM<StorageView<S>, HistoryEnabled>),
 }
 
 macro_rules! dispatch_batch_vm {
@@ -181,7 +181,7 @@ macro_rules! dispatch_batch_vm {
         match $self {
             Self::Legacy(vm) => vm.$function($($params)*),
             Self::Fast(vm) => vm.$function($($params)*),
-            Self::ZKsyncOS(vm) => vm.$function($($params)*),
+            Self::ZKsyncOs(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -192,11 +192,11 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         system_env: SystemEnv,
         storage_ptr: StoragePtr<StorageView<S>>,
         mode: FastVmMode,
-        zksync_os: &ZKsyncOSConfig,
+        zksync_os: &ZKsyncOsConfig,
         all_values: Option<InMemoryStorage>,
     ) -> Self {
-        if zksync_os.use_zksync_os {
-            return Self::ZKsyncOS(ZKsyncOSVM::new(
+        if zksync_os.zksync_os {
+            return Self::ZKsyncOs(ZKsyncOsVM::new(
                 l1_batch_env,
                 system_env,
                 storage_ptr,
@@ -273,7 +273,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 tx,
                 with_compression,
             ),
-            Self::ZKsyncOS(vm) => {
+            Self::ZKsyncOs(vm) => {
                 vm.push_transaction(tx);
                 let res = vm.inspect(&mut legacy_tracer.into(), InspectExecutionMode::OneTx);
 
@@ -303,7 +303,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .unwrap_or_default();
         let call_traces = match self {
             Self::Legacy(_) => legacy_traces,
-            Self::ZKsyncOS(_) => legacy_traces,
+            Self::ZKsyncOs(_) => legacy_traces,
             Self::Fast(FastVmInstance::Fast(_)) => fast_traces,
             Self::Fast(FastVmInstance::Shadowed(vm)) => {
                 vm.get_custom_mut("call_traces", |r| match r {
@@ -332,7 +332,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 struct CommandReceiver<S, Tr> {
     enforced_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    zksync_os: ZKsyncOSConfig,
+    zksync_os: ZKsyncOsConfig,
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
@@ -351,8 +351,8 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         all_values: Option<InMemoryStorage>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
-        if self.zksync_os.use_zksync_os {
-            tracing::info!("Using ZKsyncOS VM");
+        if self.zksync_os.zksync_os {
+            tracing::info!("Using ZKsyncOs VM");
         }
 
         let storage_view = StorageView::new(storage).to_rc_ptr();

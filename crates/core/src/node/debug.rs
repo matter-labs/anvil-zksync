@@ -85,7 +85,7 @@ impl InMemoryNode {
         // Match behavior of zksync_core:
         // Protection against infinite-loop eth_calls and alike:
         // limiting the amount of gas the call can use.
-        if self.system_contracts.zksync_os.use_zksync_os {
+        if self.system_contracts.zksync_os.zksync_os {
             l2_tx.common_data.fee.gas_limit = ZKSYNC_OS_CALL_GAS_LIMIT.into();
         } else {
             l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();

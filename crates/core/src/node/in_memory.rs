@@ -411,8 +411,8 @@ impl InMemoryNode {
 
         let storage = StorageView::new(storage_override).to_rc_ptr();
 
-        let mut vm = if self.system_contracts.zksync_os.use_zksync_os {
-            AnvilVM::ZKsyncOS(super::zksync_os::ZKsyncOSVM::<_, HistoryDisabled>::new(
+        let mut vm = if self.system_contracts.zksync_os.zksync_os {
+            AnvilVM::ZKsyncOs(super::zksync_os::ZKsyncOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
@@ -421,7 +421,7 @@ impl InMemoryNode {
                 &self.system_contracts.zksync_os,
             ))
         } else {
-            AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
+            AnvilVM::Era(Vm::new(batch_env, system_env, storage))
         };
 
         // We must inject *some* signature (otherwise bootloader code fails to generate hash).
@@ -631,10 +631,10 @@ impl InMemoryNode {
             config.use_evm_interpreter,
             config.zksync_os.clone(),
         );
-        let storage_key_layout = if config.zksync_os.use_zksync_os {
-            StorageKeyLayout::ZKsyncOS
+        let storage_key_layout = if config.zksync_os.zksync_os {
+            StorageKeyLayout::ZKsyncOs
         } else {
-            StorageKeyLayout::ZkEra
+            StorageKeyLayout::Era
         };
         let (inner, storage, blockchain, time, fork, vm_runner) = InMemoryNodeInner::init(
             fork_client_opt,

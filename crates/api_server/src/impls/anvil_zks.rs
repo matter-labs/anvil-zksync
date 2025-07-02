@@ -40,7 +40,7 @@ impl AnvilZksNamespaceServer for AnvilZksNamespace {
             .map_err(RpcErrorAdapter::into)
     }
 
-    async fn get_zksync_os_witness(&self, batch_number: L1BatchNumber) -> RpcResult<Bytes> {
+    async fn get_witness(&self, batch_number: L1BatchNumber) -> RpcResult<Bytes> {
         Ok(zksync_os_get_batch_witness(&batch_number)
             .ok_or(rpc_invalid_params(
                 "Batch with this number doesn't exist yet".to_string(),

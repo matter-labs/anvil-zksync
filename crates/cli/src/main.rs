@@ -245,10 +245,10 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
         .with_zksync_os(config.zksync_os.clone())
         .build();
 
-    let storage_key_layout = if config.zksync_os.use_zksync_os {
-        StorageKeyLayout::ZKsyncOS
+    let storage_key_layout = if config.zksync_os.zksync_os {
+        StorageKeyLayout::ZKsyncOs
     } else {
-        StorageKeyLayout::ZkEra
+        StorageKeyLayout::Era
     };
 
     let is_fork_mode = fork_client.is_some();

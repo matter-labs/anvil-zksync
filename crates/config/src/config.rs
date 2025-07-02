@@ -75,7 +75,7 @@ pub struct TestNodeConfig {
     /// Enables EVM interpreter mode
     pub use_evm_interpreter: bool,
     /// Enables ZKsyncOS mode (experimental)
-    pub zksync_os: ZKsyncOSConfig,
+    pub zksync_os: ZKsyncOsConfig,
     /// Optional chain ID for the node
     pub chain_id: Option<u32>,
     /// L1 gas price (optional override)
@@ -447,7 +447,7 @@ L1:                    {}
             } else {
                 "Disabled".red()
             },
-            if self.zksync_os.use_zksync_os {
+            if self.zksync_os.zksync_os {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -656,7 +656,7 @@ Address: {address}
 
     /// Enable or disable ZKsync OS
     #[must_use]
-    pub fn with_zksync_os(mut self, zksync_os: ZKsyncOSConfig) -> Self {
+    pub fn with_zksync_os(mut self, zksync_os: ZKsyncOsConfig) -> Self {
         self.zksync_os = zksync_os;
         self
     }

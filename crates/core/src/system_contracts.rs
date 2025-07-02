@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::deps::system_contracts::load_builtin_contract;
 use crate::node::ImpersonationManager;
-use anvil_zksync_config::types::{SystemContractsOptions, ZKsyncOSConfig};
+use anvil_zksync_config::types::{SystemContractsOptions, ZKsyncOsConfig};
 use zksync_contracts::{
     read_sys_contract_bytecode, BaseSystemContracts, BaseSystemContractsHashes, ContractLanguage,
     SystemContractCode, SystemContractsRepo,
@@ -18,7 +18,7 @@ pub struct SystemContractsBuilder {
     system_contracts_path: Option<PathBuf>,
     protocol_version: Option<ProtocolVersionId>,
     use_evm_interpreter: bool,
-    zksync_os: ZKsyncOSConfig,
+    zksync_os: ZKsyncOsConfig,
 }
 
 impl SystemContractsBuilder {
@@ -52,7 +52,7 @@ impl SystemContractsBuilder {
     }
 
     /// Enable or disable ZKsync OS
-    pub fn with_zksync_os(mut self, config: ZKsyncOSConfig) -> Self {
+    pub fn with_zksync_os(mut self, config: ZKsyncOsConfig) -> Self {
         self.zksync_os = config;
         self
     }
@@ -70,7 +70,7 @@ impl SystemContractsBuilder {
             .unwrap_or_else(ProtocolVersionId::latest);
 
         tracing::debug!(
-            %protocol_version, use_evm_interpreter = self.use_evm_interpreter, use_zksync_os = self.zksync_os.use_zksync_os,
+            %protocol_version, use_evm_interpreter = self.use_evm_interpreter, zksync_os = self.zksync_os.zksync_os,
             "Building SystemContracts"
         );
 
@@ -97,7 +97,7 @@ pub struct SystemContracts {
     // For now, store the zksync_os switch flag here.
     // Long term, we should probably refactor this code, and add another struct ('System')
     // that would hold separate things for ZKsyncOS and for EraVM. (but that's too early for now).
-    pub zksync_os: ZKsyncOSConfig,
+    pub zksync_os: ZKsyncOsConfig,
 }
 
 impl SystemContracts {
@@ -113,12 +113,12 @@ impl SystemContracts {
         system_contracts_path: Option<PathBuf>,
         protocol_version: ProtocolVersionId,
         use_evm_emulator: bool,
-        zksync_os: ZKsyncOSConfig,
+        zksync_os: ZKsyncOsConfig,
     ) -> Self {
         tracing::info!(
             %protocol_version,
             use_evm_emulator,
-            zksync_os.use_zksync_os,
+            zksync_os.zksync_os,
             "initializing system contracts"
         );
         let path = system_contracts_path.unwrap_or_else(|| SystemContractsRepo::default().root);
@@ -157,7 +157,7 @@ impl SystemContracts {
     /// Whether it accepts the transactions that have 'null' as target.
     /// This is used only when EVM emulator is enabled, or we're running in ZKsync OS mode.
     pub fn allow_no_target(&self) -> bool {
-        self.zksync_os.use_zksync_os || self.use_evm_emulator
+        self.zksync_os.zksync_os || self.use_evm_emulator
     }
 
     pub fn contracts_for_l2_call(&self) -> &BaseSystemContracts {

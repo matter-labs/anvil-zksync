@@ -43,7 +43,7 @@
                 }
             },
             "args": [
-                "--use-boojum",
+                "--use-zksync-os",
                 "run",
             ],
             "env": {

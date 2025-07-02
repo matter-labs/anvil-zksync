@@ -58,7 +58,7 @@ impl InMemoryNode {
             }
         }
 
-        if self.system_contracts.zksync_os.use_zksync_os {
+        if self.system_contracts.zksync_os.zksync_os {
             tx.common_data.fee.gas_limit = ZKSYNC_OS_CALL_GAS_LIMIT.into();
         } else {
             tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();

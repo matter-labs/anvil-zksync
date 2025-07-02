@@ -315,7 +315,7 @@ impl VmRunner {
 
         let mut new_bytecodes = new_bytecodes(tx, &result);
 
-        if self.system_contracts.zksync_os.use_zksync_os {
+        if self.system_contracts.zksync_os.zksync_os {
             // In zksync_os, we store account properties outside of state (so state has only hash).
             // For now, we simply put the original preimages into the factory deps.
             // The result type here is the 'era' crate - that is not modified to fit zksync_os yet.
@@ -429,7 +429,7 @@ impl VmRunner {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
         };
-        let mut executor = if self.system_contracts.zksync_os.use_zksync_os {
+        let mut executor = if self.system_contracts.zksync_os.zksync_os {
             self.executor_factory.init_main_batch(
                 self.fork_storage.clone(),
                 batch_env.clone(),
@@ -674,10 +674,10 @@ mod test {
 
     impl VmRunnerTester {
         fn new_custom(fork_client: Option<ForkClient>, config: TestNodeConfig) -> Self {
-            let storage_layout = if config.zksync_os.use_zksync_os {
-                StorageKeyLayout::ZKsyncOS
+            let storage_layout = if config.zksync_os.zksync_os {
+                StorageKeyLayout::ZKsyncOs
             } else {
-                StorageKeyLayout::ZkEra
+                StorageKeyLayout::Era
             };
 
             let time = Time::new(0);

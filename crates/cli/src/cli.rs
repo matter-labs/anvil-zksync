@@ -10,7 +10,7 @@ use anvil_zksync_common::{
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
 use anvil_zksync_config::{
     constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID},
-    types::ZKsyncOSConfig,
+    types::ZKsyncOsConfig,
 };
 use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
@@ -173,8 +173,8 @@ pub struct Cli {
     pub evm_interpreter: bool,
 
     #[clap(flatten)]
-    /// ZKsyncOS detailed config.
-    pub zksync_os_group: ZKsyncOSGroup,
+    /// ZKsync OS detailed config.
+    pub zksync_os_group: ZKsyncOsGroup,
 
     // Logging Configuration
     #[arg(long, help_heading = "Logging Configuration")]
@@ -340,24 +340,20 @@ pub struct Cli {
 }
 
 #[derive(Clone, Debug, clap::Args)]
-pub struct ZKsyncOSGroup {
+pub struct ZKsyncOsGroup {
     /// Enables ZKsync OS.
     #[arg(long, help_heading = "UNSTABLE - ZKsync OS")]
-    pub use_zksync_os: bool,
+    pub zksync_os: bool,
 
     /// Path to ZKsync OS binary (if you need to compute witnesses).
-    #[arg(
-        long,
-        requires = "use_zksync_os",
-        help_heading = "UNSTABLE - ZKsync OS"
-    )]
+    #[arg(long, requires = "zksync_os", help_heading = "UNSTABLE - ZKsync OS")]
     pub zksync_os_bin_path: Option<String>,
 }
 
-impl From<ZKsyncOSGroup> for ZKsyncOSConfig {
-    fn from(group: ZKsyncOSGroup) -> Self {
-        ZKsyncOSConfig {
-            use_zksync_os: group.use_zksync_os,
+impl From<ZKsyncOsGroup> for ZKsyncOsConfig {
+    fn from(group: ZKsyncOsGroup) -> Self {
+        ZKsyncOsConfig {
+            zksync_os: group.zksync_os,
             zksync_os_bin_path: group.zksync_os_bin_path,
         }
     }

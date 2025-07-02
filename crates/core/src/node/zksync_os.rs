@@ -2,7 +2,7 @@
 //! This is still experimental code.
 use std::{alloc::Global, collections::HashMap, vec};
 
-use anvil_zksync_config::types::ZKsyncOSConfig;
+use anvil_zksync_config::types::ZKsyncOsConfig;
 use basic_system::system_implementation::flat_storage_model::{
     address_into_special_storage_key, AccountProperties, TestingTree,
     ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
@@ -631,28 +631,28 @@ pub fn zksync_os_storage_key_for_eth_balance(address: &Address) -> StorageKey {
 }
 
 #[derive(Debug)]
-pub struct ZKsyncOSVM<S: WriteStorage, H: HistoryMode> {
+pub struct ZKsyncOsVM<S: WriteStorage, H: HistoryMode> {
     pub storage: StoragePtr<S>,
     pub tree: InMemoryTree,
     preimage: InMemoryPreimageSource,
     transactions: Vec<Transaction>,
     system_env: SystemEnv,
     batch_env: L1BatchEnv,
-    config: ZKsyncOSConfig,
+    config: ZKsyncOsConfig,
     witness: Option<Vec<u8>>,
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> ZKsyncOSVM<S, H> {
+impl<S: WriteStorage, H: HistoryMode> ZKsyncOsVM<S, H> {
     pub fn new(
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
         raw_storage: &InMemoryStorage,
-        config: &ZKsyncOSConfig,
+        config: &ZKsyncOsConfig,
     ) -> Self {
         let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
-        ZKsyncOSVM {
+        ZKsyncOsVM {
             storage,
             tree,
             preimage,
@@ -721,7 +721,7 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKsyncOSVM<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKsyncOsVM<S, H> {
     type TracerDispatcher = ZkSyncOSTracerDispatcher<S, H>;
 
     fn push_transaction(
@@ -811,7 +811,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKsyncOSVM<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for ZKsyncOSVM<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for ZKsyncOsVM<S, H> {
     fn make_snapshot(&mut self) {}
 
     fn rollback_to_the_latest_snapshot(&mut self) {

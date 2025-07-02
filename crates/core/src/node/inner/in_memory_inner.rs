@@ -13,7 +13,7 @@ use crate::node::keys::StorageKeyLayout;
 use crate::node::state::StateV1;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::vm::AnvilVM;
-use crate::node::zksync_os::ZKsyncOSVM;
+use crate::node::zksync_os::ZKsyncOsVM;
 use crate::node::{
     create_block, ImpersonationManager, Snapshot, TestNodeFeeInputProvider, TransactionResult,
     VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION, MAX_PREVIOUS_STATES, MAX_TX_SIZE,
@@ -25,7 +25,7 @@ use anvil_zksync_common::shell::get_shell;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
-use anvil_zksync_config::types::ZKsyncOSConfig;
+use anvil_zksync_config::types::ZKsyncOsConfig;
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use anvil_zksync_traces::{
@@ -782,7 +782,7 @@ impl InMemoryNodeInner {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         fork_storage: &ForkStorage,
-        zksync_os: &ZKsyncOSConfig,
+        zksync_os: &ZKsyncOsConfig,
         trace_calls: bool,
     ) -> BatchTransactionExecutionResult {
         // Set gas_limit for transaction
@@ -838,8 +838,8 @@ impl InMemoryNodeInner {
             ExecuteTransactionCommon::ProtocolUpgrade(_) => unimplemented!(),
         }
 
-        let mut vm = if zksync_os.use_zksync_os {
-            let mut vm = ZKsyncOSVM::<_, HistoryDisabled>::new(
+        let mut vm = if zksync_os.zksync_os {
+            let mut vm = ZKsyncOsVM::<_, HistoryDisabled>::new(
                 batch_env,
                 system_env,
                 storage,
@@ -850,9 +850,9 @@ impl InMemoryNodeInner {
             // Temporary hack - as we update the 'storage' just above, but zksync_os loads its full
             // state from fork_storage (that is not updated).
             vm.update_inconsistent_keys(&[&balance_key]);
-            AnvilVM::ZKsyncOS(vm)
+            AnvilVM::ZKsyncOs(vm)
         } else {
-            AnvilVM::ZKSync(Vm::new(batch_env, system_env, storage))
+            AnvilVM::Era(Vm::new(batch_env, system_env, storage))
         };
 
         delegate_vm!(vm, push_transaction(tx));
@@ -867,10 +867,10 @@ impl InMemoryNodeInner {
         };
 
         let tx_result = match &mut vm {
-            AnvilVM::ZKsyncOS(vm) => {
+            AnvilVM::ZKsyncOs(vm) => {
                 vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
             }
-            AnvilVM::ZKSync(vm) => {
+            AnvilVM::Era(vm) => {
                 vm.inspect(&mut tracer_dispatcher.into(), InspectExecutionMode::OneTx)
             }
         };
@@ -1285,10 +1285,10 @@ pub mod testing {
                 config.use_evm_interpreter,
                 config.zksync_os.clone(),
             );
-            let storage_key_layout = if config.zksync_os.use_zksync_os {
-                StorageKeyLayout::ZKsyncOS
+            let storage_key_layout = if config.zksync_os.zksync_os {
+                StorageKeyLayout::ZKsyncOs
             } else {
-                StorageKeyLayout::ZkEra
+                StorageKeyLayout::Era
             };
             let (node, _, _, _, _, _) = InMemoryNodeInner::init(
                 None,
