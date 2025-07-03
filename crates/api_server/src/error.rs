@@ -173,7 +173,7 @@ pub(crate) fn rpc_invalid_params(msg: String) -> ErrorObjectOwned {
 pub(crate) fn rpc_unsupported<T>(method_name: &str) -> jsonrpsee::core::RpcResult<T> {
     Err(ErrorObject::owned(
         ErrorCode::MethodNotFound.code(),
-        format!("Method not found: {}", method_name),
+        format!("Method not found: {method_name}"),
         None::<()>,
     ))
 }

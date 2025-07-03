@@ -222,15 +222,15 @@ impl std::fmt::Display for DecodedError {
                 if !raw.is_empty() {
                     write!(f, ": ")?;
                     match std::str::from_utf8(raw) {
-                        Ok(data) => write!(f, "{}", data),
+                        Ok(data) => write!(f, "{data}"),
                         Err(_) => write!(f, "{}", hex::encode(raw)),
                     }
                 } else {
                     Ok(())
                 }
             }
-            DecodedError::Revert(message) => write!(f, "{}", message),
-            DecodedError::Panic(message) => write!(f, "{}", message),
+            DecodedError::Revert(message) => write!(f, "{message}"),
+            DecodedError::Panic(message) => write!(f, "{message}"),
             DecodedError::Raw(data) => {
                 if !data.is_empty() {
                     let var_name = write!(
@@ -244,7 +244,7 @@ impl std::fmt::Display for DecodedError {
                 }
                 Ok(())
             }
-            DecodedError::String(message) => write!(f, "{}", message),
+            DecodedError::String(message) => write!(f, "{message}"),
         }
     }
 }
@@ -590,8 +590,8 @@ impl ExecutionResultDisplay for ExecutionResult {
     fn display(&self) -> String {
         match self {
             ExecutionResult::Success { .. } => "Success".to_string(),
-            ExecutionResult::Revert { output } => format!("Revert: {}", output),
-            ExecutionResult::Halt { reason } => format!("Halt: {:?}", reason),
+            ExecutionResult::Revert { output } => format!("Revert: {output}"),
+            ExecutionResult::Halt { reason } => format!("Halt: {reason:?}"),
         }
     }
 }

@@ -160,13 +160,6 @@ pub trait ForkSource: fmt::Debug + Send + Sync {
 
     /// Fetches fork's addresses of the default bridge contracts.
     async fn get_bridge_contracts(&self) -> anyhow::Result<Option<api::BridgeAddresses>>;
-
-    /// Fetches fork's confirmed tokens.
-    async fn get_confirmed_tokens(
-        &self,
-        from: u32,
-        limit: u8,
-    ) -> anyhow::Result<Option<Vec<zksync_web3_decl::types::Token>>>;
 }
 
 impl Clone for Box<dyn ForkSource> {
@@ -859,39 +852,6 @@ impl ForkSource for Fork {
                 .cache
                 .set_bridge_addresses(bridge_contracts.clone());
             Ok(Some(bridge_contracts))
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn get_confirmed_tokens(
-        &self,
-        from: u32,
-        limit: u8,
-    ) -> anyhow::Result<Option<Vec<zksync_web3_decl::types::Token>>> {
-        if let Some(confirmed_tokens) = self.read().cache.get_confirmed_tokens(from, limit).cloned()
-        {
-            tracing::debug!(from, limit, "using cached confirmed tokens");
-            return Ok(Some(confirmed_tokens));
-        }
-
-        let confirmed_tokens = self
-            .make_call("get_block_details", |client| async move {
-                Ok(Some(
-                    client
-                        .get_confirmed_tokens(from, limit)
-                        .await
-                        .with_context(|| format!("(from={from}, limit={limit})"))?,
-                ))
-            })
-            .await
-            .unwrap_or(Ok(None))?;
-
-        if let Some(confirmed_tokens) = confirmed_tokens {
-            self.write()
-                .cache
-                .set_confirmed_tokens(from, limit, confirmed_tokens.clone());
-            Ok(Some(confirmed_tokens))
         } else {
             Ok(None)
         }

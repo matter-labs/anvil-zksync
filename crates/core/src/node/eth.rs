@@ -240,7 +240,7 @@ impl InMemoryNode {
                         }
                         TransactionVariant::Hash(_) => {
                             if full_transactions {
-                                panic!("unexpected non full transaction for block {}", block_hash)
+                                panic!("unexpected non full transaction for block {block_hash}")
                             } else {
                                 transaction
                             }

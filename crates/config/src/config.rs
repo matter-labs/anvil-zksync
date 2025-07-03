@@ -316,7 +316,7 @@ Rich Accounts
         let mut private_keys = String::new();
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
             let private_key = hex::encode(account.credential().to_bytes());
-            private_keys.push_str(&format!("({}) 0x{}\n", idx, private_key));
+            private_keys.push_str(&format!("({idx}) 0x{private_key}\n"));
         }
         sh_println!(
             r#"
