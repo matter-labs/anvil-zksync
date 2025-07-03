@@ -112,7 +112,7 @@ impl Cache {
                 CACHE_TYPE_KEY_VALUE,
             ] {
                 fs::create_dir_all(Path::new(dir).join(cache_type)).unwrap_or_else(|err| {
-                    panic!("failed creating directory {cache_type}: {err:?}")
+                    panic!("failed creating directory {cache_type}: {err:?}");
                 });
             }
             cache

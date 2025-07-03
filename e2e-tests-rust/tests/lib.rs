@@ -734,7 +734,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
             });
             assert!(
                 tx_exists,
-                "The state dump should contain the transaction with hash: {tx_hash:?}"
+                "The state dump should contain the transaction with hash: {tx_hash:?}",
             );
         }
         VersionedState::Unknown { version } => {

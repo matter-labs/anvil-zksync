@@ -3,7 +3,6 @@ use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use function_name::named;
 use jsonrpsee::core::{async_trait, RpcResult};
-use std::collections::HashMap;
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::api::{
     BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
@@ -13,7 +12,6 @@ use zksync_types::fee::Fee;
 use zksync_types::fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::{Address, L1BatchNumber, L2BlockNumber, Transaction, H256, U256, U64};
-use zksync_web3_decl::types::Token;
 
 use crate::error::{rpc_unsupported, RpcErrorAdapter};
 
@@ -110,23 +108,6 @@ impl ZksNamespaceServer for ZksNamespace {
         ))
     }
 
-    async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
-        self.node
-            .get_confirmed_tokens_impl(from, limit)
-            .await
-            .map_err(RpcErrorAdapter::into)
-    }
-
-    async fn get_all_account_balances(
-        &self,
-        address: Address,
-    ) -> RpcResult<HashMap<Address, U256>> {
-        self.node
-            .get_all_account_balances_impl(address)
-            .await
-            .map_err(RpcErrorAdapter::into)
-    }
-
     async fn get_l2_to_l1_log_proof(
         &self,
         tx_hash: H256,
@@ -186,6 +167,13 @@ impl ZksNamespaceServer for ZksNamespace {
     async fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>> {
         self.node
             .get_bytecode_by_hash_impl(hash)
+            .await
+            .map_err(RpcErrorAdapter::into)
+    }
+
+    async fn gas_per_pubdata(&self) -> RpcResult<U256> {
+        self.node
+            .gas_per_pubdata_impl()
             .await
             .map_err(RpcErrorAdapter::into)
     }
