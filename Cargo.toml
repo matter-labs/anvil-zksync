@@ -55,7 +55,7 @@ basic_system = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.
 zk_ee = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
 system_hooks = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2"}
 zksync_os_api = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
-rig = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
+crypto = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
 ruint = { version = "1.12.3", default-features = false, features = ["alloc"] }
 
 #########################

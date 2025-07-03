@@ -5,16 +5,18 @@ use std::{alloc::Global, collections::HashMap, vec};
 use anvil_zksync_config::types::ZKsyncOsConfig;
 use basic_system::system_implementation::flat_storage_model::{
     address_into_special_storage_key, AccountProperties, TestingTree,
-    ACCOUNT_PROPERTIES_STORAGE_ADDRESS,
+    ACCOUNT_PROPERTIES_STORAGE_ADDRESS, DEFAULT_CODE_VERSION_BYTE,
 };
 use forward_system::run::{
     test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
     StorageCommitment,
 };
-use rig::utils::evm_bytecode_into_account_properties;
 use ruint::aliases::B160;
 use system_hooks::addresses_constants::{ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS, BASE_TOKEN_ADDRESS};
-use zk_ee::{common_structs::derive_flat_storage_key, utils::Bytes32};
+use zk_ee::{
+    common_structs::derive_flat_storage_key, execution_environment_type::ExecutionEnvironmentType,
+    utils::Bytes32,
+};
 use zksync_multivm::{
     interface::{
         storage::{StoragePtr, WriteStorage},
@@ -887,4 +889,30 @@ pub fn set_account_properties(
         .insert(properties_hash, encoding.to_vec());
     state_tree.cold_storage.insert(flat_key, properties_hash);
     state_tree.storage_tree.insert(&flat_key, &properties_hash);
+}
+
+/// Copied from https://github.com/matter-labs/zksync-os/blob/ab9f5d1856450d688f59996c04830e25c1824e95/tests/rig/src/utils.rs#L425
+/// To avoid bringing in `rig` as a dependency.
+pub fn evm_bytecode_into_account_properties(bytecode: &[u8]) -> AccountProperties {
+    use crypto::blake2s::Blake2s256;
+    use crypto::sha3::Keccak256;
+    use crypto::MiniDigest;
+
+    let observable_bytecode_hash = Bytes32::from_array(Keccak256::digest(bytecode));
+    let bytecode_hash = Bytes32::from_array(Blake2s256::digest(bytecode));
+    let mut result = AccountProperties::TRIVIAL_VALUE;
+    result.observable_bytecode_hash = observable_bytecode_hash;
+    result.bytecode_hash = bytecode_hash;
+    result.versioning_data.set_as_deployed();
+    result
+        .versioning_data
+        .set_ee_version(ExecutionEnvironmentType::EVM as u8);
+    result
+        .versioning_data
+        .set_code_version(DEFAULT_CODE_VERSION_BYTE);
+    result.bytecode_len = bytecode.len() as u32;
+    result.artifacts_len = 0;
+    result.observable_bytecode_len = bytecode.len() as u32;
+
+    result
 }
