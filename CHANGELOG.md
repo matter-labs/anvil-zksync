@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.7](https://github.com/matter-labs/anvil-zksync/compare/v0.6.6...v0.6.7) (2025-07-04)
+
+
+### Features
+
+* introduce poc of zksync-os for local testing ([#704](https://github.com/matter-labs/anvil-zksync/issues/704)) ([d70b039](https://github.com/matter-labs/anvil-zksync/commit/d70b0397e8a77cc605dbda37023279aaa411808e))
+
+
+### Bug Fixes
+
+* adjust actions due to rate limit changes ([#747](https://github.com/matter-labs/anvil-zksync/issues/747)) ([94e8335](https://github.com/matter-labs/anvil-zksync/commit/94e8335c272485bbafcbfd1b28f7143f5b05b337))
+* error messages on reverts during gas estimation ([#743](https://github.com/matter-labs/anvil-zksync/issues/743)) ([b591be1](https://github.com/matter-labs/anvil-zksync/commit/b591be1622004d6b15ca2cfb7f9bf8c4a513fbf3))
+
 ## [0.6.6](https://github.com/matter-labs/anvil-zksync/compare/v0.6.5...v0.6.6) (2025-06-23)
 
 
