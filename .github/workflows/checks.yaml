@@ -47,6 +47,7 @@ jobs:
         uses: dutterbutter/foundry-zksync-toolchain@v1.0.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          version: "v0.0.21"
 
       - name: Build Code
         run: make all
