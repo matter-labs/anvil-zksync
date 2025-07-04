@@ -44,9 +44,9 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: Install Foundry-ZKsync
-        uses: dutterbutter/foundry-zksync-toolchain@v1
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: dutterbutter/foundry-zksync-toolchain@v1.0.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Code
         run: make all
