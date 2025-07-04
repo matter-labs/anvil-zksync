@@ -249,7 +249,7 @@ mod tests {
 
         // check that the call was successful
         let output = func
-            .abi_decode_output(trace.output.0.as_slice(), true)
+            .abi_decode_output(trace.output.0.as_slice())
             .expect("failed to decode output");
         assert_eq!(
             output[0],

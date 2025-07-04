@@ -203,7 +203,7 @@ impl CallTraceDecoder {
     fn decode_function_input(&self, trace: &CallTrace, func: &Function) -> DecodedCallData {
         let mut args = None;
         if trace.call.input.len() >= SELECTOR_LEN && args.is_none() {
-            if let Ok(v) = func.abi_decode_input(&trace.call.input[SELECTOR_LEN..], false) {
+            if let Ok(v) = func.abi_decode_input(&trace.call.input[SELECTOR_LEN..]) {
                 args = Some(
                     v.into_iter()
                         .map(|value| -> DecodedValue {
@@ -228,7 +228,7 @@ impl CallTraceDecoder {
 
         if let Some(values) = funcs
             .iter()
-            .find_map(|func| func.abi_decode_output(&trace.call.output, false).ok())
+            .find_map(|func| func.abi_decode_output(&trace.call.output).ok())
         {
             // Functions coming from an external database do not have any outputs specified,
             // and will lead to returning an empty list of values.
@@ -271,7 +271,7 @@ impl CallTraceDecoder {
         };
         let log_data = vm_event_to_log_data(vm_event);
         for event in events {
-            if let Ok(decoded) = event.decode_log(&log_data, false) {
+            if let Ok(decoded) = event.decode_log(&log_data) {
                 let params = reconstruct_params(event, &decoded);
                 return DecodedCallEvent {
                     name: Some(event.name.clone()),

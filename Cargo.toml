@@ -22,7 +22,7 @@ strip = "debuginfo" # Automatically strip symbols from the binary.
 lto = "thin"        # Enable link-time optimization.
 
 [workspace.package]
-version = "0.6.6" # x-release-please-version
+version = "0.6.6"                                          # x-release-please-version
 edition = "2021"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -51,9 +51,9 @@ zk_evm_abstractions = "=0.152.3"
 # External dependencies #
 #########################
 anyhow = "1.0"
-alloy = { version = "0.12.5", default-features = false }
-foundry-common-fmt = { git = "https://github.com/foundry-rs/foundry", rev = "v1.0.0", package = "foundry-common-fmt" }
-foundry-macros = { git = "https://github.com/foundry-rs/foundry", rev = "v1.0.0", package = "foundry-macros" }
+alloy = { version = "1.0.7", default-features = false }
+foundry-common-fmt = { git = "https://github.com/foundry-rs/foundry", rev = "ab753e9cafc5937bcc868fd7c61237c34ef9ac74", package = "foundry-common-fmt" }
+foundry-macros = { git = "https://github.com/foundry-rs/foundry", rev = "ab753e9cafc5937bcc868fd7c61237c34ef9ac74", package = "foundry-macros" }
 async-trait = "0.1.85"
 chrono = { version = "0.4.31", default-features = false }
 clap = { version = "4.2.4", features = ["derive", "env"] }
@@ -120,7 +120,9 @@ anvil_zksync_core = { path = "crates/core" }
 anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
 anvil_zksync_types = { path = "crates/types" }
 anvil_zksync_common = { path = "crates/common" }
-zksync_error = { path = "crates/zksync_error", default-features = true, features = ["runtime_documentation"] }
+zksync_error = { path = "crates/zksync_error", default-features = true, features = [
+    "runtime_documentation",
+] }
 anvil_zksync_console = { path = "crates/console" }
 anvil_zksync_traces = { path = "crates/traces" }
 
