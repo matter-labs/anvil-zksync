@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.8](https://github.com/matter-labs/anvil-zksync/compare/v0.6.7...v0.6.8) (2025-07-07)
+
+
+### Bug Fixes
+
+* remove stable usage for binary build due to zksyncos ([#748](https://github.com/matter-labs/anvil-zksync/issues/748)) ([4f98549](https://github.com/matter-labs/anvil-zksync/commit/4f98549f07675c21e1d09e454266099346fde2e7))
+* remove stable usage for binary build due to zksyncps ([4f98549](https://github.com/matter-labs/anvil-zksync/commit/4f98549f07675c21e1d09e454266099346fde2e7))
+
 ## [0.6.7](https://github.com/matter-labs/anvil-zksync/compare/v0.6.6...v0.6.7) (2025-07-04)
 
 
