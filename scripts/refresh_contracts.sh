@@ -1,7 +1,7 @@
 #!/bin/bash
 set -xe
 
-PROTOCOL_VERSION=${1:-v30}
+PROTOCOL_VERSION=${1:-v31}
 case $PROTOCOL_VERSION in
   v26)
     # HEAD of anvil-zksync-0.4.x-release-v26
@@ -21,6 +21,9 @@ case $PROTOCOL_VERSION in
     ;;
   v30)
     ERA_CONTRACTS_GIT_COMMIT=7d9275f48be1e31c26186b8149db28fbd63bb43c
+    ;;
+  v31)
+    ERA_CONTRACTS_GIT_COMMIT=5fc5ddc8b4ea765e2fbc71a7c8261ff1645c0e07
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"

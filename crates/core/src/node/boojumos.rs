@@ -159,4 +159,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for BoojumOsVM<S
     }
 
     fn pop_snapshot_no_rollback(&mut self) {}
+
+
+    fn pop_front_snapshot_no_rollback(&mut self) {}
 }
