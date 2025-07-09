@@ -23,6 +23,7 @@ zksync_error.workspace = true
 zksync_telemetry.workspace = true
 
 anyhow.workspace = true
+function_name.workspace = true
 futures.workspace = true
 hex.workspace = true
 http.workspace = true

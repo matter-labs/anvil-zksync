@@ -12,8 +12,8 @@ use crate::node::storage_logs::print_storage_logs_details;
 use crate::node::time::Time;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{
-    compute_hash, InMemoryNodeInner, TestNodeFeeInputProvider, TransactionResult, TxBatch,
-    TxExecutionInfo,
+    compute_hash, InMemoryNodeInner, StorageKeyLayout, TestNodeFeeInputProvider, TransactionResult,
+    TxBatch, TxExecutionInfo,
 };
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
@@ -32,7 +32,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
 use zksync_multivm::interface::executor::BatchExecutor;
-use zksync_multivm::interface::storage::WriteStorage;
+use zksync_multivm::interface::storage::{ReadStorage, WriteStorage};
 use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     TxExecutionMode, VmEvent, VmExecutionResultAndLogs,
@@ -43,8 +43,8 @@ use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    api, h256_to_address, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData, StorageKey,
-    StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    api, h256_to_address, h256_to_u256, u256_to_h256, ExecuteTransactionCommon, L2BlockNumber,
+    L2TxCommonData, StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
 };
 
 pub struct VmRunner {
@@ -58,6 +58,7 @@ pub struct VmRunner {
     generate_system_logs: bool,
     /// Optional field for reporting progress while replaying transactions.
     progress_report: Option<ProgressBar>,
+    storage_layout: StorageKeyLayout,
 }
 
 pub(super) struct TxBatchExecutionResult {
@@ -76,6 +77,7 @@ impl VmRunner {
         system_contracts: SystemContracts,
         generate_system_logs: bool,
         enforced_bytecode_compression: bool,
+        storage_layout: StorageKeyLayout,
     ) -> Self {
         let bootloader_debug_result = Arc::new(std::sync::RwLock::new(Err(
             "Tracer has not been run yet".to_string(),
@@ -84,6 +86,7 @@ impl VmRunner {
             executor_factory: MainBatchExecutorFactory::<TraceCalls>::new(
                 enforced_bytecode_compression,
                 bootloader_debug_result.clone(),
+                system_contracts.boojum.clone(),
             ),
             bootloader_debug_result,
 
@@ -92,6 +95,7 @@ impl VmRunner {
             system_contracts,
             generate_system_logs,
             progress_report: None,
+            storage_layout,
         }
     }
 }
@@ -165,14 +169,10 @@ impl VmRunner {
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
-        if let Some(to_address) = tx.recipient_account() {
-            if !account_has_code(to_address, &mut self.fork_storage) {
-                sh_warn!(
-                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
-                    tx.hash()
-                );
-            }
-        }
+        let verbosity = get_shell().verbosity;
+
+        warn_if_tx_recipient_no_code(tx, &mut self.fork_storage);
+
         let BatchTransactionExecutionResult {
             tx_result,
             compression_result,
@@ -208,11 +208,10 @@ impl VmRunner {
 
             let decoder = builder.build();
             let mut arena = build_call_trace_arena(&call_traces, &tx_result);
-            decode_trace_arena(&mut arena, &decoder).await?;
+            decode_trace_arena(&mut arena, &decoder).await;
 
             extract_addresses(&arena, &mut known_addresses);
 
-            let verbosity = get_shell().verbosity;
             if verbosity >= 2 {
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
                 trace_output = Some(render_trace_arena_inner(&filtered_arena, false));
@@ -231,7 +230,7 @@ impl VmRunner {
                 config.get_l2_gas_price(),
                 tx,
                 &tx_result,
-                balance_diffs,
+                (verbosity >= 1).then_some(balance_diffs),
             )
         );
 
@@ -279,6 +278,7 @@ impl VmRunner {
         executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
         fee_input_provider: &TestNodeFeeInputProvider,
+        impersonating: bool,
     ) -> AnvilNodeResult<TransactionResult> {
         let tx_hash = tx.hash();
         let transaction_type = tx.tx_format();
@@ -311,35 +311,25 @@ impl VmRunner {
                 transaction_hash: Box::new(tx_hash),
             });
         }
-        let saved_factory_deps = VmEvent::extract_bytecodes_marked_as_known(&result.logs.events);
 
-        // Get transaction factory deps
-        let factory_deps = &tx.execute.factory_deps;
-        let mut tx_factory_deps: HashMap<_, _> = factory_deps
-            .iter()
-            .map(|bytecode| {
-                (
-                    BytecodeHash::for_bytecode(bytecode).value(),
-                    bytecode.clone(),
-                )
-            })
-            .collect();
-        // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
-        // are added into the lookup map as well.
-        tx_factory_deps.extend(result.dynamic_factory_deps.clone());
+        if impersonating {
+            // During impersonation, we skip account validation (which is responsible for updating nonce)
+            // so we do it manually for each transaction that didn't result in a halt.
+            let nonce_key = self.storage_layout.get_nonce_key(&tx.initiator_account());
+            let nonce = h256_to_u256(self.fork_storage.read_value(&nonce_key));
+            let nonce = u256_to_h256(nonce + 1);
+            self.fork_storage.set_value(nonce_key, nonce);
+        }
 
-        let new_bytecodes = saved_factory_deps
-            .map(|bytecode_hash| {
-                let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
-                    panic!(
-                        "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
-                        bytecode_hash,
-                        tx.hash()
-                    )
-                });
-                (bytecode_hash, bytecode.clone())
-            })
-            .collect::<Vec<_>>();
+        let mut new_bytecodes = new_bytecodes(tx, &result);
+
+        if self.system_contracts.boojum.use_boojum {
+            // In boojum, we store account properties outside of state (so state has only hash).
+            // For now, we simply put the original preimages into the factory deps.
+            // The result type here is the 'era' crate - that is not modified to fit boojum os yet.
+            // once it is - we will not need this hack anymore.
+            new_bytecodes.extend(result.dynamic_factory_deps.clone());
+        }
 
         let logs = result
             .logs
@@ -447,14 +437,23 @@ impl VmRunner {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
         };
-        let mut executor = if self.system_contracts.use_zkos {
-            todo!("BatchExecutor support for zkos is yet to be implemented")
+        let mut executor = if self.system_contracts.boojum.use_boojum {
+            self.executor_factory.init_main_batch(
+                self.fork_storage.clone(),
+                batch_env.clone(),
+                system_env.clone(),
+                pubdata_params,
+                // For boojum, we have to pass the iterator handle to the storage
+                // as boojum has different storage layout, so it has to scan over whole storage.
+                Some(self.fork_storage.inner.read().unwrap().raw_storage.clone()),
+            )
         } else {
             self.executor_factory.init_main_batch(
                 self.fork_storage.clone(),
                 batch_env.clone(),
                 system_env.clone(),
                 pubdata_params,
+                None,
             )
         };
 
@@ -494,6 +493,7 @@ impl VmRunner {
                     &mut executor,
                     &node_inner.config,
                     &node_inner.fee_input_provider,
+                    impersonating,
                 )
                 .await;
 
@@ -603,6 +603,40 @@ impl VmRunner {
     }
 }
 
+fn new_bytecodes(
+    tx: &Transaction,
+    result: &VmExecutionResultAndLogs,
+) -> Vec<(zksync_types::H256, Vec<u8>)> {
+    let saved_factory_deps = VmEvent::extract_bytecodes_marked_as_known(&result.logs.events);
+
+    // Get transaction factory deps
+    let factory_deps = &tx.execute.factory_deps;
+    let mut tx_factory_deps: HashMap<_, _> = factory_deps
+        .iter()
+        .map(|bytecode| {
+            (
+                BytecodeHash::for_bytecode(bytecode).value(),
+                bytecode.clone(),
+            )
+        })
+        .collect();
+    // Ensure that *dynamic* factory deps (ones that may be created when executing EVM contracts)
+    // are added into the lookup map as well.
+    tx_factory_deps.extend(result.dynamic_factory_deps.clone());
+    saved_factory_deps
+        .map(|bytecode_hash| {
+            let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
+                panic!(
+                    "Failed to get factory deps on tx: bytecode hash: {:?}, tx hash: {}",
+                    bytecode_hash,
+                    tx.hash()
+                )
+            });
+            (bytecode_hash, bytecode.clone())
+        })
+        .collect::<Vec<_>>()
+}
+
 fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) -> Option<H160> {
     for query in execution_result.logs.storage_logs.iter().rev() {
         if query.log.is_write() && query.log.key.address() == &ACCOUNT_CODE_STORAGE_ADDRESS {
@@ -610,6 +644,17 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
         }
     }
     None
+}
+
+fn warn_if_tx_recipient_no_code(tx: &Transaction, storage: &mut ForkStorage) {
+    if let Some(to_address) = tx.recipient_account() {
+        if !account_has_code(to_address, storage) {
+            sh_warn!(
+                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
+                    tx.hash()
+                );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -649,6 +694,12 @@ mod test {
 
     impl VmRunnerTester {
         fn new_custom(fork_client: Option<ForkClient>, config: TestNodeConfig) -> Self {
+            let storage_layout = if config.boojum.use_boojum {
+                StorageKeyLayout::BoojumOs
+            } else {
+                StorageKeyLayout::ZkEra
+            };
+
             let time = Time::new(0);
             let fork_storage = ForkStorage::new(
                 Fork::new(fork_client, CacheConfig::None),
@@ -661,8 +712,8 @@ mod test {
                 config.system_contracts_options,
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
-                config.use_evm_emulator,
-                config.use_zkos,
+                config.use_evm_interpreter,
+                config.boojum.clone(),
             );
             let vm_runner = VmRunner::new(
                 time,
@@ -670,6 +721,7 @@ mod test {
                 system_contracts.clone(),
                 false,
                 config.is_bytecode_compression_enforced(),
+                storage_layout,
             );
             VmRunnerTester {
                 vm_runner,
@@ -739,6 +791,7 @@ mod test {
                     timestamp: block_ctx.timestamp,
                     prev_block_hash: block_ctx.prev_block_hash,
                     max_virtual_blocks_to_create: 1,
+                    interop_roots: vec![],
                 },
             };
             let mut executor = self.vm_runner.executor_factory.init_batch(
@@ -762,6 +815,7 @@ mod test {
                             executor.as_mut(),
                             &self.config,
                             &TestNodeFeeInputProvider::default(),
+                            false,
                         )
                         .await?,
                 );

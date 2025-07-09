@@ -7,15 +7,18 @@ use anvil_zksync_common::{
     sh_err, sh_warn,
     utils::io::write_json_file,
 };
-use anvil_zksync_config::constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
+use anvil_zksync_config::{
+    constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID},
+    types::BoojumConfig,
+};
 use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anvil_zksync_types::{
     LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
-use clap::{arg, command, ArgAction, Parser, Subcommand};
+use clap::{arg, command, ArgAction, Parser, Subcommand, ValueEnum};
 use flate2::read::GzDecoder;
 use futures::FutureExt;
 use num::rational::Ratio;
@@ -166,8 +169,12 @@ pub struct Cli {
     pub protocol_version: Option<ProtocolVersionId>,
 
     #[arg(long, help_heading = "System Configuration")]
-    /// Enables EVM emulation.
-    pub emulate_evm: bool,
+    /// Enables EVM interpreter.
+    pub evm_interpreter: bool,
+
+    #[clap(flatten)]
+    /// BoojumOS detailed config.
+    pub boojum_group: BoojumGroup,
 
     // Logging Configuration
     #[arg(long, help_heading = "Logging Configuration")]
@@ -332,6 +339,26 @@ pub struct Cli {
     pub base_token_ratio: Option<Ratio<u64>>,
 }
 
+#[derive(Clone, Debug, clap::Args)]
+pub struct BoojumGroup {
+    /// Enables boojum.
+    #[arg(long, help_heading = "UNSTABLE - Boojum OS")]
+    pub use_boojum: bool,
+
+    /// Path to boojum binary (if you need to compute witnesses).
+    #[arg(long, requires = "use_boojum", help_heading = "UNSTABLE - Boojum OS")]
+    pub boojum_bin_path: Option<String>,
+}
+
+impl From<BoojumGroup> for BoojumConfig {
+    fn from(group: BoojumGroup) -> Self {
+        BoojumConfig {
+            use_boojum: group.use_boojum,
+            boojum_bin_path: group.boojum_bin_path,
+        }
+    }
+}
+
 #[derive(Debug, Clone, clap::Args)]
 #[group(id = "l1_group", multiple = false)]
 pub struct L1Group {
@@ -362,17 +389,22 @@ pub struct ForkArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
     /// If set - will try to fork a remote network. Possible values:
-    ///  - mainnet
-    ///  - sepolia-testnet
-    ///  - abstract (mainnet)
-    ///  - abstract-testnet
-    ///  - sophon (mainnet)
-    ///  - sophon-testnet
+    /// Possible values:
+    ///   • `era` / `mainnet`
+    ///   • `era-testnet` / `sepolia-testnet`
+    ///   • `abstract` / `abstract-testnet`
+    ///   • `sophon` / `sophon-testnet`
+    ///   • `cronos` / `cronos-testnet`
+    ///   • `lens` / `lens-testnet`
+    ///   • `openzk` / `openzk-testnet`
+    ///   • `wonderchain-testnet`
+    ///   • `zkcandy`
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet, sophon, sophon-testnet)."
+        value_enum,
+        help = "Which network to fork (builtins) or an HTTP(S) URL"
     )]
     pub fork_url: ForkUrl,
     // Fork at a given L2 miniblock height.
@@ -397,105 +429,166 @@ pub struct ForkArgs {
     pub fork_transaction_hash: Option<H256>,
 }
 
-#[derive(Clone, Debug)]
-pub enum ForkUrl {
-    Mainnet,
-    SepoliaTestnet,
-    AbstractMainnet,
-    AbstractTestnet,
-    SophonMainnet,
-    SophonTestnet,
-    Other(Url),
-}
-
-impl ForkUrl {
-    const MAINNET_URL: &'static str = "https://mainnet.era.zksync.io:443";
-    const SEPOLIA_TESTNET_URL: &'static str = "https://sepolia.era.zksync.dev:443";
-    const ABSTRACT_MAINNET_URL: &'static str = "https://api.mainnet.abs.xyz";
-    const ABSTRACT_TESTNET_URL: &'static str = "https://api.testnet.abs.xyz";
-    const SOPHON_MAINNET_URL: &'static str = "https://rpc.sophon.xyz";
-    const SOPHON_TESTNET_URL: &'static str = "https://rpc.testnet.sophon.xyz";
-
-    pub fn to_config(&self) -> ForkConfig {
-        match self {
-            ForkUrl::Mainnet => ForkConfig {
-                url: Self::MAINNET_URL.parse().unwrap(),
-                estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.3,
-            },
-            ForkUrl::SepoliaTestnet => ForkConfig {
-                url: Self::SEPOLIA_TESTNET_URL.parse().unwrap(),
-                estimate_gas_price_scale_factor: 2.0,
-                estimate_gas_scale_factor: 1.3,
-            },
-            ForkUrl::AbstractMainnet => ForkConfig {
-                url: Self::ABSTRACT_MAINNET_URL.parse().unwrap(),
-                estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.3,
-            },
-            ForkUrl::AbstractTestnet => ForkConfig {
-                url: Self::ABSTRACT_TESTNET_URL.parse().unwrap(),
-                estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.3,
-            },
-            ForkUrl::SophonMainnet => ForkConfig {
-                url: Self::SOPHON_MAINNET_URL.parse().unwrap(),
-                estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.3,
-            },
-            ForkUrl::SophonTestnet => ForkConfig {
-                url: Self::SOPHON_TESTNET_URL.parse().unwrap(),
-                estimate_gas_price_scale_factor: 2.0,
-                estimate_gas_scale_factor: 1.3,
-            },
-            ForkUrl::Other(url) => ForkConfig::unknown(url.clone()),
-        }
-    }
-}
-
-impl FromStr for ForkUrl {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        if s == "mainnet" {
-            Ok(ForkUrl::Mainnet)
-        } else if s == "sepolia-testnet" {
-            Ok(ForkUrl::SepoliaTestnet)
-        } else if s == "abstract" {
-            Ok(ForkUrl::AbstractMainnet)
-        } else if s == "abstract-testnet" {
-            Ok(ForkUrl::AbstractTestnet)
-        } else if s == "sophon" {
-            Ok(ForkUrl::SophonMainnet)
-        } else if s == "sophon-testnet" {
-            Ok(ForkUrl::SophonTestnet)
-        } else {
-            Ok(Url::from_str(s).map(ForkUrl::Other)?)
-        }
-    }
-}
-
 #[derive(Debug, Parser, Clone)]
 pub struct ReplayArgs {
     /// Whether to fork from existing network.
     /// If not set - will start a new network from genesis.
     /// If set - will try to fork a remote network. Possible values:
-    ///  - mainnet
-    ///  - sepolia-testnet
-    ///  - abstract (mainnet)
-    ///  - abstract-testnet
-    ///  - sophon (mainnet)
-    ///  - sophon-testnet
+    /// Possible values:
+    ///   • `era` / `mainnet`
+    ///   • `era-testnet` / `sepolia-testnet`
+    ///   • `abstract` / `abstract-testnet`
+    ///   • `sophon` / `sophon-testnet`
+    ///   • `cronos` / `cronos-testnet`
+    ///   • `lens` / `lens-testnet`
+    ///   • `openzk` / `openzk-testnet`
+    ///   • `wonderchain-testnet`
+    ///   • `zkcandy`
+    ///   • custom HTTP(S) URL
     ///  - http://XXX:YY
     #[arg(
         long,
         alias = "network",
-        help = "Network to fork from (e.g., http://XXX:YY, mainnet, sepolia-testnet, abstract, abstract-testnet, sophon, sophon-testnet)."
+        value_enum,
+        help = "Which network to fork (builtins) or an HTTP(S) URL"
     )]
     pub fork_url: ForkUrl,
     /// Transaction hash to replay.
     #[arg(help = "Transaction hash to replay.")]
     pub tx: H256,
+}
+
+// Elastic Network ZK Chains
+#[derive(Debug, Clone, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum BuiltinNetwork {
+    #[value(alias = "mainnet")]
+    Era,
+    #[value(alias = "sepolia-testnet")]
+    EraTestnet,
+    Abstract,
+    AbstractTestnet,
+    #[value(alias = "sophon-mainnet")]
+    Sophon,
+    SophonTestnet,
+    Cronos,
+    CronosTestnet,
+    Lens,
+    LensTestnet,
+    Openzk,
+    OpenzkTestnet,
+    WonderchainTestnet,
+    Zkcandy,
+}
+
+/// ForkUrl is used to specify the URL of the forked network.
+#[derive(Debug, Clone)]
+pub enum ForkUrl {
+    Builtin(BuiltinNetwork),
+    Custom(Url),
+}
+
+impl BuiltinNetwork {
+    /// Converts the BuiltinNetwork to a ForkConfig.
+    pub fn to_fork_config(&self) -> ForkConfig {
+        match self {
+            BuiltinNetwork::Era => ForkConfig {
+                url: "https://mainnet.era.zksync.io".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::EraTestnet => ForkConfig {
+                url: "https://sepolia.era.zksync.dev".parse().unwrap(),
+                estimate_gas_price_scale_factor: 2.0,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::Abstract => ForkConfig {
+                url: "https://api.mainnet.abs.xyz".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::AbstractTestnet => ForkConfig {
+                url: "https://api.testnet.abs.xyz".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::Sophon => ForkConfig {
+                url: "https://rpc.sophon.xyz".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::SophonTestnet => ForkConfig {
+                url: "https://rpc.testnet.sophon.xyz".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::Cronos => ForkConfig {
+                url: "https://mainnet.zkevm.cronos.org".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::CronosTestnet => ForkConfig {
+                url: "https://testnet.zkevm.cronos.org".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::Lens => ForkConfig {
+                url: "https://rpc.lens.xyz".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::LensTestnet => ForkConfig {
+                url: "https://rpc.testnet.lens.xyz".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::Openzk => ForkConfig {
+                url: "https://rpc.openzk.net".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::OpenzkTestnet => ForkConfig {
+                url: "https://openzk-testnet.rpc.caldera.xyz/http"
+                    .parse()
+                    .unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::WonderchainTestnet => ForkConfig {
+                url: "https://rpc.testnet.wonderchain.org".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+            BuiltinNetwork::Zkcandy => ForkConfig {
+                url: "https://rpc.zkcandy.io".parse().unwrap(),
+                estimate_gas_price_scale_factor: 1.5,
+                estimate_gas_scale_factor: 1.3,
+            },
+        }
+    }
+}
+
+impl ForkUrl {
+    /// Converts the ForkUrl to a ForkConfig.
+    pub fn to_config(&self) -> ForkConfig {
+        match self {
+            ForkUrl::Builtin(net) => net.to_fork_config(),
+            ForkUrl::Custom(url) => ForkConfig::unknown(url.clone()),
+        }
+    }
+}
+
+impl FromStr for ForkUrl {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(net) = BuiltinNetwork::from_str(s, true) {
+            return Ok(ForkUrl::Builtin(net));
+        }
+        Url::parse(s)
+            .map(ForkUrl::Custom)
+            .map_err(|e| format!("`{}` is neither a known network nor a valid URL: {}", s, e))
+    }
 }
 
 impl Cli {
@@ -625,7 +718,12 @@ impl Cli {
             .with_chain_id(self.chain_id)
             .set_config_out(self.config_out)
             .with_host(self.host)
-            .with_evm_emulator(if self.emulate_evm { Some(true) } else { None })
+            .with_evm_interpreter(if self.evm_interpreter {
+                Some(true)
+            } else {
+                None
+            })
+            .with_boojum(self.boojum_group.into())
             .with_health_check_endpoint(if self.health_check_endpoint {
                 Some(true)
             } else {
@@ -660,9 +758,9 @@ impl Cli {
                 }
             });
 
-        if self.emulate_evm && config.protocol_version() < ProtocolVersionId::Version27 {
+        if self.evm_interpreter && config.protocol_version() < ProtocolVersionId::Version27 {
             return Err(zksync_error::anvil_zksync::env::InvalidArguments {
-                details: "EVM emulation requires protocol version 27 or higher".into(),
+                details: "EVM interpreter requires protocol version 27 or higher".into(),
                 arguments: debug_self_repr,
             });
         }
@@ -743,7 +841,7 @@ impl Cli {
                 "protocol_version",
                 self.protocol_version.map(|v| v.to_string()),
             )
-            .insert_with("emulate_evm", self.emulate_evm, |v| v.then_some(v))
+            .insert_with("evm_interpreter", self.evm_interpreter, |v| v.then_some(v))
             .insert("log", self.log.map(|v| v.to_string()))
             .insert_with("log_file_path", self.log_file_path, |v| {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)
@@ -1145,14 +1243,14 @@ mod tests {
             "/some/path",
             "fork",
             "--fork-url",
-            "mainnet",
+            "era",
         ])
         .into_telemetry_props();
         let json = args.to_inner();
         let expected_json: serde_json::Value = json!({
             "command": {
                 "args": {
-                    "fork_url": "Mainnet"
+                    "fork_url": "Builtin(Era)"
                 },
                 "name": "fork"
             },

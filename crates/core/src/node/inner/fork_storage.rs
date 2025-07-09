@@ -80,17 +80,15 @@ impl ForkStorage {
     }
 
     pub fn read_value_internal(&self, key: &StorageKey) -> eyre::Result<StorageValue> {
-        let fork = {
-            let mut writer = self.inner.write().unwrap();
-            let local_storage = writer.raw_storage.read_value(key);
-            if local_storage != H256::zero() {
-                return Ok(local_storage);
-            }
-            if let Some(value) = writer.value_read_cache.get(key) {
-                return Ok(*value);
-            }
-            writer.fork.clone()
-        };
+        let inner = self.inner.read().unwrap();
+        if let Some(local_value) = inner.raw_storage.read_value_opt(key) {
+            return Ok(local_value);
+        }
+        if let Some(cached_value) = inner.value_read_cache.get(key) {
+            return Ok(*cached_value);
+        }
+        let fork = inner.fork.clone();
+        drop(inner);
         let address = *key.account().address();
         let idx = h256_to_u256(*key.key());
         let value =

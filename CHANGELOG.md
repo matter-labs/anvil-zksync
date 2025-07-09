@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.6.3](https://github.com/matter-labs/anvil-zksync/compare/v0.6.2...v0.6.3) (2025-05-21)
+
+
+### Bug Fixes
+
+* account for pubdata cost in estimation bounds ([#713](https://github.com/matter-labs/anvil-zksync/issues/713)) ([ab3cd44](https://github.com/matter-labs/anvil-zksync/commit/ab3cd44b6cc8fdcbe1a5281b211239dbbeb58fe1))
+* preserve human-readable revert message ([#715](https://github.com/matter-labs/anvil-zksync/issues/715)) ([1a06611](https://github.com/matter-labs/anvil-zksync/commit/1a06611f32e6b43cefce98fe5d7517956c213e82))
+
+## [0.6.2](https://github.com/matter-labs/anvil-zksync/compare/v0.6.1...v0.6.2) (2025-05-20)
+
+
+### Features
+
+* **boojum-os:** Updated boojum os support ([#702](https://github.com/matter-labs/anvil-zksync/issues/702)) ([eca0fec](https://github.com/matter-labs/anvil-zksync/commit/eca0fececf69a9d1bdb30440245807ec2b8c7860))
+* Support setting EVM bytecode ([#707](https://github.com/matter-labs/anvil-zksync/issues/707)) ([7195c0f](https://github.com/matter-labs/anvil-zksync/commit/7195c0f7bcedd283e5b8832c271624d4e0730968))
+* Support state overrides in eth_call ([#706](https://github.com/matter-labs/anvil-zksync/issues/706)) ([590335f](https://github.com/matter-labs/anvil-zksync/commit/590335f5f8ee0ce2028f41de7230ac6858702c01))
+
+
+### Bug Fixes
+
+* address timeout issue in CI ([#705](https://github.com/matter-labs/anvil-zksync/issues/705)) ([543096e](https://github.com/matter-labs/anvil-zksync/commit/543096e082de9f316a9d0b8c19b45326c8c1175d))
+* set call request's nonce during estimation ([#711](https://github.com/matter-labs/anvil-zksync/issues/711)) ([923a708](https://github.com/matter-labs/anvil-zksync/commit/923a70821df91ca5505288c8a671990bdbf62344))
+* Update nonces for accounts during impersonation ([#708](https://github.com/matter-labs/anvil-zksync/issues/708)) ([b6b0d69](https://github.com/matter-labs/anvil-zksync/commit/b6b0d69394f03de270323fdc11a4339c14d5a4ae))
+
+## [0.6.1](https://github.com/matter-labs/anvil-zksync/compare/v0.6.0...v0.6.1) (2025-05-05)
+
+
+### Features
+
+* use V28 multivm ([#645](https://github.com/matter-labs/anvil-zksync/issues/645)) ([4789878](https://github.com/matter-labs/anvil-zksync/commit/478987815fa207a336399024809274ebf3b75ea9))
+
+
+### Bug Fixes
+
+* addresses issue with computing sha for binaries for homebrew installation ([#694](https://github.com/matter-labs/anvil-zksync/issues/694)) ([88e8402](https://github.com/matter-labs/anvil-zksync/commit/88e8402d2fd2c2ce27557147e0b8817225a268ca))
+* fix sha mismatch from workflow ([#689](https://github.com/matter-labs/anvil-zksync/issues/689)) ([bea090e](https://github.com/matter-labs/anvil-zksync/commit/bea090ef000ebeaf24ca60223e715e3ef4468e36))
+* update docker buildx for proper containers caching ([#691](https://github.com/matter-labs/anvil-zksync/issues/691)) ([0f6a1ab](https://github.com/matter-labs/anvil-zksync/commit/0f6a1abb028a404f77c5913e1bfb134bed4c5063))
+
+## [0.6.0](https://github.com/matter-labs/anvil-zksync/compare/v0.5.1...v0.6.0) (2025-04-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop unused formatting CLI options ([#666](https://github.com/matter-labs/anvil-zksync/issues/666))
+
+### Features
+
+* add homebrew formula for improved installation ([#672](https://github.com/matter-labs/anvil-zksync/issues/672)) ([32eec61](https://github.com/matter-labs/anvil-zksync/commit/32eec6170c3c838d13c88474fb7d68bbe5666876))
+* adds anvil-zksync docs site ([#671](https://github.com/matter-labs/anvil-zksync/issues/671)) ([b1288b8](https://github.com/matter-labs/anvil-zksync/commit/b1288b80e19a14bcb0e46d4fd47a5e268ecf2576))
+* adds pre-deployed contracts for evm mode ([#682](https://github.com/matter-labs/anvil-zksync/issues/682)) ([887d6c2](https://github.com/matter-labs/anvil-zksync/commit/887d6c2af46d51d74c5dfda9d952ba2a36b9973f))
+* drop unused formatting CLI options ([#666](https://github.com/matter-labs/anvil-zksync/issues/666)) ([c13f3f0](https://github.com/matter-labs/anvil-zksync/commit/c13f3f06bee78e2e7b9c094877c159fb691a61ec))
+* introduces additional ZK named chains ([#684](https://github.com/matter-labs/anvil-zksync/issues/684)) ([e3722ce](https://github.com/matter-labs/anvil-zksync/commit/e3722ce9fcfba161e2e27cc9a4457d45d3d186b7))
+* print traces for unexecutable transactions during gas estimation ([#687](https://github.com/matter-labs/anvil-zksync/issues/687)) ([9bdf5ad](https://github.com/matter-labs/anvil-zksync/commit/9bdf5ad027d88eb573113fcc85841c873ff31d3f))
+* show tx effect on ETH balances ([#656](https://github.com/matter-labs/anvil-zksync/issues/656)) ([6c6ae1e](https://github.com/matter-labs/anvil-zksync/commit/6c6ae1e87722fcf8755fbb11e8b1df397a4e806f))
+* support custom base token symbol/ratio ([#669](https://github.com/matter-labs/anvil-zksync/issues/669)) ([0cde9c1](https://github.com/matter-labs/anvil-zksync/commit/0cde9c1ca8d6955f3abce59bc1a26b0157dcc43b))
+* update zksync-error version to support overrides ([#679](https://github.com/matter-labs/anvil-zksync/issues/679)) ([a940e8c](https://github.com/matter-labs/anvil-zksync/commit/a940e8c68266628204e9296817dec7bd2e21ece8))
+
+
+### Bug Fixes
+
+* respect zero value in local storage ([#685](https://github.com/matter-labs/anvil-zksync/issues/685)) ([fd892f3](https://github.com/matter-labs/anvil-zksync/commit/fd892f356e391ff06fa7a4e5129486b8c4837053))
+* show balance changes only with verbose outputs ([#683](https://github.com/matter-labs/anvil-zksync/issues/683)) ([a1c076e](https://github.com/matter-labs/anvil-zksync/commit/a1c076eb07a48f847b37d30c4920027e09e58ccb))
+* sophon testnet url typo ([#668](https://github.com/matter-labs/anvil-zksync/issues/668)) ([8bfe731](https://github.com/matter-labs/anvil-zksync/commit/8bfe7312180c86953318439f5dc9719870a53769))
+
 ## [0.5.1](https://github.com/matter-labs/anvil-zksync/compare/v0.5.0...v0.5.1) (2025-04-11)
 
 

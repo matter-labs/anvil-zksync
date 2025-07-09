@@ -1,5 +1,5 @@
 use anvil_zksync_common::{address_map, utils::format::write_interspersed};
-use zksync_multivm::interface::{Call, ExecutionResult, VmEvent};
+use zksync_multivm::interface::{Call, Halt, VmEvent};
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     web3::Bytes,
@@ -363,6 +363,44 @@ impl CallLog {
     pub fn with_position(mut self, position: u64) -> Self {
         self.position = position;
         self
+    }
+}
+
+/// A variant of [`zksync_multivm::interface::ExecutionResult`] but with revert reason replaced by a
+/// human-readable string. This is needed because [`Call::error`] is already a human-readable string
+/// parsing which would be error-prone.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExecutionResult {
+    /// Returned successfully
+    Success { output: Vec<u8> },
+    /// Reverted by contract
+    Revert { output: String },
+    /// Reverted for various reasons
+    Halt { reason: Halt },
+}
+
+impl ExecutionResult {
+    /// Returns `true` if the execution was failed.
+    pub fn is_failed(&self) -> bool {
+        matches!(self, Self::Revert { .. } | Self::Halt { .. })
+    }
+}
+
+impl From<zksync_multivm::interface::ExecutionResult> for ExecutionResult {
+    fn from(value: zksync_multivm::interface::ExecutionResult) -> Self {
+        match value {
+            zksync_multivm::interface::ExecutionResult::Success { output } => {
+                ExecutionResult::Success { output }
+            }
+            zksync_multivm::interface::ExecutionResult::Revert { output } => {
+                ExecutionResult::Revert {
+                    output: output.to_user_friendly_string(),
+                }
+            }
+            zksync_multivm::interface::ExecutionResult::Halt { reason } => {
+                ExecutionResult::Halt { reason }
+            }
+        }
     }
 }
 

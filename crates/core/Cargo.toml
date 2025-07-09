@@ -58,6 +58,3 @@ httptest.workspace = true
 tempfile.workspace = true
 test-case.workspace = true
 backon.workspace = true
-
-[build-dependencies]
-zksync-error-codegen = { workspace = true, features = ["reqwest-rustls-tls"] }

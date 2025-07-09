@@ -1,3 +1,6 @@
+use alloy::primitives::hex;
+use zksync_types::H160;
+
 /// Default L1 gas price for transactions
 pub const DEFAULT_L1_GAS_PRICE: u64 = 35_932_364_075;
 /// Default L2 gas price for transactions if not provided via CLI
@@ -23,6 +26,14 @@ pub const NON_FORK_FIRST_BLOCK_TIMESTAMP: u64 = 1_000;
 /// Default account balance for the dev accounts
 // TODO: Test-only constant, move to a test utils crate
 pub const DEFAULT_ACCOUNT_BALANCE: u128 = 1_000 * 10u128.pow(18);
+
+/// Pseudo caller that is allowed to call system-only methods
+pub const PSEUDO_CALLER: H160 = H160([0xff; 20]);
+/// Calldata to allow EVM bytecode in ContractDeployer
+pub const EVM_EMULATOR_ENABLER_CALLDATA: &[u8] = &hex!(
+    "fe06380c" // selector setAllowedBytecodeTypesToDeploy(uint8)
+    "0000000000000000000000000000000000000000000000000000000000000001"
+);
 // List of wallets (address, private key, mnemonic) that we seed with tokens at start.
 pub const RICH_WALLETS: [(&str, &str, &str); 10] = [
     (

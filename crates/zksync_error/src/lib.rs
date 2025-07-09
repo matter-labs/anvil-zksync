@@ -150,6 +150,31 @@ pub mod anvil_zksync {
             })
         }
     }
+    pub mod state {
+        pub use crate::error::definitions::StateLoader as StateLoaderError;
+        pub type StateLoaderResult<T> = core::result::Result<T, StateLoaderError>;
+        pub use crate::error::definitions::StateLoader::GenericError;
+        pub use crate::error::definitions::StateLoader::LoadEmptyState;
+        pub use crate::error::definitions::StateLoader::LoadingStateOverExistingState;
+        pub use crate::error::definitions::StateLoader::StateDecompression;
+        pub use crate::error::definitions::StateLoader::StateDeserialization;
+        pub use crate::error::definitions::StateLoader::StateFileAccess;
+        pub use crate::error::definitions::StateLoader::UnknownStateVersion;
+        pub use crate::error::definitions::StateLoaderCode as ErrorCode;
+        #[macro_export]
+        macro_rules ! anvil_zksync_state_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: state :: StateLoaderError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zksync_state_generic_error as generic_error;
+        pub fn to_generic<T: std::fmt::Display>(err: T) -> StateLoaderError {
+            GenericError {
+                message: err.to_string(),
+            }
+        }
+        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+            super::AnvilZksyncError::StateLoader(GenericError {
+                message: err.to_string(),
+            })
+        }
+    }
     pub mod tx_invalid {
         pub use crate::error::definitions::TransactionValidation as TransactionValidationError;
         pub type TransactionValidationResult<T> =
