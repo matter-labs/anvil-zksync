@@ -35,14 +35,14 @@ categories = ["cryptography"]
 #########################
 # ZKsync dependencies  #
 #########################
-zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
-zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
-zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
-zksync_types = { git = "http://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
-zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
+zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
+zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
+zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
+zksync_types = { git = "http://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
+zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/interop-support" }
 # zksync_mini_merkle_tree = { path = "../zksync-era2/core/lib/mini_merkle_tree" }
 # zksync_multivm = { path = "../zksync-era2/core/lib/multivm" }
 # zksync_contracts = { path = "../zksync-era2/core/lib/contracts" }
