@@ -216,4 +216,9 @@ impl ZksNamespaceServer for ZksNamespace {
     async fn get_l2_multicall3(&self) -> RpcResult<Option<Address>> {
         rpc_unsupported(function_name!())
     }
+
+    #[named]
+    async fn gas_per_pubdata(&self) -> RpcResult<U256> {
+        rpc_unsupported(function_name!())
+    }
 }
