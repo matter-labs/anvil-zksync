@@ -180,6 +180,16 @@ where
         let storage_view = self.handle.wait().await?;
         Ok((finished_batch, storage_view))
     }
+
+    #[tracing::instrument(skip_all)]
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
