@@ -1180,7 +1180,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_common"
-version = "0.6.8"
+version = "0.6.9"
 dependencies = [
  "alloy",
  "anstream",
@@ -1202,7 +1202,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_config"
-version = "0.6.8"
+version = "0.6.9"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1219,7 +1219,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_console"
-version = "0.6.8"
+version = "0.6.9"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1235,7 +1235,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_core"
-version = "0.6.8"
+version = "0.6.9"
 dependencies = [
  "alloy",
  "anvil_zksync_common",
@@ -1284,7 +1284,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_traces"
-version = "0.6.8"
+version = "0.6.9"
 dependencies = [
  "alloy",
  "anstyle",
@@ -1306,7 +1306,7 @@ dependencies = [
 
 [[package]]
 name = "anvil_zksync_types"
-version = "0.6.8"
+version = "0.6.9"
 dependencies = [
  "anvil_zksync_common",
  "clap",
@@ -9628,7 +9628,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_error"
-version = "0.6.8"
+version = "0.6.9"
 dependencies = [
  "anyhow",
  "lazy_static",
