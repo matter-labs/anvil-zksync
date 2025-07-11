@@ -628,7 +628,7 @@ async fn dump_state_on_run() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let tester = AnvilZksyncTesterBuilder::default()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
                 .arg("1")
@@ -692,7 +692,7 @@ async fn dump_state_on_fork() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let tester = AnvilZksyncTesterBuilder::default()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
                 .arg("1")
@@ -765,7 +765,7 @@ async fn load_state_on_run() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let new_provider = AnvilZksyncTesterBuilder::default()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
                 .arg("1")
@@ -814,7 +814,7 @@ async fn load_state_on_fork() -> anyhow::Result<()> {
 
     let dump_path_clone = dump_path.clone();
     let new_provider = AnvilZksyncTesterBuilder::default()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.path(get_node_binary_path())
                 .arg("--state-interval")
                 .arg("1")

@@ -24,7 +24,7 @@ const SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {
 async fn commit_batch_to_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000)
                 .args(["--protocol-version", &protocol_version.to_string()])
         })
@@ -78,7 +78,7 @@ async fn commit_batch_to_l1(protocol_version: u16) -> anyhow::Result<()> {
 async fn prove_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000)
                 .args(["--protocol-version", &protocol_version.to_string()])
         })
@@ -142,7 +142,7 @@ async fn prove_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
 async fn execute_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000)
                 .args(["--protocol-version", &protocol_version.to_string()])
         })
@@ -216,7 +216,7 @@ async fn execute_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
 async fn send_l2_to_l1_message(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000)
                 .args(["--protocol-version", &protocol_version.to_string()])
         })
@@ -284,7 +284,7 @@ async fn send_l2_to_l1_message(protocol_version: u16) -> anyhow::Result<()> {
     }
 
     // Inclusion check succeeds as the batch has been executed
-    let (is_included,) = prove_inclusion_call.call().await?.into();
+    let is_included = prove_inclusion_call.call().await?;
     assert!(is_included);
 
     // Inclusion check with fake proof fails
@@ -294,7 +294,7 @@ async fn send_l2_to_l1_message(protocol_version: u16) -> anyhow::Result<()> {
         l2_message,
         vec![B256::random()],
     );
-    let (is_included,) = fake_prove_inclusion_call.call().await?.into();
+    let is_included = fake_prove_inclusion_call.call().await?;
     assert!(!is_included);
 
     Ok(())
@@ -305,7 +305,7 @@ async fn send_l2_to_l1_message(protocol_version: u16) -> anyhow::Result<()> {
 async fn l1_priority_tx(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000)
                 .args(["--protocol-version", &protocol_version.to_string()])
         })
@@ -343,7 +343,7 @@ async fn l1_priority_tx(protocol_version: u16) -> anyhow::Result<()> {
 async fn deposit(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000)
                 .args(["--protocol-version", &protocol_version.to_string()])
         })
@@ -384,7 +384,7 @@ async fn deposit(protocol_version: u16) -> anyhow::Result<()> {
 async fn withdraw(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000)
                 .args(["--protocol-version", &protocol_version.to_string()])
         })
@@ -452,7 +452,7 @@ async fn withdraw(protocol_version: u16) -> anyhow::Result<()> {
 async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000).args([
                 "--auto-execute-l1",
                 "--protocol-version",

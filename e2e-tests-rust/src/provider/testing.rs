@@ -82,7 +82,10 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
         self
     }
 
-    pub fn with_node_fn(mut self, node_fn: &'a dyn Fn(AnvilZKsync) -> AnvilZKsync) -> Self {
+    pub fn with_node_fn(
+        mut self,
+        node_fn: &'a (dyn Fn(AnvilZKsync) -> AnvilZKsync + 'static),
+    ) -> Self {
         self.node_fn = Some(node_fn);
         self
     }
@@ -105,7 +108,7 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
         self
     }
 
-    pub async fn build(self) -> anyhow::Result<AnvilZksyncTester<impl FullZksyncProvider>> {
+    pub async fn build(self) -> anyhow::Result<AnvilZksyncTester<impl FullZksyncProvider + use<>>> {
         let node_fn = self.node_fn.unwrap_or(&identity);
         let client_fn = self.client_fn.unwrap_or(&identity);
         let client_middleware_fn = self.client_middleware_fn.unwrap_or(&identity);
