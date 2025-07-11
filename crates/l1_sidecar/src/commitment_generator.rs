@@ -3,6 +3,7 @@ use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_types::L1BatchNumber;
 use zksync_types::blob::num_blobs_required;
 use zksync_types::block::{L1BatchHeader, L1BatchTreeData};
 use zksync_types::commitment::{
@@ -10,7 +11,6 @@ use zksync_types::commitment::{
     L1BatchWithMetadata,
 };
 use zksync_types::writes::StateDiffRecord;
-use zksync_types::L1BatchNumber;
 use zksync_types::{Address, H256};
 
 /// Node component that can generate batch's metadata (with commitment) on demand.

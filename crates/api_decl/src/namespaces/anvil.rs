@@ -1,10 +1,10 @@
-use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anvil_zksync_types::Numeric;
+use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::api::Block;
 use zksync_types::web3::Bytes;
-use zksync_types::{Address, H256, U256, U64};
+use zksync_types::{Address, H256, U64, U256};
 
 #[rpc(server, namespace = "anvil")]
 pub trait AnvilNamespace {

@@ -10,7 +10,7 @@ use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer, Vm};
 use zksync_types::l2::L2Tx;
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::web3::Bytes;
-use zksync_types::{api, PackedEthSignature, Transaction, H256};
+use zksync_types::{H256, PackedEthSignature, Transaction, api};
 use zksync_web3_decl::error::Web3Error;
 
 use super::zksync_os::ZKSYNC_OS_CALL_GAS_LIMIT;
@@ -147,8 +147,8 @@ mod tests {
     use alloy::primitives::{Address as AlloyAddress, U256 as AlloyU256};
     use anvil_zksync_config::constants::DEFAULT_ACCOUNT_BALANCE;
     use zksync_types::{
-        transaction_request::CallRequestBuilder, utils::deployed_address_create, Address,
-        K256PrivateKey, L2BlockNumber, Nonce, H160, U256,
+        Address, H160, K256PrivateKey, L2BlockNumber, Nonce, U256,
+        transaction_request::CallRequestBuilder, utils::deployed_address_create,
     };
 
     use super::*;
@@ -373,9 +373,11 @@ mod tests {
                         info: testing::default_tx_execution_info(),
                         new_bytecodes: vec![],
                         receipt: api::TransactionReceipt {
-                            logs: vec![LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa1))
-                                .build()],
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                            ],
                             ..Default::default()
                         },
                         debug: testing::default_tx_debug_info(),
@@ -404,9 +406,11 @@ mod tests {
                     info: testing::default_tx_execution_info(),
                     new_bytecodes: vec![],
                     receipt: api::TransactionReceipt {
-                        logs: vec![LogBuilder::new()
-                            .set_address(H160::repeat_byte(0xa1))
-                            .build()],
+                        logs: vec![
+                            LogBuilder::new()
+                                .set_address(H160::repeat_byte(0xa1))
+                                .build(),
+                        ],
                         ..Default::default()
                     },
                     debug: testing::default_tx_debug_info(),

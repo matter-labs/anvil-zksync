@@ -1,12 +1,12 @@
 use alloy::contract::SolCallBuilder;
 use alloy::network::ReceiptResponse as _;
 use alloy::network::{Ethereum, TransactionBuilder};
-use alloy::primitives::{address, Address, Bytes, ChainId, FixedBytes, U256};
+use alloy::primitives::{Address, Bytes, ChainId, FixedBytes, U256, address};
 use alloy::providers::{DynProvider, PendingTransactionBuilder, Provider};
 use alloy::rpc::types::TransactionReceipt;
+use alloy_zksync::network::Zksync;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_request::TransactionRequest;
-use alloy_zksync::network::Zksync;
 use alloy_zksync::provider::ZksyncProvider;
 use anyhow::Context;
 use std::fmt::Debug;

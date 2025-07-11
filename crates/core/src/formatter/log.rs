@@ -3,7 +3,7 @@ use anvil_zksync_common::sh_println;
 use colored::Colorize;
 use serde::Deserialize;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
-use zksync_types::{fee_model::FeeModelConfigV2, StorageLogWithPreviousValue, U256};
+use zksync_types::{StorageLogWithPreviousValue, U256, fee_model::FeeModelConfigV2};
 
 use super::{address::address_to_human_readable, pubdata_bytes::PubdataBytesInfo};
 

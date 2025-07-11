@@ -1,9 +1,9 @@
 use alloy::primitives::U256;
 use anvil_zksync_e2e_tests::test_contracts::Counter;
-use anvil_zksync_e2e_tests::{get_node_binary_path, AnvilZksyncTesterBuilder, ReceiptExt};
+use anvil_zksync_e2e_tests::{AnvilZksyncTesterBuilder, ReceiptExt, get_node_binary_path};
 use std::process::Stdio;
 use std::time::Duration;
-use test_casing::{cases, test_casing, TestCases};
+use test_casing::{TestCases, cases, test_casing};
 use tokio::process::Command as CommandAsync;
 
 const EVM_SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {

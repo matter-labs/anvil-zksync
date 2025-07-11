@@ -7,8 +7,8 @@ use jsonrpsee::{
     types::{ErrorCode, ErrorObject, ErrorObjectOwned},
 };
 use zksync_error::{
-    anvil_zksync::{gas_estim::GasEstimationError, node::AnvilNodeError, state::StateLoaderError},
     ICustomError, IError as _, ZksyncError,
+    anvil_zksync::{gas_estim::GasEstimationError, node::AnvilNodeError, state::StateLoaderError},
 };
 use zksync_web3_decl::error::Web3Error;
 

@@ -5,7 +5,7 @@ use colored::Colorize as _;
 use hex::ToHex;
 use zksync_types::{Address, ExecuteTransactionCommon, Transaction};
 
-use crate::formatter::{util::indenting_writer::IndentingWriter, PrettyFmt};
+use crate::formatter::{PrettyFmt, util::indenting_writer::IndentingWriter};
 
 #[derive(Debug)]
 pub struct PrettyTransaction<'a>(pub &'a Transaction);

@@ -10,7 +10,7 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::commitment::L1BatchWithMetadata;
 use zksync_types::hasher::keccak::KeccakHasher;
 use zksync_types::l1::L1Tx;
-use zksync_types::{Address, L2ChainId, H256};
+use zksync_types::{Address, H256, L2ChainId};
 
 /// Node component responsible for sending transactions to L1.
 pub struct L1Sender {

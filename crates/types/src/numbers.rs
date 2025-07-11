@@ -111,7 +111,7 @@ impl std::fmt::Display for NumberExponentialRepr {
 
 #[cfg(test)]
 mod tests {
-    use crate::numbers::{to_exp_notation, SignedU256};
+    use crate::numbers::{SignedU256, to_exp_notation};
 
     #[test]
     fn test_format_to_exponential_notation() {

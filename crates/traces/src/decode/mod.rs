@@ -10,8 +10,8 @@
 use crate::identifier::SignaturesIdentifier;
 use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Event, Function};
-use alloy::primitives::{LogData, Selector, Sign, B256};
-use anvil_zksync_common::address_map::{is_precompile, KNOWN_ADDRESSES};
+use alloy::primitives::{B256, LogData, Selector, Sign};
+use anvil_zksync_common::address_map::{KNOWN_ADDRESSES, is_precompile};
 use anvil_zksync_types::numbers::SignedU256;
 use anvil_zksync_types::traces::{
     CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace,
@@ -398,7 +398,7 @@ pub fn decode_value(value: DynSolValue) -> DecodedValue {
             DecodedValue::FixedBytes(word32, size)
         }
         DynSolValue::Address(addr) => {
-            let address = Address::from(addr.0 .0);
+            let address = Address::from(addr.0.0);
             DecodedValue::Address(LabeledAddress {
                 label: None,
                 address,

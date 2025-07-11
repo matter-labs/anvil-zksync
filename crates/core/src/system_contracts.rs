@@ -4,8 +4,8 @@ use crate::deps::system_contracts::load_builtin_contract;
 use crate::node::ImpersonationManager;
 use anvil_zksync_config::types::{SystemContractsOptions, ZKsyncOsConfig};
 use zksync_contracts::{
-    read_sys_contract_bytecode, BaseSystemContracts, BaseSystemContractsHashes, ContractLanguage,
-    SystemContractCode, SystemContractsRepo,
+    BaseSystemContracts, BaseSystemContractsHashes, ContractLanguage, SystemContractCode,
+    SystemContractsRepo, read_sys_contract_bytecode,
 };
 use zksync_multivm::interface::TxExecutionMode;
 use zksync_types::bytecode::BytecodeHash;

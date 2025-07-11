@@ -9,17 +9,17 @@ use anvil_zksync_api_decl::{
 };
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_l1_sidecar::L1Sidecar;
-use futures::future::BoxFuture;
 use futures::FutureExt;
+use futures::future::BoxFuture;
 use http::Method;
+use jsonrpsee::RpcModule;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
 use jsonrpsee::server::middleware::rpc::RpcServiceT;
 use jsonrpsee::server::{MethodResponse, RpcServiceBuilder, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Request;
-use jsonrpsee::RpcModule;
 use std::net::SocketAddr;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use zksync_telemetry::{get_telemetry, TelemetryProps};
+use zksync_telemetry::{TelemetryProps, get_telemetry};
 
 #[derive(Clone)]
 pub struct NodeServerBuilder {

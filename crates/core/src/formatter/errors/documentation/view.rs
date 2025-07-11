@@ -12,8 +12,8 @@ use colored::Colorize as _;
 use crate::formatter::PrettyFmt;
 
 use super::{
-    format_description, format_fixes, format_likely_causes, format_references, format_summary,
-    AnvilErrorDocumentation,
+    AnvilErrorDocumentation, format_description, format_fixes, format_likely_causes,
+    format_references, format_summary,
 };
 
 /// Displays the complete documentation for an error.

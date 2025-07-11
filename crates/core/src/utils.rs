@@ -7,9 +7,9 @@ use tokio::runtime::Builder;
 use tokio::sync::{RwLock, RwLockReadGuard};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
 use zksync_types::{
+    CONTRACT_DEPLOYER_ADDRESS, Transaction, U64, U256,
     api::{BlockNumber, DebugCall, DebugCallType},
     web3::Bytes,
-    Transaction, CONTRACT_DEPLOYER_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 

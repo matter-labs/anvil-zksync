@@ -1,6 +1,6 @@
 use crate::cli::{Command, ForkUrl};
-use anvil_zksync_config::types::Genesis;
 use anvil_zksync_config::TestNodeConfig;
+use anvil_zksync_config::types::Genesis;
 use anvil_zksync_core::node::fork::ForkDetails;
 use std::fs;
 use zksync_telemetry::TelemetryProps;

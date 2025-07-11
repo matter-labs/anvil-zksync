@@ -6,17 +6,17 @@
 use colored::Colorize;
 use std::fmt::Debug;
 use std::fmt::Write;
-use zksync_error::anvil_zksync::gas_estim::GasEstimationError;
 use zksync_error::CustomErrorMessage;
+use zksync_error::anvil_zksync::gas_estim::GasEstimationError;
 use zksync_types::Transaction;
 
 use crate::formatter::transaction::view::PrettyTransactionEstimationView;
 use crate::formatter::util::indenting_writer::IndentingWriter;
-use crate::formatter::{transaction::view::PrettyTransaction, PrettyFmt};
+use crate::formatter::{PrettyFmt, transaction::view::PrettyTransaction};
 
 use super::documentation::{
-    view::{CausesView, DescriptionView, SummaryView},
     AnvilErrorDocumentation,
+    view::{CausesView, DescriptionView, SummaryView},
 };
 
 /// Displays a basic error message with standard styling.

@@ -2,8 +2,8 @@ use alloy::contract::SolCallBuilder;
 use alloy::network::{Ethereum, Network, ReceiptResponse};
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
-use alloy_zksync::network::transaction_request::TransactionRequest;
 use alloy_zksync::network::Zksync;
+use alloy_zksync::network::transaction_request::TransactionRequest;
 use std::fmt::Debug;
 
 #[allow(clippy::all)]

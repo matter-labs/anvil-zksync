@@ -1,6 +1,6 @@
-use crate::http_middleware::HttpWithMiddleware;
-use crate::utils::{get_node_binary_path, LockedPort};
 use crate::ReceiptExt;
+use crate::http_middleware::HttpWithMiddleware;
+use crate::utils::{LockedPort, get_node_binary_path};
 use alloy::network::primitives::HeaderResponse as _;
 use alloy::network::{Ethereum, Network, ReceiptResponse as _, TransactionBuilder};
 use alloy::primitives::{Address, U256};
@@ -12,13 +12,13 @@ use alloy::rpc::{
     client::RpcClient,
     types::{Block, TransactionRequest},
 };
-use alloy::signers::local::LocalSigner;
 use alloy::signers::Signer;
+use alloy::signers::local::LocalSigner;
 use alloy::transports::{RpcError, TransportErrorKind};
+use alloy_zksync::network::Zksync;
 use alloy_zksync::network::header_response::HeaderResponse;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_response::TransactionResponse;
-use alloy_zksync::network::Zksync;
 use alloy_zksync::node_bindings::{AnvilZKsync, AnvilZKsyncError::NoKeysAvailable};
 use alloy_zksync::provider::{layers::anvil_zksync::AnvilZKsyncLayer, zksync_provider};
 use alloy_zksync::wallet::ZksyncWallet;

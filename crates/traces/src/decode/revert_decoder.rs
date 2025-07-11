@@ -8,10 +8,10 @@
 // Note: These methods are used under the terms of the original project's license.  //
 //////////////////////////////////////////////////////////////////////////////////////
 
-use super::{decode_value, SELECTOR_LEN};
+use super::{SELECTOR_LEN, decode_value};
 use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Error, JsonAbi};
-use alloy::primitives::{map::HashMap, Selector};
+use alloy::primitives::{Selector, map::HashMap};
 use alloy::sol_types::{SolInterface, SolValue};
 use anvil_zksync_types::traces::DecodedError;
 use std::sync::OnceLock;

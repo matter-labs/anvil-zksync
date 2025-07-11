@@ -15,18 +15,18 @@ use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::vm::AnvilVM;
 use crate::node::zksync_os::ZKsyncOsVM;
 use crate::node::{
-    create_block, ImpersonationManager, Snapshot, TestNodeFeeInputProvider, TransactionResult,
-    VersionedState, ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION, MAX_PREVIOUS_STATES, MAX_TX_SIZE,
+    ESTIMATE_GAS_ACCEPTABLE_OVERESTIMATION, ImpersonationManager, MAX_PREVIOUS_STATES, MAX_TX_SIZE,
+    Snapshot, TestNodeFeeInputProvider, TransactionResult, VersionedState, create_block,
 };
 use crate::system_contracts::SystemContracts;
 use crate::{delegate_vm, utils};
 use anvil_zksync_common::sh_println;
 use anvil_zksync_common::shell::get_shell;
+use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_config::constants::{
     LEGACY_RICH_WALLETS, NON_FORK_FIRST_BLOCK_TIMESTAMP, RICH_WALLETS,
 };
 use anvil_zksync_config::types::ZKsyncOsConfig;
-use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
@@ -69,11 +69,11 @@ use zksync_types::l2::{L2Tx, TransactionType};
 use zksync_types::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::decompose_full_nonce;
-use zksync_types::web3::{keccak256, Index};
+use zksync_types::web3::{Index, keccak256};
 use zksync_types::{
-    api, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
-    ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageValue,
-    Transaction, H160, H256, L2_MESSAGE_ROOT_ADDRESS, MAX_L2_TX_GAS_LIMIT, U256, U64,
+    AccountTreeId, Address, Bloom, BloomInput, ExecuteTransactionCommon, H160, H256, L1BatchNumber,
+    L2_MESSAGE_ROOT_ADDRESS, L2BlockNumber, L2ChainId, MAX_L2_TX_GAS_LIMIT, StorageKey,
+    StorageValue, Transaction, U64, U256, api, h256_to_u256, u256_to_h256,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -1062,7 +1062,7 @@ impl InMemoryNodeInner {
             VersionedState::Unknown { version } => {
                 return Err(StateLoaderError::UnknownStateVersion {
                     version: version.into(),
-                })
+                });
             }
         };
         if state.blocks.is_empty() {
@@ -1342,8 +1342,8 @@ mod tests {
     use crate::node::create_genesis;
     use crate::testing;
     use itertools::Itertools;
-    use zksync_types::block::L2BlockHasher;
     use zksync_types::ProtocolVersionId;
+    use zksync_types::block::L2BlockHasher;
 
     #[tokio::test]
     async fn test_create_genesis_creates_block_with_hash_and_zero_parent_hash() {

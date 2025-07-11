@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use serde::Deserialize;
-use serde_with::{serde_as, TryFromInto};
-use zksync_types::{Address, L1ChainId, L2ChainId, ProtocolVersionId, H256};
+use serde_with::{TryFromInto, serde_as};
+use zksync_types::{Address, H256, L1ChainId, L2ChainId, ProtocolVersionId};
 
 #[serde_as]
 #[derive(Debug, Deserialize, Clone)]

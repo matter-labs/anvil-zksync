@@ -1,21 +1,21 @@
 use alloy::network::ReceiptResponse;
-use alloy::primitives::{address, keccak256, Address, B256};
-use alloy::providers::ext::AnvilApi;
+use alloy::primitives::{Address, B256, address, keccak256};
 use alloy::providers::Provider;
 use alloy::providers::WalletProvider;
+use alloy::providers::ext::AnvilApi;
 use alloy::{primitives::U256, signers::local::PrivateKeySigner};
 use alloy_zksync::node_bindings::AnvilZKsync;
 use anvil_zksync_common::utils::io::write_json_file;
 use anvil_zksync_core::node::VersionedState;
 use anvil_zksync_e2e_tests::{
-    get_node_binary_path, AnvilZKsyncApi, AnvilZksyncTesterBuilder, LockedPort, ReceiptExt,
-    ResponseHeadersInspector, ZksyncWalletProviderExt, DEFAULT_TX_VALUE,
+    AnvilZKsyncApi, AnvilZksyncTesterBuilder, DEFAULT_TX_VALUE, LockedPort, ReceiptExt,
+    ResponseHeadersInspector, ZksyncWalletProviderExt, get_node_binary_path,
 };
 use anyhow::Context;
 use flate2::read::GzDecoder;
 use http::header::{
-    HeaderMap, HeaderValue, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
-    ACCESS_CONTROL_ALLOW_ORIGIN, ORIGIN,
+    ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS, ACCESS_CONTROL_ALLOW_ORIGIN,
+    HeaderMap, HeaderValue, ORIGIN,
 };
 use std::fs;
 use std::io::Read;
@@ -262,7 +262,9 @@ async fn detailed_mining_success() -> anyhow::Result<()> {
 
     assert_eq!(
         actual_tx.other.get("output").and_then(|x| x.as_str()),
-        Some("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000")
+        Some(
+            "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000"
+        )
     );
     assert!(actual_tx.other.get("revertReason").is_none());
 

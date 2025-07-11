@@ -8,9 +8,9 @@ use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::result::Result;
 use std::str::FromStr;
-use zksync_types::api::{Block, BridgeAddresses, Transaction, TransactionVariant};
-use zksync_types::Transaction as RawTransaction;
 use zksync_types::H256;
+use zksync_types::Transaction as RawTransaction;
+use zksync_types::api::{Block, BridgeAddresses, Transaction, TransactionVariant};
 
 pub const DEFAULT_DISK_CACHE_DIR: &str = ".cache";
 /// Caches full blocks by their hashes

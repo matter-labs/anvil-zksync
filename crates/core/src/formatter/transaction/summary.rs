@@ -7,7 +7,7 @@ use std::fmt::Display;
 
 use anvil_zksync_common::utils::cost::{format_eth, format_gwei};
 use zksync_multivm::interface::VmExecutionResultAndLogs;
-use zksync_types::{Address, Transaction, H256, U256};
+use zksync_types::{Address, H256, Transaction, U256};
 
 use crate::utils::to_human_size;
 

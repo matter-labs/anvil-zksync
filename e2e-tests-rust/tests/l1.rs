@@ -13,7 +13,7 @@ use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::{AnvilZKsyncApi, AnvilZksyncTesterBuilder, ReceiptExt};
 use anyhow::Context;
 use std::time::Duration;
-use test_casing::{cases, test_casing, TestCases};
+use test_casing::{TestCases, cases, test_casing};
 
 const SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {
     [26, 27, 28]

@@ -1,11 +1,11 @@
 use crate::node::fork::ForkDetails;
+use anvil_zksync_config::BaseTokenConfig;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
 };
-use anvil_zksync_config::BaseTokenConfig;
-use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_multivm::VmVersion;
+use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_types::fee_model::{
     BaseTokenConversionRatio, BatchFeeInput, FeeModelConfigV2, FeeParams, FeeParamsV2,
 };

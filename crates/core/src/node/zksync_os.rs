@@ -4,12 +4,12 @@ use std::{alloc::Global, collections::HashMap, vec};
 
 use anvil_zksync_config::types::ZKsyncOsConfig;
 use basic_system::system_implementation::flat_storage_model::{
-    address_into_special_storage_key, AccountProperties, TestingTree,
-    ACCOUNT_PROPERTIES_STORAGE_ADDRESS, DEFAULT_CODE_VERSION_BYTE,
+    ACCOUNT_PROPERTIES_STORAGE_ADDRESS, AccountProperties, DEFAULT_CODE_VERSION_BYTE, TestingTree,
+    address_into_special_storage_key,
 };
 use forward_system::run::{
-    test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
     StorageCommitment,
+    test_impl::{InMemoryPreimageSource, InMemoryTree, NoopTxCallback, TxListSource},
 };
 use ruint::aliases::B160;
 use system_hooks::addresses_constants::{ACCOUNT_CODE_STORAGE_STORAGE_ADDRESS, BASE_TOKEN_ADDRESS};
@@ -18,22 +18,22 @@ use zk_ee::{
     utils::Bytes32,
 };
 use zksync_multivm::{
+    HistoryMode,
     interface::{
-        storage::{StoragePtr, WriteStorage},
         ExecutionResult, InspectExecutionMode, L1BatchEnv, PushTransactionResult, Refunds,
         SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
         VmInterfaceHistoryEnabled, VmRevertReason,
+        storage::{StoragePtr, WriteStorage},
     },
     tracers::TracerDispatcher,
     vm_latest::TracerPointer,
-    HistoryMode,
 };
 
 use zksync_multivm::MultiVmTracerPointer;
 use zksync_types::{
-    address_to_h256, get_code_key, u256_to_h256, web3::keccak256, AccountTreeId, Address,
-    ExecuteTransactionCommon, StorageKey, StorageLog, StorageLogWithPreviousValue, Transaction,
-    H160, H256, U256,
+    AccountTreeId, Address, ExecuteTransactionCommon, H160, H256, StorageKey, StorageLog,
+    StorageLogWithPreviousValue, Transaction, U256, address_to_h256, get_code_key, u256_to_h256,
+    web3::keccak256,
 };
 
 use crate::deps::InMemoryStorage;
@@ -557,7 +557,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
                     dynamic_factory_deps: Default::default(),
                 },
                 witness,
-            )
+            );
         }
     };
 
@@ -894,9 +894,9 @@ pub fn set_account_properties(
 /// Copied from https://github.com/matter-labs/zksync-os/blob/ab9f5d1856450d688f59996c04830e25c1824e95/tests/rig/src/utils.rs#L425
 /// To avoid bringing in `rig` as a dependency.
 pub fn evm_bytecode_into_account_properties(bytecode: &[u8]) -> AccountProperties {
+    use crypto::MiniDigest;
     use crypto::blake2s::Blake2s256;
     use crypto::sha3::Keccak256;
-    use crypto::MiniDigest;
 
     let observable_bytecode_hash = Bytes32::from_array(Keccak256::digest(bytecode));
     let bytecode_hash = Bytes32::from_array(Blake2s256::digest(bytecode));

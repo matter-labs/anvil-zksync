@@ -1,6 +1,6 @@
 //! In-memory node, that supports forking other networks.
-use super::inner::node_executor::NodeExecutorHandle;
 use super::inner::InMemoryNodeInner;
+use super::inner::node_executor::NodeExecutorHandle;
 use super::vm::AnvilVM;
 use crate::delegate_vm;
 use crate::deps::InMemoryStorage;
@@ -21,19 +21,19 @@ use crate::system_contracts::SystemContracts;
 use anvil_zksync_common::cache::CacheConfig;
 use anvil_zksync_common::sh_println;
 use anvil_zksync_common::shell::get_shell;
+use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_config::constants::{NON_FORK_FIRST_BLOCK_TIMESTAMP, TEST_NODE_NETWORK_ID};
 use anvil_zksync_config::types::Genesis;
-use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
     identifier::SignaturesIdentifier, render_trace_arena_inner,
 };
 use anvil_zksync_types::{
-    traces::CallTraceArena, LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails,
+    LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, traces::CallTraceArena,
 };
+use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use flate2::Compression;
 use indexmap::IndexMap;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -43,13 +43,13 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_error::anvil_zksync::node::{
-    generic_error, to_generic, AnvilNodeError, AnvilNodeResult,
+    AnvilNodeError, AnvilNodeResult, generic_error, to_generic,
 };
 use zksync_error::anvil_zksync::state::{StateLoaderError, StateLoaderResult};
+use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::storage::{
     ReadStorage, StoragePtr, StorageView, StorageWithOverrides,
 };
-use zksync_multivm::interface::VmFactory;
 use zksync_multivm::interface::{
     ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, TxExecutionMode, VmInterface,
 };
@@ -60,10 +60,10 @@ use zksync_types::api::state_override::StateOverride;
 
 use crate::node::fork::{ForkClient, ForkSource};
 use crate::node::keys::StorageKeyLayout;
-use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_multivm::VmVersion;
+use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer};
 use zksync_types::api::{Block, DebugCall, TransactionReceipt, TransactionVariant};
-use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
+use zksync_types::block::{L1BatchHeader, L2BlockHasher, unpack_block_info};
 use zksync_types::fee_model::BatchFeeInput;
 use zksync_types::l2::L2Tx;
 use zksync_types::storage::{
@@ -71,9 +71,9 @@ use zksync_types::storage::{
 };
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    h256_to_u256, AccountTreeId, Address, Bloom, L1BatchNumber, L2BlockNumber, L2ChainId,
-    PackedEthSignature, ProtocolVersionId, StorageKey, StorageValue, Transaction, H160, H256, H64,
-    U256, U64,
+    AccountTreeId, Address, Bloom, H64, H160, H256, L1BatchNumber, L2BlockNumber, L2ChainId,
+    PackedEthSignature, ProtocolVersionId, StorageKey, StorageValue, Transaction, U64, U256,
+    h256_to_u256,
 };
 
 /// Max possible size of an ABI encoded tx (in bytes).

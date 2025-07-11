@@ -1,7 +1,7 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::web3::Bytes;
-use zksync_types::{L1BatchNumber, H256};
+use zksync_types::{H256, L1BatchNumber};
 
 /// Custom namespace that contains anvil-zksync specific methods.
 #[rpc(server, namespace = "anvil_zks")]

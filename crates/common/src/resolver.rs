@@ -260,7 +260,10 @@ impl SignEthClient {
     pub async fn decode_function_selector(&self, selector: &str) -> eyre::Result<Option<String>> {
         let prefixed_selector = format!("0x{}", selector.strip_prefix("0x").unwrap_or(selector));
         if prefixed_selector.len() != 10 {
-            eyre::bail!("Invalid selector: expected 8 characters (excluding 0x prefix), got {} characters (including 0x prefix).", prefixed_selector.len())
+            eyre::bail!(
+                "Invalid selector: expected 8 characters (excluding 0x prefix), got {} characters (including 0x prefix).",
+                prefixed_selector.len()
+            )
         }
 
         if let Some(r) = KNOWN_SIGNATURES.get(&prefixed_selector) {

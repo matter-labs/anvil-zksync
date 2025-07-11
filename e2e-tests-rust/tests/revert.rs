@@ -1,6 +1,6 @@
 use alloy::primitives::U256;
-use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::AnvilZksyncTesterBuilder;
+use anvil_zksync_e2e_tests::test_contracts::Counter;
 
 #[tokio::test]
 async fn revert_during_estimation() -> anyhow::Result<()> {
@@ -16,9 +16,10 @@ async fn revert_during_estimation() -> anyhow::Result<()> {
         anyhow::bail!("gas estimation should fail for reverting transactions")
     };
     println!("err: {err:?}");
-    assert!(err
-        .to_string()
-        .contains(&hex::encode("This method always reverts")));
+    assert!(
+        err.to_string()
+            .contains(&hex::encode("This method always reverts"))
+    );
 
     // Validate that the counter stayed the same
     assert_eq!(counter.get().await?, U256::from(0));

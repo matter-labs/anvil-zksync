@@ -3,7 +3,7 @@
 
 use alloy::signers::local::PrivateKeySigner;
 use serde::Deserialize;
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 use zksync_types::Address;
 
 #[serde_as]

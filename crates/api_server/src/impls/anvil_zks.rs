@@ -1,11 +1,11 @@
 use anvil_zksync_api_decl::AnvilZksNamespaceServer;
 use anvil_zksync_core::node::zksync_os_get_batch_witness;
 use anvil_zksync_l1_sidecar::L1Sidecar;
-use jsonrpsee::core::{async_trait, RpcResult};
+use jsonrpsee::core::{RpcResult, async_trait};
 use zksync_types::web3::Bytes;
-use zksync_types::{L1BatchNumber, H256};
+use zksync_types::{H256, L1BatchNumber};
 
-use crate::error::{rpc_invalid_params, RpcErrorAdapter};
+use crate::error::{RpcErrorAdapter, rpc_invalid_params};
 
 pub struct AnvilZksNamespace {
     l1_sidecar: L1Sidecar,
