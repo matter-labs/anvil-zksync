@@ -55,7 +55,7 @@ impl<N: Network, P: Provider<N>> Counter<N, P> {
     }
 
     pub async fn get(&self) -> alloy::contract::Result<U256> {
-        Ok(self.0.get().call().await?)
+        self.0.get().call().await
     }
 
     pub fn increment(

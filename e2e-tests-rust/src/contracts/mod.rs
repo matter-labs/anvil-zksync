@@ -54,9 +54,7 @@ pub use private::IExecutor::BlockExecution;
 const L1_MESSENGER_ADDRESS: Address = address!("0000000000000000000000000000000000008008");
 const L2_BASE_TOKEN_ADDRESS: Address = address!("000000000000000000000000000000000000800a");
 
-pub struct L1Messenger<P: Provider<Zksync>>(
-    private::IL1Messenger::IL1MessengerInstance<P, Zksync>,
-);
+pub struct L1Messenger<P: Provider<Zksync>>(private::IL1Messenger::IL1MessengerInstance<P, Zksync>);
 
 impl<P: Provider<Zksync>> L1Messenger<P> {
     pub fn new(provider: P) -> Self {
