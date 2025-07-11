@@ -73,7 +73,7 @@ impl InMemoryNode {
     ) -> anyhow::Result<Option<api::BlockDetails>> {
         let base_system_contracts_hashes = self.system_contracts.base_system_contracts_hashes();
         let reader = self.inner.read().await;
-        let l2_fair_gas_price = reader.fee_input_provider.gas_price();
+        let l2_fair_gas_price = reader.fee_input_provider.fair_l2_gas_price();
         let fair_pubdata_price = Some(reader.fee_input_provider.fair_pubdata_price());
         drop(reader);
 
@@ -187,14 +187,15 @@ impl InMemoryNode {
     }
 
     pub async fn gas_per_pubdata_impl(&self) -> AnvilNodeResult<U256> {
-        let reader = self.inner.read().await;
-
-        let mut gas_per_pubdata: u64 = reader.fee_input_provider.fair_pubdata_price();
-
-        if gas_per_pubdata == 0 {
-            gas_per_pubdata = 1;
-        }
-
+        let (_, gas_per_pubdata) = self
+            .inner
+            .read()
+            .await
+            .fee_input_provider
+            .gas_price_and_gas_per_pubdata();
+        // We don't accept transactions with `gas_per_pubdata=0` so API should always return 1 at the
+        // bare minimum.
+        let gas_per_pubdata = gas_per_pubdata.max(1);
         Ok(U256::from(gas_per_pubdata))
     }
 }
@@ -658,7 +659,8 @@ mod tests {
 
         let expected = {
             let reader = node.inner.read().await;
-            reader.fee_input_provider.fair_pubdata_price()
+            let (_, gas_per_pubdata) = reader.fee_input_provider.gas_price_and_gas_per_pubdata();
+            gas_per_pubdata
         };
         let expected = if expected == 0 { 1 } else { expected };
 

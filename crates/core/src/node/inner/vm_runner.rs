@@ -14,8 +14,7 @@ use crate::node::storage_logs::print_storage_logs_details;
 use crate::node::time::Time;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{
-    InMemoryNodeInner, StorageKeyLayout, TestNodeFeeInputProvider, TransactionResult, TxBatch,
-    TxExecutionInfo, compute_hash,
+    InMemoryNodeInner, StorageKeyLayout, TransactionResult, TxBatch, TxExecutionInfo, compute_hash,
 };
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
@@ -30,6 +29,7 @@ use anvil_zksync_types::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use indicatif::ProgressBar;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use zksync_basic_types::vm::VmVersion;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
@@ -39,10 +39,12 @@ use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     TxExecutionMode, VmEvent, VmExecutionResultAndLogs,
 };
+use zksync_multivm::utils::get_batch_base_fee;
 use zksync_multivm::zk_evm_latest::ethereum_types::{Address, H160, U64, U256};
 use zksync_types::block::L2BlockHasher;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
+use zksync_types::fee_model::FeeModelConfigV2;
 use zksync_types::web3::Bytes;
 use zksync_types::{
     ACCOUNT_CODE_STORAGE_ADDRESS, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData,
@@ -108,7 +110,7 @@ impl VmRunner {
         &self,
         bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
         spent_on_pubdata: u64,
-        fee_input_provider: &TestNodeFeeInputProvider,
+        fee_model_config: &FeeModelConfigV2,
     ) -> eyre::Result<(), String> {
         if let Some(bootloader_result) = bootloader_debug_result {
             let bootloader_debug = bootloader_result.clone()?;
@@ -116,9 +118,7 @@ impl VmRunner {
             let gas_details = compute_gas_details(&bootloader_debug, spent_on_pubdata);
             let mut formatter = Formatter::new();
 
-            let fee_model_config = fee_input_provider.get_fee_model_config();
-
-            formatter.print_gas_details(&gas_details, &fee_model_config);
+            formatter.print_gas_details(&gas_details, fee_model_config);
 
             Ok(())
         } else {
@@ -169,7 +169,7 @@ impl VmRunner {
         tx: &Transaction,
         executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
-        fee_input_provider: &TestNodeFeeInputProvider,
+        fee_model_config: &FeeModelConfigV2,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
         let verbosity = get_shell().verbosity;
 
@@ -235,7 +235,7 @@ impl VmRunner {
             self.display_detailed_gas_info(
                 Some(&self.bootloader_debug_result.read().unwrap()),
                 spent_on_pubdata,
-                fee_input_provider,
+                fee_model_config,
             )
             .unwrap_or_else(|err| {
                 sh_err!("{}", format!("Cannot display gas details: {err}"));
@@ -269,7 +269,7 @@ impl VmRunner {
         batch_env: &L1BatchEnv,
         executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
-        fee_input_provider: &TestNodeFeeInputProvider,
+        fee_model_config: &FeeModelConfigV2,
         impersonating: bool,
     ) -> AnvilNodeResult<TransactionResult> {
         let tx_hash = tx.hash();
@@ -290,7 +290,7 @@ impl VmRunner {
             compression_result: _,
             call_traces,
         } = self
-            .run_tx_pretty(tx, executor, config, fee_input_provider)
+            .run_tx_pretty(tx, executor, config, fee_model_config)
             .await?;
 
         if let ExecutionResult::Halt { reason } = result.result {
@@ -344,6 +344,16 @@ impl VmRunner {
                 block_timestamp: Some(block_ctx.timestamp.into()),
             })
             .collect();
+        let base_fee = get_batch_base_fee(batch_env, VmVersion::latest());
+        let effective_gas_price = match &tx.common_data {
+            ExecuteTransactionCommon::L1(l1_common_data) => Some(l1_common_data.max_fee_per_gas),
+            ExecuteTransactionCommon::L2(l2_common_data) => {
+                Some(l2_common_data.fee.get_effective_gas_price(base_fee.into()))
+            }
+            ExecuteTransactionCommon::ProtocolUpgrade(upgrade_common_data) => {
+                Some(upgrade_common_data.max_fee_per_gas)
+            }
+        };
 
         let tx_receipt = api::TransactionReceipt {
             transaction_hash: tx_hash,
@@ -384,7 +394,7 @@ impl VmRunner {
             } else {
                 U64::from(1)
             },
-            effective_gas_price: Some(fee_input_provider.gas_price().into()),
+            effective_gas_price,
             transaction_type: Some((transaction_type as u32).into()),
             logs_bloom: Default::default(),
         };
@@ -484,7 +494,7 @@ impl VmRunner {
                     &batch_env,
                     &mut executor,
                     &node_inner.config,
-                    &node_inner.fee_input_provider,
+                    &node_inner.fee_input_provider.get_fee_model_config(),
                     impersonating,
                 )
                 .await;
@@ -640,6 +650,7 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::node::TestNodeFeeInputProvider;
     use crate::node::fork::{Fork, ForkClient, ForkDetails};
     use crate::testing::{STORAGE_CONTRACT_BYTECODE, TransactionBuilder};
     use alloy::dyn_abi::{DynSolType, DynSolValue};
@@ -793,7 +804,7 @@ mod test {
                             &batch_env,
                             executor.as_mut(),
                             &self.config,
-                            &TestNodeFeeInputProvider::default(),
+                            &TestNodeFeeInputProvider::default().get_fee_model_config(),
                             false,
                         )
                         .await?,

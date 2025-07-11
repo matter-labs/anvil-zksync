@@ -128,9 +128,10 @@ impl InMemoryNode {
         &self,
         mut tx: zksync_types::transaction_request::CallRequest,
     ) -> Result<H256, Web3Error> {
-        let (chain_id, l2_gas_price) = {
+        let (chain_id, base_fee) = {
             let reader = self.inner.read().await;
-            (self.chain_id().await, reader.fee_input_provider.gas_price())
+            let (gas_price, _) = reader.fee_input_provider.gas_price_and_gas_per_pubdata();
+            (self.chain_id().await, gas_price)
         };
 
         // Users might expect a "sensible default"
@@ -146,7 +147,7 @@ impl InMemoryNode {
                 return Err(TransparentError(err.into()).into());
             }
         } else {
-            tx.gas_price = Some(tx.max_fee_per_gas.unwrap_or(U256::from(l2_gas_price)));
+            tx.gas_price = Some(tx.max_fee_per_gas.unwrap_or(U256::from(base_fee)));
             tx.max_priority_fee_per_gas = Some(tx.max_priority_fee_per_gas.unwrap_or(U256::zero()));
             if tx.transaction_type.is_none() {
                 tx.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
@@ -330,8 +331,13 @@ impl InMemoryNode {
     }
 
     pub async fn gas_price_impl(&self) -> anyhow::Result<U256> {
-        let fair_l2_gas_price: u64 = self.inner.read().await.fee_input_provider.gas_price();
-        Ok(U256::from(fair_l2_gas_price))
+        let (gas_price, _) = self
+            .inner
+            .read()
+            .await
+            .fee_input_provider
+            .gas_price_and_gas_per_pubdata();
+        Ok(U256::from(gas_price))
     }
 
     pub async fn new_filter_impl(&self, filter: Filter) -> anyhow::Result<U256> {
@@ -528,8 +534,13 @@ impl InMemoryNode {
             // Can't be more than the total number of blocks
             .clamp(1, current_block.0 as usize + 1);
 
-        let mut base_fee_per_gas =
-            vec![U256::from(self.inner.read().await.fee_input_provider.gas_price()); block_count];
+        let (base_fee, _) = self
+            .inner
+            .read()
+            .await
+            .fee_input_provider
+            .gas_price_and_gas_per_pubdata();
+        let mut base_fee_per_gas = vec![U256::from(base_fee); block_count];
 
         let oldest_block = current_block + 1 - base_fee_per_gas.len() as u32;
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.

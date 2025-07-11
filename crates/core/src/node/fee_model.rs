@@ -138,12 +138,16 @@ impl TestNodeFeeInputProvider {
         self.enforce_base_fee(fee_input)
     }
 
-    pub fn gas_price(&self) -> u64 {
-        let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
+    pub fn gas_price_and_gas_per_pubdata(&self) -> (u64, u64) {
+        let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
             self.get_batch_fee_input_scaled(),
             VmVersion::latest(),
         );
-        base_fee
+        (base_fee, gas_per_pubdata)
+    }
+
+    pub fn fair_l2_gas_price(&self) -> u64 {
+        self.get_batch_fee_input_scaled().fair_l2_gas_price()
     }
 
     pub fn fair_pubdata_price(&self) -> u64 {
