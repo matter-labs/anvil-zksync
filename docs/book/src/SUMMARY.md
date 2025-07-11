@@ -16,6 +16,7 @@
   - [Anvil-ZKsync CI](guides/anvil_zksync_action.md)
   - [Bootloader Debugging](guides/bootloader_debugging.md)
   - [Protocol Upgrade Steps](guides/protocol-upgrade-steps.md)
+  - [L1-L2 Message Testing](guides/l1_l2_testing.md)
 
 - [RPC](rpc/index.md)
   - [eth_](rpc/eth.md)
