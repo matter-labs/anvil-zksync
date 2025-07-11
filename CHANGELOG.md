@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.9](https://github.com/matter-labs/anvil-zksync/compare/v0.6.8...v0.6.9) (2025-07-11)
+
+
+### Bug Fixes
+
+* `zks_gasPerPubdata` to report derived value ([#751](https://github.com/matter-labs/anvil-zksync/issues/751)) ([ba517d7](https://github.com/matter-labs/anvil-zksync/commit/ba517d727c25cdba53ccbdf07d2acd72d3f5baa8))
+
 ## [0.6.8](https://github.com/matter-labs/anvil-zksync/compare/v0.6.7...v0.6.8) (2025-07-07)
 
 
