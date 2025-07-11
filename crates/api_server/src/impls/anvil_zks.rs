@@ -1,5 +1,5 @@
 use anvil_zksync_api_decl::AnvilZksNamespaceServer;
-use anvil_zksync_core::node::zksync_os_get_batch_witness;
+use anvil_zksync_core::node::ZkSyncOSHelpers;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use jsonrpsee::core::{RpcResult, async_trait};
 use zksync_types::web3::Bytes;
@@ -41,7 +41,7 @@ impl AnvilZksNamespaceServer for AnvilZksNamespace {
     }
 
     async fn get_witness(&self, batch_number: L1BatchNumber) -> RpcResult<Bytes> {
-        Ok(zksync_os_get_batch_witness(&batch_number)
+        Ok(ZkSyncOSHelpers::get_batch_witness(&batch_number)
             .ok_or(rpc_invalid_params(
                 "Batch with this number doesn't exist yet".to_string(),
             ))?

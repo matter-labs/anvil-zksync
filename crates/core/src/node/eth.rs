@@ -32,7 +32,7 @@ use crate::{
     utils::TransparentError,
 };
 
-use super::zksync_os::ZKSYNC_OS_CALL_GAS_LIMIT;
+use super::zksync_os::ZkSyncOSHelpers;
 
 impl InMemoryNode {
     pub async fn call_impl(
@@ -58,7 +58,7 @@ impl InMemoryNode {
         }
 
         if self.system_contracts.zksync_os.zksync_os {
-            tx.common_data.fee.gas_limit = ZKSYNC_OS_CALL_GAS_LIMIT.into();
+            tx.common_data.fee.gas_limit = ZkSyncOSHelpers::call_gas_limit().into();
         } else {
             tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         }

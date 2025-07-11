@@ -13,7 +13,7 @@ categories.workspace = true
 [dependencies]
 anvil_zksync_api_server.workspace = true
 anvil_zksync_config.workspace = true
-anvil_zksync_core.workspace = true
+anvil_zksync_core = { workspace = true, default-features = false }
 anvil_zksync_l1_sidecar.workspace = true
 anvil_zksync_types.workspace = true
 zksync_error.workspace = true
@@ -49,3 +49,7 @@ num.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[features]
+default = ["zksync-os"]
+zksync-os = ["anvil_zksync_core/zksync-os"]

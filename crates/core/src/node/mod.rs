@@ -29,4 +29,4 @@ pub use self::{
 pub use in_memory::*;
 pub use inner::InMemoryNodeInner;
 pub use inner::{blockchain, fork, node_executor, time};
-pub use zksync_os::zksync_os_get_batch_witness;
+pub use zksync_os::ZkSyncOSHelpers;

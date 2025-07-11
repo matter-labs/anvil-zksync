@@ -1,8 +1,9 @@
-//! Interfaces that use zksync_os for VM execution.
-//! This is still experimental code.
+//! Collection of non-public helper functions for the `zksync_os` module.
+//! Keep in mind that this module can be only conditionally available depending on the
+//! `zksync_os` feature flag.
+
 use std::{alloc::Global, collections::HashMap, vec};
 
-use anvil_zksync_config::types::ZKsyncOsConfig;
 use basic_system::system_implementation::flat_storage_model::{
     ACCOUNT_PROPERTIES_STORAGE_ADDRESS, AccountProperties, DEFAULT_CODE_VERSION_BYTE, TestingTree,
     address_into_special_storage_key,
@@ -17,19 +18,12 @@ use zk_ee::{
     common_structs::derive_flat_storage_key, execution_environment_type::ExecutionEnvironmentType,
     utils::Bytes32,
 };
-use zksync_multivm::{
-    HistoryMode,
-    interface::{
-        ExecutionResult, InspectExecutionMode, L1BatchEnv, PushTransactionResult, Refunds,
-        SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
-        VmInterfaceHistoryEnabled, VmRevertReason,
-        storage::{StoragePtr, WriteStorage},
-    },
-    tracers::TracerDispatcher,
-    vm_latest::TracerPointer,
+use zksync_multivm::interface::{
+    ExecutionResult, L1BatchEnv, Refunds, VmExecutionLogs, VmExecutionResultAndLogs,
+    VmRevertReason,
+    storage::{StoragePtr, WriteStorage},
 };
 
-use zksync_multivm::MultiVmTracerPointer;
 use zksync_types::{
     AccountTreeId, Address, ExecuteTransactionCommon, H160, H256, StorageKey, StorageLog,
     StorageLogWithPreviousValue, Transaction, U256, address_to_h256, get_code_key, u256_to_h256,
@@ -51,9 +45,9 @@ static BATCH_WITNESS: Lazy<Mutex<HashMap<u32, Vec<u8>>>> = Lazy::new(|| {
 // As nonces are normally kept inside account properties, and here we only 'simulate' putting them in some
 // location, so that the rest of the anvil can work.
 // But if we tried reading stuff from 0x8003, where nonces are normally located - we might be reading some garbage.
-pub const FAKE_NONCE_ADDRESS: B160 = B160::from_limbs([0x8153_u64, 0, 0]);
+const FAKE_NONCE_ADDRESS: B160 = B160::from_limbs([0x8153_u64, 0, 0]);
 
-pub fn set_batch_witness(key: u32, value: Vec<u8>) {
+pub(super) fn set_batch_witness(key: u32, value: Vec<u8>) {
     let mut map = BATCH_WITNESS.lock().unwrap();
     map.insert(key, value);
 }
@@ -63,52 +57,68 @@ pub fn zksync_os_get_batch_witness(key: &u32) -> Option<Vec<u8>> {
     map.get(key).cloned()
 }
 
+pub fn zksync_os_get_nonce_key(account: &Address) -> StorageKey {
+    let nonce_manager = AccountTreeId::new(b160_to_h160(FAKE_NONCE_ADDRESS));
+
+    // The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the `NONCE_HOLDER` system contract
+    let key = address_to_h256(account);
+
+    StorageKey::new(nonce_manager, key)
+}
+
+pub fn zksync_os_storage_key_for_eth_balance(address: &Address) -> StorageKey {
+    zkos_storage_key_for_standard_token_balance(
+        AccountTreeId::new(b160_to_h160(BASE_TOKEN_ADDRESS)),
+        address,
+    )
+}
+
 // Helper methods for different convertions.
-pub fn bytes32_to_h256(data: Bytes32) -> H256 {
+fn bytes32_to_h256(data: Bytes32) -> H256 {
     H256::from(data.as_u8_array_ref())
 }
 
-pub fn h256_to_bytes32(data: &H256) -> Bytes32 {
+fn h256_to_bytes32(data: &H256) -> Bytes32 {
     Bytes32::from(*data.as_fixed_bytes())
 }
 
-pub fn b160_to_h160(data: B160) -> H160 {
+fn b160_to_h160(data: B160) -> H160 {
     H160::from_slice(&data.to_be_bytes_vec())
 }
 
-pub fn pad_to_word(input: &[u8]) -> Vec<u8> {
+fn pad_to_word(input: &[u8]) -> Vec<u8> {
     let mut data = input.to_owned();
     let remainder = input.len().div_ceil(32) * 32 - input.len();
     data.extend(std::iter::repeat_n(0u8, remainder));
     data
 }
 
-pub fn h160_to_b160(data: &H160) -> B160 {
+fn h160_to_b160(data: &H160) -> B160 {
     B160::from_be_bytes(*data.as_fixed_bytes())
 }
 
 // Helper methods to add data to the Vec<u8> in the format expected by ZKOS.
-pub fn append_address(data: &mut Vec<u8>, address: &H160) {
+fn append_address(data: &mut Vec<u8>, address: &H160) {
     let mut pp = vec![0u8; 32];
     let ap1 = address.as_fixed_bytes();
     pp[12..(20 + 12)].copy_from_slice(ap1);
     data.append(&mut pp);
 }
 
-pub fn append_u256(data: &mut Vec<u8>, payload: &zksync_types::U256) {
+fn append_u256(data: &mut Vec<u8>, payload: &zksync_types::U256) {
     let mut pp = [0u8; 32];
     payload.to_big_endian(&mut pp);
 
     data.append(&mut pp.to_vec());
 }
-pub fn append_u64(data: &mut Vec<u8>, payload: u64) {
+fn append_u64(data: &mut Vec<u8>, payload: u64) {
     let mut pp = [0u8; 32];
     let pp1 = payload.to_be_bytes();
     pp[24..(8 + 24)].copy_from_slice(&pp1);
     data.append(&mut pp.to_vec());
 }
 
-pub fn append_usize(data: &mut Vec<u8>, payload: usize) {
+fn append_usize(data: &mut Vec<u8>, payload: usize) {
     let mut pp = [0u8; 32];
     let pp1 = payload.to_be_bytes();
     pp[24..(8 + 24)].copy_from_slice(&pp1);
@@ -116,7 +126,7 @@ pub fn append_usize(data: &mut Vec<u8>, payload: usize) {
 }
 
 /// Iterates over raw storage and creates a tree from it.
-pub fn create_tree_from_full_state(
+pub(super) fn create_tree_from_full_state(
     raw_storage: &InMemoryStorage,
 ) -> (InMemoryTree, InMemoryPreimageSource) {
     let original_state = &raw_storage.state;
@@ -196,7 +206,7 @@ pub fn create_tree_from_full_state(
     (tree, preimage_source)
 }
 
-pub fn add_elem_to_tree(tree: &mut InMemoryTree, k: &StorageKey, v: &H256) {
+pub(super) fn add_elem_to_tree(tree: &mut InMemoryTree, k: &StorageKey, v: &H256) {
     let kk = derive_flat_storage_key(&h160_to_b160(k.address()), &h256_to_bytes32(k.key()));
     let vv = h256_to_bytes32(v);
 
@@ -206,7 +216,7 @@ pub fn add_elem_to_tree(tree: &mut InMemoryTree, k: &StorageKey, v: &H256) {
 
 // Serialize Transaction to ZKOS format.
 // Should match the code in basic_bootloader/src/bootloader/transaction/mod.rs
-pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
+fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
     let mut tx_raw: Vec<u8> = vec![];
     let tx_type_id = match tx.tx_format() {
         zksync_types::l2::TransactionType::LegacyTransaction => 0u8,
@@ -311,7 +321,7 @@ pub fn transaction_to_zkos_vec(tx: &Transaction) -> Vec<u8> {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn execute_tx_in_zkos<W: WriteStorage>(
+pub(super) fn execute_tx_in_zkos<W: WriteStorage>(
     tx: &Transaction,
     tree: &InMemoryTree,
     preimage_source: &InMemoryPreimageSource,
@@ -584,16 +594,7 @@ pub fn execute_tx_in_zkos<W: WriteStorage>(
     )
 }
 
-pub fn zksync_os_get_nonce_key(account: &Address) -> StorageKey {
-    let nonce_manager = AccountTreeId::new(b160_to_h160(FAKE_NONCE_ADDRESS));
-
-    // The `minNonce` (used as nonce for EOAs) is stored in a mapping inside the `NONCE_HOLDER` system contract
-    let key = address_to_h256(account);
-
-    StorageKey::new(nonce_manager, key)
-}
-
-pub fn zksync_os_key_for_eth_balance(address: &Address) -> H256 {
+fn zksync_os_key_for_eth_balance(address: &Address) -> H256 {
     address_to_h256(address)
 }
 
@@ -623,204 +624,6 @@ fn zkos_storage_key_for_standard_token_balance(
     };
 
     StorageKey::new(token_contract, key)
-}
-
-pub fn zksync_os_storage_key_for_eth_balance(address: &Address) -> StorageKey {
-    zkos_storage_key_for_standard_token_balance(
-        AccountTreeId::new(b160_to_h160(BASE_TOKEN_ADDRESS)),
-        address,
-    )
-}
-
-#[derive(Debug)]
-pub struct ZKsyncOsVM<S: WriteStorage, H: HistoryMode> {
-    pub storage: StoragePtr<S>,
-    pub tree: InMemoryTree,
-    preimage: InMemoryPreimageSource,
-    transactions: Vec<Transaction>,
-    system_env: SystemEnv,
-    batch_env: L1BatchEnv,
-    config: ZKsyncOsConfig,
-    witness: Option<Vec<u8>>,
-    _phantom: std::marker::PhantomData<H>,
-}
-
-impl<S: WriteStorage, H: HistoryMode> ZKsyncOsVM<S, H> {
-    pub fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<S>,
-        raw_storage: &InMemoryStorage,
-        config: &ZKsyncOsConfig,
-    ) -> Self {
-        let (tree, preimage) = { create_tree_from_full_state(raw_storage) };
-        ZKsyncOsVM {
-            storage,
-            tree,
-            preimage,
-            transactions: vec![],
-            system_env,
-            batch_env,
-            witness: None,
-            config: config.clone(),
-            _phantom: Default::default(),
-        }
-    }
-
-    /// If any keys are updated in storage externally, but not reflected in internal tree.
-    pub fn update_inconsistent_keys(&mut self, inconsistent_nodes: &[&StorageKey]) {
-        for key in inconsistent_nodes {
-            let value = self.storage.borrow_mut().read_value(key);
-            add_elem_to_tree(&mut self.tree, key, &value);
-        }
-    }
-}
-
-pub struct ZkSyncOSTracerDispatcher<S: WriteStorage, H: HistoryMode> {
-    _tracers: Vec<S>,
-    _marker: std::marker::PhantomData<H>,
-}
-
-impl<S: WriteStorage, H: HistoryMode> Default for ZkSyncOSTracerDispatcher<S, H> {
-    fn default() -> Self {
-        Self {
-            _tracers: Default::default(),
-            _marker: Default::default(),
-        }
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
-    for ZkSyncOSTracerDispatcher<S, H>
-{
-    fn from(_value: Vec<TracerPointer<S, H>>) -> Self {
-        Self {
-            _tracers: Default::default(),
-            _marker: Default::default(),
-        }
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> From<Vec<MultiVmTracerPointer<S, H>>>
-    for ZkSyncOSTracerDispatcher<S, H>
-{
-    fn from(_value: Vec<MultiVmTracerPointer<S, H>>) -> Self {
-        Self {
-            _tracers: Default::default(),
-            _marker: Default::default(),
-        }
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
-    for ZkSyncOSTracerDispatcher<S, H>
-{
-    fn from(_value: TracerDispatcher<S, H>) -> Self {
-        Self {
-            _tracers: Default::default(),
-            _marker: Default::default(),
-        }
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> VmInterface for ZKsyncOsVM<S, H> {
-    type TracerDispatcher = ZkSyncOSTracerDispatcher<S, H>;
-
-    fn push_transaction(
-        &mut self,
-        tx: Transaction,
-    ) -> zksync_multivm::interface::PushTransactionResult<'_> {
-        self.transactions.push(tx);
-        PushTransactionResult {
-            compressed_bytecodes: Default::default(),
-        }
-    }
-
-    fn inspect(
-        &mut self,
-        _dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: zksync_multivm::interface::InspectExecutionMode,
-    ) -> VmExecutionResultAndLogs {
-        if let InspectExecutionMode::Bootloader = execution_mode {
-            // This is called at the end of seal block.
-            // Now is the moment to collect the witness and store it.
-
-            // TODO: add support for multiple transactions.
-
-            if let Some(witness) = self.witness.clone() {
-                set_batch_witness(self.batch_env.number.0, witness);
-            }
-
-            return VmExecutionResultAndLogs {
-                result: ExecutionResult::Success { output: vec![] },
-                logs: Default::default(),
-                statistics: Default::default(),
-                refunds: Default::default(),
-                dynamic_factory_deps: Default::default(),
-            };
-        }
-        let simulate_only = match self.system_env.execution_mode {
-            TxExecutionMode::VerifyExecute => false,
-            TxExecutionMode::EstimateFee => true,
-            TxExecutionMode::EthCall => true,
-        };
-
-        // For now we only support one transaction.
-        assert_eq!(
-            1,
-            self.transactions.len(),
-            "only one tx per batch supported for now"
-        );
-
-        // TODO: add support for multiple transactions.
-        let tx = self.transactions[0].clone();
-        let (result, witness) = execute_tx_in_zkos(
-            &tx,
-            &self.tree,
-            &self.preimage,
-            &mut self.storage,
-            simulate_only,
-            &self.batch_env,
-            self.system_env.chain_id.as_u64(),
-            self.config.zksync_os_bin_path.clone(),
-        );
-
-        self.witness = witness;
-        result
-    }
-
-    fn start_new_l2_block(&mut self, _l2_block_env: zksync_multivm::interface::L2BlockEnv) {
-        // no-op
-    }
-
-    fn inspect_transaction_with_bytecode_compression(
-        &mut self,
-        _tracer: &mut Self::TracerDispatcher,
-        _tx: Transaction,
-        _with_compression: bool,
-    ) -> (
-        zksync_multivm::interface::BytecodeCompressionResult<'_>,
-        VmExecutionResultAndLogs,
-    ) {
-        todo!()
-    }
-
-    fn finish_batch(
-        &mut self,
-        _pubdata_builder: std::rc::Rc<dyn zksync_multivm::interface::pubdata::PubdataBuilder>,
-    ) -> zksync_multivm::interface::FinishedL1Batch {
-        todo!()
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for ZKsyncOsVM<S, H> {
-    fn make_snapshot(&mut self) {}
-
-    fn rollback_to_the_latest_snapshot(&mut self) {
-        panic!("Not implemented for zksync_os");
-    }
-
-    fn pop_snapshot_no_rollback(&mut self) {}
 }
 
 // Stuff copied from RIG TODO: consider merging with RIG.
@@ -853,7 +656,7 @@ fn get_account_properties(
     }
 }
 
-pub fn set_account_properties(
+fn set_account_properties(
     state_tree: &mut InMemoryTree,
     preimage_source: &mut InMemoryPreimageSource,
 
@@ -893,7 +696,7 @@ pub fn set_account_properties(
 
 /// Copied from https://github.com/matter-labs/zksync-os/blob/ab9f5d1856450d688f59996c04830e25c1824e95/tests/rig/src/utils.rs#L425
 /// To avoid bringing in `rig` as a dependency.
-pub fn evm_bytecode_into_account_properties(bytecode: &[u8]) -> AccountProperties {
+fn evm_bytecode_into_account_properties(bytecode: &[u8]) -> AccountProperties {
     use crypto::MiniDigest;
     use crypto::blake2s::Blake2s256;
     use crypto::sha3::Keccak256;
