@@ -112,7 +112,7 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
 
         let (l1_provider, l1_address) = if self.spawn_l1 {
             let l1_locked_port = LockedPort::acquire_unused().await?;
-            let l1_provider = ProviderBuilder::new().on_anvil_with_wallet_and_config(|anvil| {
+            let l1_provider = ProviderBuilder::new().connect_anvil_with_wallet_and_config(|anvil| {
                 anvil
                     .port(l1_locked_port.port)
                     .arg("--no-request-size-limit")
@@ -157,7 +157,7 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
             .with_recommended_fillers()
             .wallet(wallet.clone())
             .layer(node_layer)
-            .on_client(rpc_client);
+            .connect_client(rpc_client);
         let l2_evm_provider = DynProvider::new(
             ProviderBuilder::new()
                 .wallet(wallet)
