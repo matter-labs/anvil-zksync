@@ -287,7 +287,7 @@ impl TestNodeConfig {
         // Banner, version and repository section.
         sh_println!(
             r#"
-{} 
+{}
 Version:        {}
 Repository:     {}
 
@@ -433,7 +433,7 @@ Node Configuration
 Port:                  {}
 EVM Interpreter:       {}
 Health Check Endpoint: {}
-ZKsync OS:              {}
+ZKsync OS:             {}
 L1:                    {}
 "#,
             self.port,
