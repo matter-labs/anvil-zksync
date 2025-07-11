@@ -21,8 +21,17 @@ zksync_multivm.workspace = true
 zksync_contracts.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
+zksync_basic_types.workspace = true
 zksync_error.workspace = true
 zksync-error-description.workspace = true
+
+# ZKsync OS dependencies
+forward_system.workspace = true
+basic_system.workspace = true
+zk_ee.workspace = true
+system_hooks.workspace = true
+zksync_os_api.workspace = true
+crypto.workspace = true
 
 anyhow.workspace = true
 tokio.workspace = true
@@ -54,6 +63,7 @@ async-trait.workspace = true
 url.workspace = true
 indicatif.workspace = true
 tabled.workspace = true
+ruint.workspace = true
 
 [dev-dependencies]
 maplit.workspace = true

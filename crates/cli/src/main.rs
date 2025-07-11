@@ -242,13 +242,13 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
         .system_contracts_path(config.system_contracts_path.clone())
         .protocol_version(config.protocol_version())
         .with_evm_interpreter(config.use_evm_interpreter)
-        .with_boojum(config.boojum.clone())
+        .with_zksync_os(config.zksync_os.clone())
         .build();
 
-    let storage_key_layout = if config.boojum.use_boojum {
-        StorageKeyLayout::BoojumOs
+    let storage_key_layout = if config.zksync_os.zksync_os {
+        StorageKeyLayout::ZKsyncOs
     } else {
-        StorageKeyLayout::ZkEra
+        StorageKeyLayout::Era
     };
 
     let is_fork_mode = fork_client.is_some();

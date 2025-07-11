@@ -15,14 +15,14 @@ members = [
 resolver = "2"
 
 [profile.dev]
-debug = 0
+debug = 2
 
 [profile.release]
 strip = "debuginfo" # Automatically strip symbols from the binary.
 lto = "thin"        # Enable link-time optimization.
 
 [workspace.package]
-version = "0.6.6"                                          # x-release-please-version
+version = "0.6.8"                                          # x-release-please-version
 edition = "2024"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
@@ -46,6 +46,17 @@ zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git"
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "9b4a27ec74b7d49e4693c2e988447c89e17ab4d6", default-features = false }
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "9b4a27ec74b7d49e4693c2e988447c89e17ab4d6" }
 zk_evm_abstractions = "=0.152.3"
+
+#########################
+# ZKsync Os dependencies  #
+#########################
+forward_system = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
+basic_system = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
+zk_ee = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
+system_hooks = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
+zksync_os_api = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
+crypto = { git = "https://github.com/matter-labs/zksync-os.git", tag = "0.0.2" }
+ruint = { version = "1.12.3", default-features = false, features = ["alloc"] }
 
 #########################
 # External dependencies #

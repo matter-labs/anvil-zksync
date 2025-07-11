@@ -17,6 +17,9 @@ ignore = [
     { id = "RUSTSEC-2024-0388", reason = '`derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it' },
     { id = "RUSTSEC-2024-0436", reason = "`paste` is unmaintained, but is still widely used" },
     { id = "RUSTSEC-2024-0437", reason = '`protobuf` needs to be updated to >=3.7.0, but is locked to 3.3.0 by foundry; will be resolved once we get rid of dependency on foundry-anvil' },
+    { id = "RUSTSEC-2024-0384", reason = "`instant` is used transitively and we do not rely on problematic behavior" },
+    { id = "RUSTSEC-2025-0009", reason = "`ring` is used in test or non-QUIC contexts; we do not encrypt >64GB chunks" },
+    { id = "RUSTSEC-2025-0010", reason = "`ring` <0.17 is used by transitive deps; upgrading is not currently possible" },
 ]
 
 [licenses]
@@ -35,7 +38,14 @@ allow = [
     "0BSD",
     "BSL-1.0",
     "Unicode-3.0",
+    "CDDL-1.0",
     "CDLA-Permissive-2.0",
+]
+exceptions = [
+    # exceptions are in place due to https://github.com/matter-labs/zksync-os
+    # CC0 is a bit unclear about source code: https://tldrlegal.com/license/creative-commons-cc0-1.0-universal
+    { allow = ["CC0-1.0"], name = "tiny-keccak" },
+    { allow = ["OpenSSL"], crate = "ring" },
 ]
 confidence-threshold = 0.8
 
@@ -62,10 +72,6 @@ highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
 allow = []
-deny = [
-    { crate = "openssl", use-instead = "rustls" },
-    { crate = "openssl-sys", use-instead = "rustls" },
-]
 skip = []
 skip-tree = []
 

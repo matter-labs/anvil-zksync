@@ -74,8 +74,8 @@ pub struct TestNodeConfig {
     pub bytecode_compression: bool,
     /// Enables EVM interpreter mode
     pub use_evm_interpreter: bool,
-    /// Enables BoojumOS mode (experimental)
-    pub boojum: BoojumConfig,
+    /// Enables ZKsyncOS mode (experimental)
+    pub zksync_os: ZKsyncOsConfig,
     /// Optional chain ID for the node
     pub chain_id: Option<u32>,
     /// L1 gas price (optional override)
@@ -200,7 +200,7 @@ impl Default for TestNodeConfig {
             override_bytecodes_dir: None,
             bytecode_compression: false,
             use_evm_interpreter: false,
-            boojum: Default::default(),
+            zksync_os: Default::default(),
             chain_id: None,
 
             // Gas configuration defaults
@@ -435,7 +435,7 @@ Node Configuration
 Port:                  {}
 EVM Interpreter:       {}
 Health Check Endpoint: {}
-BoojumOS:              {}
+ZKsync OS:              {}
 L1:                    {}
 "#,
             self.port,
@@ -449,7 +449,7 @@ L1:                    {}
             } else {
                 "Disabled".red()
             },
-            if self.boojum.use_boojum {
+            if self.zksync_os.zksync_os {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -656,10 +656,10 @@ Address: {address}
         self
     }
 
-    /// Enable or disable Boojum
+    /// Enable or disable ZKsync OS
     #[must_use]
-    pub fn with_boojum(mut self, boojum: BoojumConfig) -> Self {
-        self.boojum = boojum;
+    pub fn with_zksync_os(mut self, zksync_os: ZKsyncOsConfig) -> Self {
+        self.zksync_os = zksync_os;
         self
     }
 
