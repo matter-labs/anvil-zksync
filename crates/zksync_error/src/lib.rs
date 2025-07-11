@@ -7,7 +7,7 @@
 #![doc = r"# Domains"]
 #![doc = "- anvil_zksync"]
 #![doc = "   - env"]
-#![doc = "   - gen"]
+#![doc = "   - generic"]
 #![doc = "   - node"]
 #![doc = "   - gas_estim"]
 #![doc = "   - halt"]
@@ -60,7 +60,7 @@ pub mod untyped;
 pub use crate::error::domains::ZksyncError;
 #[doc = "AnvilZksyncError"]
 #[doc = "   - env"]
-#[doc = "   - gen"]
+#[doc = "   - generic"]
 #[doc = "   - node"]
 #[doc = "   - gas_estim"]
 #[doc = "   - halt"]
@@ -103,7 +103,7 @@ pub mod anvil_zksync {
     }
     #[doc = "# AnvilGeneric"]
     #[doc = "   - GenericError"]
-    pub mod gen {
+    pub mod generic {
         pub use crate::error::definitions::AnvilGeneric as AnvilGenericError;
         pub type AnvilGenericResult<T> = core::result::Result<T, AnvilGenericError>;
         pub use crate::error::definitions::AnvilGeneric::GenericError;
@@ -111,8 +111,8 @@ pub mod anvil_zksync {
         #[cfg(not(feature = "std"))]
         use alloc::format;
         #[macro_export]
-        macro_rules ! anvil_zksync_gen_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: gen :: AnvilGenericError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
-        pub use crate::anvil_zksync_gen_generic_error as generic_error;
+        macro_rules ! anvil_zksync_generic_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: generic :: AnvilGenericError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zksync_generic_generic_error as generic_error;
         pub fn to_generic<T: core::fmt::Display>(err: T) -> AnvilGenericError {
             GenericError {
                 message: format!("{}", err),

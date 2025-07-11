@@ -9,7 +9,7 @@ use anvil_zksync_types::{
     LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
 use colored::{Colorize, CustomColor};
-use serde_json::{json, to_writer, Value};
+use serde_json::{Value, json, to_writer};
 use std::collections::HashMap;
 use std::fs::File;
 use std::net::{IpAddr, Ipv4Addr};
@@ -181,7 +181,9 @@ impl Default for BaseTokenConfig {
 impl Default for TestNodeConfig {
     fn default() -> Self {
         // generate some random wallets
-        let genesis_accounts = AccountGenerator::new(10).phrase(DEFAULT_MNEMONIC).gen();
+        let genesis_accounts = AccountGenerator::new(10)
+            .phrase(DEFAULT_MNEMONIC)
+            .generate();
         Self {
             // Node configuration defaults
             config_out: None,
@@ -506,9 +508,9 @@ Address: {address}
             private_keys.push(format!("0x{}", hex::encode(wallet.credential().to_bytes())));
         }
 
-        if let Some(ref gen) = self.account_generator {
-            let phrase = gen.get_phrase().to_string();
-            let derivation_path = gen.get_derivation_path().to_string();
+        if let Some(generator) = &self.account_generator {
+            let phrase = generator.get_phrase().to_string();
+            let derivation_path = generator.get_derivation_path().to_string();
 
             wallet_description.insert("derivation_path".to_string(), derivation_path);
             wallet_description.insert("mnemonic".to_string(), phrase);
@@ -919,7 +921,7 @@ Address: {address}
     /// so that `genesis_accounts == accounts`
     #[must_use]
     pub fn with_account_generator(mut self, generator: AccountGenerator) -> Self {
-        let accounts = generator.gen();
+        let accounts = generator.generate();
         self.account_generator = Some(generator);
         self.with_signer_accounts(accounts.clone())
             .with_genesis_accounts(accounts)

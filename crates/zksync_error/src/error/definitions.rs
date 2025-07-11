@@ -233,7 +233,7 @@ impl CustomErrorMessage for AnvilGeneric {
     fn get_message(&self) -> String {
         match self {
             AnvilGeneric::GenericError { message } => {
-                format!("[anvil_zksync-gen-0] Generic error: {message}")
+                format!("[anvil_zksync-generic-0] Generic error: {message}")
             }
         }
     }

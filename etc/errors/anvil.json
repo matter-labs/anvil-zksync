@@ -12,14 +12,14 @@
         {
           "component_name": "AnvilGeneric",
           "component_code": 0,
-          "identifier_encoding": "gen",
-          "errors" : []
+          "identifier_encoding": "generic",
+          "errors": []
         },
         {
           "component_name": "AnvilEnvironment",
           "component_code": 1,
           "identifier_encoding": "env",
-          "errors" : [
+          "errors": [
             {
               "name": "InvalidArguments",
               "code": 1,
@@ -776,7 +776,7 @@
                   {
                     "cause": "Reverting due unknown reason.",
                     "fixes": [
-                      "Verify the contract call and its parameters are proper."                      
+                      "Verify the contract call and its parameters are proper."
                     ]
                   }
                 ]
@@ -788,7 +788,7 @@
           "component_name": "TransactionValidation",
           "component_code": 4,
           "identifier_encoding": "tx_invalid",
-          "errors" : [
+          "errors": [
             {
               "name": "InvalidGasLimit",
               "code": 1,
@@ -963,22 +963,22 @@
           "component_name": "GasEstimation",
           "component_code": 5,
           "identifier_encoding": "gas_estim",
-          "errors" : [
+          "errors": [
             {
               "name": "ExceedsLimitForPublishedPubdata",
               "code": 1,
               "message": "Transaction has published {pubdata_published} bytes which exceeds limit for published pubdata ({pubdata_limit}).",
               "fields": [
                 {
-                  "name":"pubdata_published",
-                  "type":"uint"
+                  "name": "pubdata_published",
+                  "type": "uint"
                 },
                 {
-                  "name":"pubdata_limit",
-                  "type":"uint"
+                  "name": "pubdata_limit",
+                  "type": "uint"
                 }
               ],
-              "doc" : {
+              "doc": {
                 "summary": "Transaction exceeds the limit for published pubdata.",
                 "description": "This error occurs when a transaction attempts to publish more pubdata than is allowed in a batch. Each transaction has a limit on how much pubdata it can publish to maintain network efficiency and prevent abuse.",
                 "likely_causes": [
@@ -1004,16 +1004,16 @@
               "message": "Estimating full gas limit overflows while adding up additional gas ({gas_for_pubdata}), overhead ({overhead}), and estimated transaction body gas cost ({estimated_body_cost}).",
               "fields": [
                 {
-                  "name":"overhead",
-                  "type":"u64"
+                  "name": "overhead",
+                  "type": "u64"
                 },
                 {
-                  "name":"gas_for_pubdata",
-                  "type":"u64"
+                  "name": "gas_for_pubdata",
+                  "type": "u64"
                 },
                 {
-                  "name":"estimated_body_cost",
-                  "type":"u64"
+                  "name": "estimated_body_cost",
+                  "type": "u64"
                 }
               ],
               "doc": {
@@ -1053,7 +1053,7 @@
               "doc": {
                 "summary": "Transaction execution reverts and burns all gas while estimating required gas in anvil-zksync.",
                 "description": [
-                 "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction ",
+                  "This error occurs when anvil-zksync is trying to estimate gas required to run this transaction ",
                   "but the estimation fails because the transaction reverts and burns all gas.",
                   "",
                   "Before estimating gas, anvil-zksync first runs the transaction with maximum gas possible.",
@@ -1071,7 +1071,6 @@
                     ]
                   }
                 ]
-
               }
             },
             {
@@ -1132,8 +1131,7 @@
                   "There might be valid, but exotic transactions that fail when run with maximum gas provided,",
                   "but these are rare. Typically they depend on specific gas values.",
                   "Usually, this error indicates either an unconditional revert or excessive gas consumption."
-                ]
-                ,
+                ],
                 "likely_causes": [
                   {
                     "cause": "The transaction always reverts and burns gas.",
@@ -1150,7 +1148,6 @@
                     ]
                   }
                 ]
-
               }
             },
             {
@@ -1196,7 +1193,7 @@
           "component_name": "AnvilNode",
           "component_code": 10,
           "identifier_encoding": "node",
-          "errors" : [
+          "errors": [
             {
               "name": "TransactionHalt",
               "code": 1,
@@ -1427,19 +1424,18 @@
                 ]
               }
             }
-
           ]
         },
         {
           "component_name": "StateLoader",
           "component_code": 11,
           "identifier_encoding": "state",
-          "errors" : [
+          "errors": [
             {
               "name": "LoadingStateOverExistingState",
               "code": 1,
               "message": "Loading state into a node with existing state is not allowed.",
-              "doc" : {
+              "doc": {
                 "summary": "It is not allowed to load a state overriding the existing node state.",
                 "description": "It is not allowed to load a state overriding the existing node state. If you have a use case for that, please create an issue."
               }
@@ -1448,7 +1444,7 @@
               "name": "LoadEmptyState",
               "code": 2,
               "message": "Loading a state without blocks is not allowed.",
-              "doc" : {
+              "doc": {
                 "summary": "Attempt to load a state with no blocks",
                 "description": "It is not allowed to load a state without any blocks in it.",
                 "likely_causes": [
@@ -1466,7 +1462,7 @@
                   "type": "string"
                 }
               ],
-              "doc" : {
+              "doc": {
                 "description": "Failed to decompress the state.",
                 "likely_causes": [
                   "Uncompressed state file is provided, but a compressed one is expected.",
@@ -1485,7 +1481,7 @@
                   "type": "string"
                 }
               ],
-              "doc" : {
+              "doc": {
                 "description": "Failed to deserialize the state file.",
                 "likely_causes": [
                   "Wrong state file provided.",
@@ -1503,7 +1499,7 @@
                   "type": "uint"
                 }
               ],
-              "doc" : {
+              "doc": {
                 "description": "The version of the state file is not recognized.",
                 "likely_causes": [
                   "Wrong state file provided.",
@@ -1525,7 +1521,7 @@
                   "type": "string"
                 }
               ],
-              "doc" : {
+              "doc": {
                 "description": "Failed to access the state file.",
                 "likely_causes": [
                   "State file is missing.",

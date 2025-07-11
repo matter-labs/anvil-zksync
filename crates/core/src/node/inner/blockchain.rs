@@ -1,7 +1,7 @@
 use crate::filters::LogFilter;
 use crate::node::inner::fork::ForkDetails;
 use crate::node::time::{ReadTime, Time};
-use crate::node::{create_genesis, create_genesis_from_json, TransactionResult};
+use crate::node::{TransactionResult, create_genesis, create_genesis_from_json};
 use crate::utils::utc_datetime_from_epoch_ms;
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_types::api::DetailedTransaction;
@@ -16,13 +16,13 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::{FinishedL1Batch, L2Block, VmEvent};
 use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
-use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
+use zksync_types::block::{L1BatchHeader, L2BlockHasher, unpack_block_info};
 use zksync_types::l2::L2Tx;
 use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
-    api, api::BlockId, h256_to_u256, web3::Bytes, AccountTreeId, Address, ExecuteTransactionCommon,
-    L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
+    AccountTreeId, Address, ExecuteTransactionCommon, H256, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION, StorageKey, U64,
+    U256, api, api::BlockId, h256_to_u256, web3::Bytes,
 };
 
 /// Read-only view on blockchain state.
@@ -443,18 +443,15 @@ impl ReadBlockchain for Blockchain {
     }
 
     async fn get_detailed_tx(&self, tx: api::Transaction) -> Option<DetailedTransaction> {
-        self.inspect_tx(
-            &tx.hash.clone(),
-            |TransactionResult { ref debug, .. }| {
-                let output = Some(debug.output.clone());
-                let revert_reason = debug.revert_reason.clone();
-                DetailedTransaction {
-                    inner: tx,
-                    output,
-                    revert_reason,
-                }
-            },
-        )
+        self.inspect_tx(&tx.hash.clone(), |TransactionResult { debug, .. }| {
+            let output = Some(debug.output.clone());
+            let revert_reason = debug.revert_reason.clone();
+            DetailedTransaction {
+                inner: tx,
+                output,
+                revert_reason,
+            }
+        })
         .await
     }
 

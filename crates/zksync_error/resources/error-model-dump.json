@@ -553,7 +553,7 @@
           "rust": "AnvilGeneric",
           "typescript": "AnvilGeneric"
         },
-        "identifier": "gen",
+        "identifier": "generic",
         "description": "",
         "origins": [
           "../../etc/errors/anvil.json"
@@ -1398,12 +1398,12 @@
           "../../etc/errors/anvil.json"
         ]
       },
-      "[anvil_zksync-gen-0]": {
+      "[anvil_zksync-generic-0]": {
         "domain": "AnvilZKsync",
         "component": "AnvilGeneric",
         "name": "GenericError",
         "code": 0,
-        "identifier": "[anvil_zksync-gen-0]",
+        "identifier": "[anvil_zksync-generic-0]",
         "message": "Generic error: {message}",
         "fields": [
           {

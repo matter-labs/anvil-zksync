@@ -82,7 +82,7 @@ impl Identifying for Kind {
     fn get_identifier_repr(&self) -> String {
         match self {
             Kind::AnvilZksync(AnvilZksyncCode::AnvilEnvironment) => "anvil_zksync-env",
-            Kind::AnvilZksync(AnvilZksyncCode::AnvilGeneric) => "anvil_zksync-gen",
+            Kind::AnvilZksync(AnvilZksyncCode::AnvilGeneric) => "anvil_zksync-generic",
             Kind::AnvilZksync(AnvilZksyncCode::AnvilNode) => "anvil_zksync-node",
             Kind::AnvilZksync(AnvilZksyncCode::GasEstimation) => "anvil_zksync-gas_estim",
             Kind::AnvilZksync(AnvilZksyncCode::Halt) => "anvil_zksync-halt",

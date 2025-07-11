@@ -3,7 +3,7 @@ use crate::cli::{Cli, Command, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
-use anvil_zksync_common::shell::{get_shell, OutputMode};
+use anvil_zksync_common::shell::{OutputMode, get_shell};
 use anvil_zksync_common::utils::predeploys::PREDEPLOYS;
 use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::constants::{
@@ -39,13 +39,13 @@ use std::{env, net::SocketAddr, str::FromStr};
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
-use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
 use zksync_error::anvil_zksync::AnvilZksyncError;
+use zksync_error::anvil_zksync::generic::{generic_error, to_domain};
 use zksync_error::{ICustomError, IError as _};
-use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
+use zksync_telemetry::{TelemetryProps, get_telemetry, init_telemetry};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{
-    L2BlockNumber, Nonce, CONTRACT_DEPLOYER_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, H160, U256,
+    CONTRACT_DEPLOYER_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, H160, L2BlockNumber, Nonce, U256,
 };
 
 mod bytecode_override;
@@ -207,7 +207,7 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
                 return Err(to_domain(generic_error!(
                     "fork is using unsupported fee parameters: {:?}",
                     fork_client.details.fee_params
-                )))
+                )));
             }
         };
 
@@ -273,7 +273,7 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
                 details: "Running L1 in forking mode is unsupported".into(),
                 arguments: debug_opt_string_repr,
             }
-            .into())
+            .into());
         }
         Some(L1Config::Spawn { port }) => {
             let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::process(
@@ -411,7 +411,7 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
         node.stop_impersonating_account(PSEUDO_CALLER).unwrap();
     }
 
-    if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
+    if let Some(bytecodes_dir) = &config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string())
             .await
             .unwrap();

@@ -1,5 +1,5 @@
 use crate::utils::{
-    get_cli_command_telemetry_props, parse_genesis_file, TELEMETRY_SENSITIVE_VALUE,
+    TELEMETRY_SENSITIVE_VALUE, get_cli_command_telemetry_props, parse_genesis_file,
 };
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_common::{
@@ -8,21 +8,21 @@ use anvil_zksync_common::{
     utils::io::write_json_file,
 };
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
+use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_config::{
     constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID},
     types::BoojumConfig,
 };
-use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anvil_zksync_types::{
     LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
-use clap::{arg, command, ArgAction, Parser, Subcommand, ValueEnum};
+use clap::{ArgAction, Parser, Subcommand, ValueEnum, arg, command};
 use flate2::read::GzDecoder;
 use futures::FutureExt;
 use num::rational::Ratio;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use std::collections::HashMap;
 use std::env;
 use std::io::Read;
@@ -40,7 +40,7 @@ use tokio::time::{Instant, Interval};
 use url::Url;
 use zksync_telemetry::TelemetryProps;
 use zksync_types::fee_model::BaseTokenConversionRatio;
-use zksync_types::{ProtocolVersionId, H256, U256};
+use zksync_types::{H256, ProtocolVersionId, U256};
 
 const DEFAULT_PORT: &str = "8011";
 const DEFAULT_HOST: &str = "0.0.0.0";
@@ -906,27 +906,27 @@ impl Cli {
     }
 
     fn account_generator(&self) -> AccountGenerator {
-        let mut gen = AccountGenerator::new(self.accounts as usize)
+        let mut generator = AccountGenerator::new(self.accounts as usize)
             .phrase(DEFAULT_MNEMONIC)
             .chain_id(self.chain_id.unwrap_or(TEST_NODE_NETWORK_ID));
         if let Some(ref mnemonic) = self.mnemonic {
-            gen = gen.phrase(mnemonic);
+            generator = generator.phrase(mnemonic);
         } else if let Some(count) = self.mnemonic_random {
             let mut rng = rand::thread_rng();
             let mnemonic = match Mnemonic::<English>::new_with_count(&mut rng, count) {
                 Ok(mnemonic) => mnemonic.to_phrase(),
                 Err(_) => DEFAULT_MNEMONIC.to_string(),
             };
-            gen = gen.phrase(mnemonic);
+            generator = generator.phrase(mnemonic);
         } else if let Some(seed) = self.mnemonic_seed {
             let mut seed = StdRng::seed_from_u64(seed);
             let mnemonic = Mnemonic::<English>::new(&mut seed).to_phrase();
-            gen = gen.phrase(mnemonic);
+            generator = generator.phrase(mnemonic);
         }
         if let Some(ref derivation) = self.derivation_path {
-            gen = gen.derivation_path(derivation);
+            generator = generator.derivation_path(derivation);
         }
-        gen
+        generator
     }
 }
 
@@ -1068,7 +1068,7 @@ mod tests {
     use super::Cli;
     use anvil_zksync_core::node::InMemoryNode;
     use clap::Parser;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use std::{
         env,
         net::{IpAddr, Ipv4Addr},
@@ -1105,11 +1105,15 @@ mod tests {
                 .to_vec()
         );
 
-        env::set_var("ANVIL_ZKSYNC_IP_ADDR", "1.1.1.1");
+        unsafe {
+            env::set_var("ANVIL_ZKSYNC_IP_ADDR", "1.1.1.1");
+        }
         let args = Cli::parse_from(["anvil-zksync"]);
         assert_eq!(args.host, vec!["1.1.1.1".parse::<IpAddr>().unwrap()]);
 
-        env::set_var("ANVIL_ZKSYNC_IP_ADDR", "::1,1.1.1.1,2.2.2.2");
+        unsafe {
+            env::set_var("ANVIL_ZKSYNC_IP_ADDR", "::1,1.1.1.1,2.2.2.2");
+        }
         let args = Cli::parse_from(["anvil-zksync"]);
         assert_eq!(
             args.host,

@@ -1,7 +1,7 @@
 use crate::constants::{DERIVATION_PATH, TEST_NODE_NETWORK_ID};
+use alloy::signers::Signer;
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
 use alloy::signers::local::{MnemonicBuilder, PrivateKeySigner};
-use alloy::signers::Signer;
 use serde::Deserialize;
 
 /// Account Generator
@@ -54,7 +54,7 @@ impl AccountGenerator {
         self.derivation_path.as_deref().unwrap_or(DERIVATION_PATH)
     }
 
-    pub fn gen(&self) -> Vec<PrivateKeySigner> {
+    pub fn generate(&self) -> Vec<PrivateKeySigner> {
         let builder = MnemonicBuilder::<English>::default().phrase(self.phrase.as_str());
 
         let derivation_path = self.derivation_path.as_deref().unwrap_or(DERIVATION_PATH);
