@@ -11,10 +11,10 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-anvil_zksync_api_server.workspace = true
 anvil_zksync_config.workspace = true
+anvil_zksync_api_server = { workspace = true, default-features = false }
 anvil_zksync_core = { workspace = true, default-features = false }
-anvil_zksync_l1_sidecar.workspace = true
+anvil_zksync_l1_sidecar = { workspace = true, default-features = false }
 anvil_zksync_types.workspace = true
 zksync_error.workspace = true
 

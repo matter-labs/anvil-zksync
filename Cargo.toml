@@ -125,10 +125,10 @@ backon = "1.3.0"
 # Local dependencies    #
 #########################
 anvil_zksync_api_decl = { path = "crates/api_decl" }
-anvil_zksync_api_server = { path = "crates/api_server" }
+anvil_zksync_api_server = { path = "crates/api_server", default-features = false }
 anvil_zksync_config = { path = "crates/config" }
 anvil_zksync_core = { path = "crates/core", default-features = false }
-anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar" }
+anvil_zksync_l1_sidecar = { path = "crates/l1_sidecar", default-features = false }
 anvil_zksync_types = { path = "crates/types" }
 anvil_zksync_common = { path = "crates/common" }
 zksync_error = { path = "crates/zksync_error", default-features = true, features = [

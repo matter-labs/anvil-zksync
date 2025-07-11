@@ -1,12 +1,19 @@
+#![cfg_attr(not(feature = "zksync-os"), allow(unused_variables))]
+
 #[cfg(not(feature = "zksync-os"))]
 mod mock;
+
+// NEVER expose anything from this module directly.
+// Use `ZkSyncOsHelpers` instead and make sure to mimic functionality for the mock impl.
+// ZKsync OS requires nightly, but foundry-zksync uses anvil-zksync as a dependency and is built with stable.
+// Exposing ZKsync OS without a feature flag will cause build errors in foundry-zksync.
 #[cfg(feature = "zksync-os")]
 mod real;
 
 use zksync_types::{Address, StorageKey};
 
 #[cfg(not(feature = "zksync-os"))]
-pub use self::mock::MockZKsyncOsVM;
+pub use self::mock::MockZKsyncOsVM as ZKsyncOsVM;
 
 #[cfg(feature = "zksync-os")]
 pub use self::real::ZKsyncOsVM;

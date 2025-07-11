@@ -5,8 +5,7 @@ use anvil_zksync_config::types::ZKsyncOsConfig;
 use zksync_multivm::{
     HistoryMode,
     interface::{
-        L1BatchEnv, PushTransactionResult, SystemEnv, VmExecutionResultAndLogs, VmInterface,
-        VmInterfaceHistoryEnabled,
+        L1BatchEnv, SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
         storage::{StoragePtr, WriteStorage},
     },
     tracers::TracerDispatcher,
