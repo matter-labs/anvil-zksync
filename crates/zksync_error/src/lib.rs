@@ -371,8 +371,8 @@ pub mod compiler {
     pub mod llvm_evm {
         pub use crate::error::definitions::LLVM_EVM as LLVM_EVMError;
         pub type LLVM_EVMResult<T> = core::result::Result<T, LLVM_EVMError>;
-        pub use crate::error::definitions::LLVM_EVM::GenericError;
         pub use crate::error::definitions::LLVM_EVMCode as ErrorCode;
+        pub use crate::error::definitions::LLVM_EVM::GenericError;
         #[cfg(not(feature = "std"))]
         use alloc::format;
         #[macro_export]
@@ -518,8 +518,8 @@ pub mod core {
     pub mod api {
         pub use crate::error::definitions::API as APIError;
         pub type APIResult<T> = core::result::Result<T, APIError>;
-        pub use crate::error::definitions::API::GenericError;
         pub use crate::error::definitions::APICode as ErrorCode;
+        pub use crate::error::definitions::API::GenericError;
         #[cfg(not(feature = "std"))]
         use alloc::format;
         #[macro_export]
