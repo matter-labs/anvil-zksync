@@ -6,11 +6,11 @@
 #![allow(non_camel_case_types)]
 #[cfg(feature = "runtime_documentation")]
 use crate::documentation::Documented;
-use crate::error::domains::*;
 use crate::error::CustomErrorMessage;
 use crate::error::ICustomError as _;
 use crate::error::IError as _;
 use crate::error::NamedError;
+use crate::error::domains::*;
 #[cfg(not(feature = "std"))]
 use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 use core::fmt;
@@ -145,19 +145,25 @@ impl CustomErrorMessage for AnvilEnvironment {
                 port_requested,
                 details,
             } => {
-                format ! ("[anvil_zksync-env-2] Failed to start server at {host_requested}:{port_requested}: {details}.")
+                format!(
+                    "[anvil_zksync-env-2] Failed to start server at {host_requested}:{port_requested}: {details}."
+                )
             }
             AnvilEnvironment::LogFileAccessFailed {
                 log_file_path,
                 wrapped_error,
             } => {
-                format ! ("[anvil_zksync-env-10] Unable to access log file: {log_file_path}. Details: {wrapped_error}")
+                format!(
+                    "[anvil_zksync-env-10] Unable to access log file: {log_file_path}. Details: {wrapped_error}"
+                )
             }
             AnvilEnvironment::LogFileWriteFailed {
                 log_filename,
                 wrapped_error,
             } => {
-                format ! ("[anvil_zksync-env-11] Unable to append more lines to the log file `{log_filename}`: {wrapped_error}")
+                format!(
+                    "[anvil_zksync-env-11] Unable to append more lines to the log file `{log_filename}`: {wrapped_error}"
+                )
             }
             AnvilEnvironment::GenericError { message } => {
                 format!("[anvil_zksync-env-0] Generic error: {message}")
@@ -389,13 +395,17 @@ impl CustomErrorMessage for AnvilNode {
                 inner,
                 transaction_hash,
             } => {
-                format ! ("[anvil_zksync-node-1] Transaction {transaction_hash} execution reverted and gas was burned:\n{inner}")
+                format!(
+                    "[anvil_zksync-node-1] Transaction {transaction_hash} execution reverted and gas was burned:\n{inner}"
+                )
             }
             AnvilNode::TransactionValidationFailed {
                 inner,
                 transaction_hash,
             } => {
-                format ! ("[anvil_zksync-node-10] Transaction {transaction_hash}: validation failed:\n{inner}")
+                format!(
+                    "[anvil_zksync-node-10] Transaction {transaction_hash}: validation failed:\n{inner}"
+                )
             }
             AnvilNode::TransactionGasEstimationFailed {
                 inner,
@@ -407,7 +417,9 @@ impl CustomErrorMessage for AnvilNode {
                 timestamp_requested,
                 timestamp_now,
             } => {
-                format ! ("[anvil_zksync-node-20] Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}.")
+                format!(
+                    "[anvil_zksync-node-20] Failed to force the next timestamp to value {timestamp_requested}. It should be greater than the last timestamp {timestamp_now}."
+                )
             }
             AnvilNode::SerializationError {
                 transaction_type,
@@ -415,7 +427,9 @@ impl CustomErrorMessage for AnvilNode {
                 to,
                 reason,
             } => {
-                format ! ("[anvil_zksync-node-30] Failed to parse a {transaction_type} transaction from request (from={from}, to={to}): {reason}.")
+                format!(
+                    "[anvil_zksync-node-30] Failed to parse a {transaction_type} transaction from request (from={from}, to={to}): {reason}."
+                )
             }
             AnvilNode::GenericError { message } => {
                 format!("[anvil_zksync-node-0] Generic error: {message}")
@@ -579,26 +593,38 @@ impl CustomErrorMessage for GasEstimation {
                 pubdata_published,
                 pubdata_limit,
             } => {
-                format ! ("[anvil_zksync-gas_estim-1] Transaction has published {pubdata_published} bytes which exceeds limit for published pubdata ({pubdata_limit}).")
+                format!(
+                    "[anvil_zksync-gas_estim-1] Transaction has published {pubdata_published} bytes which exceeds limit for published pubdata ({pubdata_limit})."
+                )
             }
             GasEstimation::ExceedsBlockGasLimit {
                 overhead,
                 gas_for_pubdata,
                 estimated_body_cost,
             } => {
-                format ! ("[anvil_zksync-gas_estim-2] Estimating full gas limit overflows while adding up additional gas ({gas_for_pubdata}), overhead ({overhead}), and estimated transaction body gas cost ({estimated_body_cost}).")
+                format!(
+                    "[anvil_zksync-gas_estim-2] Estimating full gas limit overflows while adding up additional gas ({gas_for_pubdata}), overhead ({overhead}), and estimated transaction body gas cost ({estimated_body_cost})."
+                )
             }
             GasEstimation::TransactionHalt { inner } => {
-                format ! ("[anvil_zksync-gas_estim-10] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, burning all gas: {inner}")
+                format!(
+                    "[anvil_zksync-gas_estim-10] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, burning all gas: {inner}"
+                )
             }
             GasEstimation::TransactionRevert { inner, data } => {
-                format ! ("[anvil_zksync-gas_estim-11] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, returning unspent gas: {inner}")
+                format!(
+                    "[anvil_zksync-gas_estim-11] Gas estimation failed because the transaction exhibits exotic gas behavior and reverts, returning unspent gas: {inner}"
+                )
             }
             GasEstimation::TransactionAlwaysHalts { inner } => {
-                format ! ("[anvil_zksync-gas_estim-20] Gas estimation is impossible: execution reverted when the transaction is executed with maximum gas. Unspent gas is burned. \n{inner}")
+                format!(
+                    "[anvil_zksync-gas_estim-20] Gas estimation is impossible: execution reverted when the transaction is executed with maximum gas. Unspent gas is burned. \n{inner}"
+                )
             }
             GasEstimation::TransactionAlwaysReverts { inner, data } => {
-                format ! ("[anvil_zksync-gas_estim-21] Gas estimation is impossible: execution reverted when the transaction is executed with maximum gas. Unspent gas is returned. \n{inner}")
+                format!(
+                    "[anvil_zksync-gas_estim-21] Gas estimation is impossible: execution reverted when the transaction is executed with maximum gas. Unspent gas is returned. \n{inner}"
+                )
             }
             GasEstimation::GenericError { message } => {
                 format!("[anvil_zksync-gas_estim-0] Generic error: {message}")
@@ -858,7 +884,9 @@ impl CustomErrorMessage for Halt {
                 format!("[anvil_zksync-halt-9] Unknown reason: {msg}: {data}")
             }
             Halt::UnexpectedVMBehavior { problem } => {
-                format ! ("[anvil_zksync-halt-10] Virtual machine entered unexpected state. Error description: {problem}")
+                format!(
+                    "[anvil_zksync-halt-10] Virtual machine entered unexpected state. Error description: {problem}"
+                )
             }
             Halt::BootloaderOutOfGas => {
                 format!("[anvil_zksync-halt-11] Bootloader out of gas")
@@ -867,10 +895,14 @@ impl CustomErrorMessage for Halt {
                 format!("[anvil_zksync-halt-12] Validation run out of gas")
             }
             Halt::TooBigGasLimit => {
-                format ! ("[anvil_zksync-halt-13] Transaction has a too big ergs limit and will not be executed by the server")
+                format!(
+                    "[anvil_zksync-halt-13] Transaction has a too big ergs limit and will not be executed by the server"
+                )
             }
             Halt::NotEnoughGasProvided => {
-                format ! ("[anvil_zksync-halt-14] Bootloader does not have enough gas to proceed with the transaction.")
+                format!(
+                    "[anvil_zksync-halt-14] Bootloader does not have enough gas to proceed with the transaction."
+                )
             }
             Halt::MissingInvocationLimitReached => {
                 format!("[anvil_zksync-halt-15] Transaction produced too much storage accesses.")
@@ -881,7 +913,9 @@ impl CustomErrorMessage for Halt {
                 )
             }
             Halt::FailedToAppendTransactionToL2Block { msg } => {
-                format ! ("[anvil_zksync-halt-17] Failed to append the transaction to the current L2 block: {msg}")
+                format!(
+                    "[anvil_zksync-halt-17] Failed to append the transaction to the current L2 block: {msg}"
+                )
             }
             Halt::VMPanic => {
                 format!("[anvil_zksync-halt-18] VM panicked")
@@ -1014,7 +1048,9 @@ impl CustomErrorMessage for Revert {
                 function_selector,
                 data,
             } => {
-                format ! ("[anvil_zksync-revert-4] Unknown VM revert reason: function_selector={function_selector}, data={data}")
+                format!(
+                    "[anvil_zksync-revert-4] Unknown VM revert reason: function_selector={function_selector}, data={data}"
+                )
             }
             Revert::GenericError { message } => {
                 format!("[anvil_zksync-revert-0] Generic error: {message}")
@@ -1137,7 +1173,9 @@ impl CustomErrorMessage for StateLoader {
     fn get_message(&self) -> String {
         match self {
             StateLoader::LoadingStateOverExistingState => {
-                format ! ("[anvil_zksync-state-1] Loading state into a node with existing state is not allowed.")
+                format!(
+                    "[anvil_zksync-state-1] Loading state into a node with existing state is not allowed."
+                )
             }
             StateLoader::LoadEmptyState => {
                 format!("[anvil_zksync-state-2] Loading a state without blocks is not allowed.")
@@ -1152,7 +1190,9 @@ impl CustomErrorMessage for StateLoader {
                 format!("[anvil_zksync-state-5] Unknown version of the state: {version}.")
             }
             StateLoader::StateFileAccess { path, reason } => {
-                format ! ("[anvil_zksync-state-6] Error while accessing the state located at `{path}`: {reason}.")
+                format!(
+                    "[anvil_zksync-state-6] Error while accessing the state located at `{path}`: {reason}."
+                )
             }
             StateLoader::GenericError { message } => {
                 format!("[anvil_zksync-state-0] Generic error: {message}")
@@ -1286,25 +1326,33 @@ impl CustomErrorMessage for TransactionValidation {
                 tx_gas_limit,
                 max_gas,
             } => {
-                format ! ("[anvil_zksync-tx_invalid-1] Gas limit for transaction is {tx_gas_limit} which exceeds maximum allowed gas {max_gas}")
+                format!(
+                    "[anvil_zksync-tx_invalid-1] Gas limit for transaction is {tx_gas_limit} which exceeds maximum allowed gas {max_gas}"
+                )
             }
             TransactionValidation::GasPerPubdataLimit {
                 tx_gas_per_pubdata_limit,
                 max_gas,
             } => {
-                format ! ("[anvil_zksync-tx_invalid-2] Gas per pubdata limit is {tx_gas_per_pubdata_limit} which exceeds maximum allowed gas {max_gas}")
+                format!(
+                    "[anvil_zksync-tx_invalid-2] Gas per pubdata limit is {tx_gas_per_pubdata_limit} which exceeds maximum allowed gas {max_gas}"
+                )
             }
             TransactionValidation::MaxFeePerGasTooLow {
                 max_fee_per_gas,
                 l2_gas_price,
             } => {
-                format ! ("[anvil_zksync-tx_invalid-3] Max fee per gas: {max_fee_per_gas}, current L2 gas price {l2_gas_price} is too expensive.")
+                format!(
+                    "[anvil_zksync-tx_invalid-3] Max fee per gas: {max_fee_per_gas}, current L2 gas price {l2_gas_price} is too expensive."
+                )
             }
             TransactionValidation::MaxPriorityFeeGreaterThanMaxFee {
                 max_fee_per_gas,
                 max_priority_fee_per_gas,
             } => {
-                format ! ("[anvil_zksync-tx_invalid-4] maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}")
+                format!(
+                    "[anvil_zksync-tx_invalid-4] maxPriorityFeePerGas={max_priority_fee_per_gas} exceeds the limit value maxFeePerGas={max_fee_per_gas}"
+                )
             }
             TransactionValidation::GenericError { message } => {
                 format!("[anvil_zksync-tx_invalid-0] Generic error: {message}")
