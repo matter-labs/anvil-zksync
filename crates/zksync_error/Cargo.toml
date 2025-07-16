@@ -17,7 +17,7 @@ use_serde = ["dep:serde"]
 runtime_documentation = ["dep:serde", "dep:serde_json"]
 serialized_errors = ["dep:serde", "dep:serde_json"]
 packed_errors = ["use_serde"]
-
+to_generic = []
 
 [dependencies]
 anyhow = { workspace = true, optional = true }
