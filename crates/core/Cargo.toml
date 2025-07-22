@@ -32,6 +32,7 @@ zk_ee = { workspace = true, optional = true }
 system_hooks = { workspace = true, optional = true }
 zksync_os_api = { workspace = true, optional = true }
 crypto = { workspace = true, optional = true }
+evm_interpreter = { workspace = true, optional = true }
 
 anyhow.workspace = true
 tokio.workspace = true
@@ -81,4 +82,5 @@ zksync-os = [
     "dep:system_hooks",
     "dep:zksync_os_api",
     "dep:crypto",
+    "dep:evm_interpreter",
 ]

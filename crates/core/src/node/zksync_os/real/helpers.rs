@@ -5,8 +5,8 @@
 use std::{alloc::Global, collections::HashMap, vec};
 
 use basic_system::system_implementation::flat_storage_model::{
-    ACCOUNT_PROPERTIES_STORAGE_ADDRESS, AccountProperties, DEFAULT_CODE_VERSION_BYTE, TestingTree,
-    address_into_special_storage_key,
+    ACCOUNT_PROPERTIES_STORAGE_ADDRESS, AccountProperties, TestingTree,
+    address_into_special_storage_key, bytecode_padding_len,
 };
 use forward_system::run::{
     StorageCommitment,
@@ -345,6 +345,8 @@ pub(super) fn execute_tx_in_zkos<W: WriteStorage>(
         // TODO: investigate
         native_price: ruint::aliases::U256::from(10u64),
         gas_limit: 100_000_000,
+        // TODO: set proper value if needed
+        mix_hash: Default::default(),
     };
 
     let storage_commitment = StorageCommitment {
@@ -667,11 +669,13 @@ fn set_account_properties(
 ) {
     let mut account_properties = get_account_properties(state_tree, preimage_source, &address);
     if let Some(bytecode) = bytecode {
-        account_properties = evm_bytecode_into_account_properties(&bytecode);
+        let bytecode_and_artifacts;
+        (account_properties, bytecode_and_artifacts) =
+            evm_bytecode_into_account_properties(&bytecode);
         // Save bytecode preimage
         preimage_source
             .inner
-            .insert(account_properties.bytecode_hash, bytecode);
+            .insert(account_properties.bytecode_hash, bytecode_and_artifacts);
     }
     if let Some(nominal_token_balance) = balance {
         account_properties.balance = nominal_token_balance;
@@ -694,15 +698,28 @@ fn set_account_properties(
     state_tree.storage_tree.insert(&flat_key, &properties_hash);
 }
 
-/// Copied from https://github.com/matter-labs/zksync-os/blob/ab9f5d1856450d688f59996c04830e25c1824e95/tests/rig/src/utils.rs#L425
+/// Copied from https://github.com/matter-labs/zksync-os/blob/5e69d4483243bb0d166b7e2137fa54a8bb05925a/tests/rig/src/utils.rs#L426
 /// To avoid bringing in `rig` as a dependency.
-fn evm_bytecode_into_account_properties(bytecode: &[u8]) -> AccountProperties {
+pub fn evm_bytecode_into_account_properties(deployed_code: &[u8]) -> (AccountProperties, Vec<u8>) {
     use crypto::MiniDigest;
     use crypto::blake2s::Blake2s256;
     use crypto::sha3::Keccak256;
+    use evm_interpreter;
 
-    let observable_bytecode_hash = Bytes32::from_array(Keccak256::digest(bytecode));
-    let bytecode_hash = Bytes32::from_array(Blake2s256::digest(bytecode));
+    let unpadded_code_len = deployed_code.len();
+    let artifacts =
+        evm_interpreter::BytecodePreprocessingData::create_artifacts_inner(Global, deployed_code);
+    let artifacts = artifacts.as_slice();
+    let artifacts_len = artifacts.len();
+    let padding_len = bytecode_padding_len(unpadded_code_len);
+    let full_len = unpadded_code_len + padding_len + artifacts_len;
+    let mut bytecode_and_artifacts: Vec<u8> = vec![0u8; full_len];
+    bytecode_and_artifacts[..unpadded_code_len].copy_from_slice(deployed_code);
+    let bitmap_offset = unpadded_code_len + padding_len;
+    bytecode_and_artifacts[bitmap_offset..].copy_from_slice(artifacts);
+
+    let observable_bytecode_hash = Bytes32::from_array(Keccak256::digest(deployed_code));
+    let bytecode_hash = Bytes32::from_array(Blake2s256::digest(&bytecode_and_artifacts));
     let mut result = AccountProperties::TRIVIAL_VALUE;
     result.observable_bytecode_hash = observable_bytecode_hash;
     result.bytecode_hash = bytecode_hash;
@@ -712,10 +729,10 @@ fn evm_bytecode_into_account_properties(bytecode: &[u8]) -> AccountProperties {
         .set_ee_version(ExecutionEnvironmentType::EVM as u8);
     result
         .versioning_data
-        .set_code_version(DEFAULT_CODE_VERSION_BYTE);
-    result.bytecode_len = bytecode.len() as u32;
-    result.artifacts_len = 0;
-    result.observable_bytecode_len = bytecode.len() as u32;
+        .set_code_version(evm_interpreter::ARTIFACTS_CACHING_CODE_VERSION_BYTE);
+    result.unpadded_code_len = unpadded_code_len as u32;
+    result.artifacts_len = artifacts_len as u32;
+    result.observable_bytecode_len = unpadded_code_len as u32;
 
-    result
+    (result, bytecode_and_artifacts)
 }
