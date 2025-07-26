@@ -1,18 +1,19 @@
 use std::collections::HashMap;
 
-use crate::formatter::{self, PubdataBytesInfo};
+use crate::formatter::log::Formatter;
+use crate::formatter::pubdata_bytes::PubdataBytesInfo;
 
 use anvil_zksync_common::sh_println;
 use anvil_zksync_types::ShowStorageLogs;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::h256_to_u256;
 use zksync_types::{
+    BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, StorageKey,
     utils::storage_key_for_eth_balance,
     writes::{
-        compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
-        BYTES_PER_ENUMERATION_INDEX,
+        BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX,
+        compression::compress_with_best_strategy,
     },
-    StorageKey, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{StorageLogKind, StorageLogWithPreviousValue};
 
@@ -98,7 +99,7 @@ pub fn print_storage_logs_details(
 
         if should_print {
             let is_last = index == result.logs.storage_logs.len() - 1;
-            let mut formatter = formatter::Formatter::new();
+            let mut formatter = Formatter::new();
             formatter.print_storage_logs(log_query, pubdata_bytes_info, index + 1, is_last);
         }
     }

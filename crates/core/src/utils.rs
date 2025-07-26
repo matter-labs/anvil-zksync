@@ -6,19 +6,17 @@ use std::sync::Arc;
 use tokio::runtime::Builder;
 use tokio::sync::{RwLock, RwLockReadGuard};
 use zksync_multivm::interface::{Call, CallType, ExecutionResult, VmExecutionResultAndLogs};
-use zksync_multivm::utils::bytecode::bytes_to_be_words;
-use zksync_types::bytecode::BytecodeHash;
 use zksync_types::{
+    CONTRACT_DEPLOYER_ADDRESS, Transaction, U64, U256,
     api::{BlockNumber, DebugCall, DebugCallType},
     web3::Bytes,
-    Transaction, CONTRACT_DEPLOYER_ADDRESS, U256, U64,
 };
 use zksync_web3_decl::error::Web3Error;
 
 /// Takes long integers and returns them in human friendly format with "_".
 /// For example: 12_334_093
 pub fn to_human_size(input: U256) -> String {
-    let input = format!("{:?}", input);
+    let input = format!("{input:?}");
     let tmp: Vec<_> = input
         .chars()
         .rev()

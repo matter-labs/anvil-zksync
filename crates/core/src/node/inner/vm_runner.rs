@@ -1,7 +1,9 @@
 use crate::bootloader_debug::BootloaderDebug;
-use crate::formatter::{self, ExecutionErrorReport};
+use crate::formatter;
+use crate::formatter::errors::view::ExecutionErrorReport;
+use crate::formatter::log::{Formatter, compute_gas_details};
+use crate::formatter::transaction::summary::TransactionSummary;
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
-use crate::node::diagnostics::account_has_code;
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
 use crate::node::diagnostics::vm::balance_diff::extract_balance_diffs;
 use crate::node::diagnostics::vm::traces::extract_addresses;
@@ -12,13 +14,12 @@ use crate::node::storage_logs::print_storage_logs_details;
 use crate::node::time::Time;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{
-    compute_hash, InMemoryNodeInner, StorageKeyLayout, TestNodeFeeInputProvider, TransactionResult,
-    TxBatch, TxExecutionInfo,
+    InMemoryNodeInner, StorageKeyLayout, TransactionResult, TxBatch, TxExecutionInfo, compute_hash,
 };
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
 use anvil_zksync_common::shell::get_shell;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_traces::{
     build_call_trace_arena, decode_trace_arena, filter_call_trace_arena,
@@ -28,6 +29,7 @@ use anvil_zksync_types::{ShowGasDetails, ShowStorageLogs, ShowVMDetails};
 use indicatif::ProgressBar;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use zksync_basic_types::vm::VmVersion;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
@@ -37,14 +39,16 @@ use zksync_multivm::interface::{
     BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     TxExecutionMode, VmEvent, VmExecutionResultAndLogs,
 };
-use zksync_multivm::zk_evm_latest::ethereum_types::{Address, H160, U256, U64};
+use zksync_multivm::utils::get_batch_base_fee;
+use zksync_multivm::zk_evm_latest::ethereum_types::{Address, H160, U64, U256};
 use zksync_types::block::L2BlockHasher;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
+use zksync_types::fee_model::FeeModelConfigV2;
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    api, h256_to_address, h256_to_u256, u256_to_h256, ExecuteTransactionCommon, L2BlockNumber,
-    L2TxCommonData, StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    ACCOUNT_CODE_STORAGE_ADDRESS, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData,
+    StorageKey, StorageValue, Transaction, api, h256_to_address, h256_to_u256, u256_to_h256,
 };
 
 pub struct VmRunner {
@@ -86,7 +90,7 @@ impl VmRunner {
             executor_factory: MainBatchExecutorFactory::<TraceCalls>::new(
                 enforced_bytecode_compression,
                 bootloader_debug_result.clone(),
-                system_contracts.boojum.clone(),
+                system_contracts.zksync_os.clone(),
             ),
             bootloader_debug_result,
 
@@ -106,17 +110,15 @@ impl VmRunner {
         &self,
         bootloader_debug_result: Option<&eyre::Result<BootloaderDebug, String>>,
         spent_on_pubdata: u64,
-        fee_input_provider: &TestNodeFeeInputProvider,
+        fee_model_config: &FeeModelConfigV2,
     ) -> eyre::Result<(), String> {
         if let Some(bootloader_result) = bootloader_debug_result {
             let bootloader_debug = bootloader_result.clone()?;
 
-            let gas_details = formatter::compute_gas_details(&bootloader_debug, spent_on_pubdata);
-            let mut formatter = formatter::Formatter::new();
+            let gas_details = compute_gas_details(&bootloader_debug, spent_on_pubdata);
+            let mut formatter = Formatter::new();
 
-            let fee_model_config = fee_input_provider.get_fee_model_config();
-
-            formatter.print_gas_details(&gas_details, &fee_model_config);
+            formatter.print_gas_details(&gas_details, fee_model_config);
 
             Ok(())
         } else {
@@ -167,11 +169,9 @@ impl VmRunner {
         tx: &Transaction,
         executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
-        fee_input_provider: &TestNodeFeeInputProvider,
+        fee_model_config: &FeeModelConfigV2,
     ) -> AnvilNodeResult<BatchTransactionExecutionResult> {
         let verbosity = get_shell().verbosity;
-
-        warn_if_tx_recipient_no_code(tx, &mut self.fork_storage);
 
         let BatchTransactionExecutionResult {
             tx_result,
@@ -197,28 +197,20 @@ impl VmRunner {
         if !call_traces.is_empty() {
             let mut builder = CallTraceDecoderBuilder::default();
 
-            builder = builder.with_signature_identifier(
-                SignaturesIdentifier::new(Some(config.get_cache_dir().into()), config.offline)
-                    .map_err(|err| {
-                        anvil_zksync::node::generic_error!(
-                            "Failed to create SignaturesIdentifier: {err:#}"
-                        )
-                    })?,
-            );
+            builder = builder.with_signature_identifier(SignaturesIdentifier::global());
 
             let decoder = builder.build();
             let mut arena = build_call_trace_arena(&call_traces, &tx_result);
-            decode_trace_arena(&mut arena, &decoder).await;
-
             extract_addresses(&arena, &mut known_addresses);
 
             if verbosity >= 2 {
+                decode_trace_arena(&mut arena, &decoder).await;
                 let filtered_arena = filter_call_trace_arena(&arena, verbosity);
                 trace_output = Some(render_trace_arena_inner(&filtered_arena, false));
             }
         }
 
-        let balance_diffs: Vec<formatter::transaction::BalanceDiff> =
+        let balance_diffs: Vec<formatter::transaction::balance_diff::BalanceDiff> =
             extract_balance_diffs(&known_addresses, &tx_result.logs.storage_logs)
                 .into_iter()
                 .map(Into::into)
@@ -226,7 +218,7 @@ impl VmRunner {
 
         sh_println!(
             "{}",
-            formatter::transaction::TransactionSummary::new(
+            TransactionSummary::new(
                 config.get_l2_gas_price(),
                 tx,
                 &tx_result,
@@ -243,7 +235,7 @@ impl VmRunner {
             self.display_detailed_gas_info(
                 Some(&self.bootloader_debug_result.read().unwrap()),
                 spent_on_pubdata,
-                fee_input_provider,
+                fee_model_config,
             )
             .unwrap_or_else(|err| {
                 sh_err!("{}", format!("Cannot display gas details: {err}"));
@@ -255,7 +247,7 @@ impl VmRunner {
         }
         // Print VM details if enabled
         if config.show_vm_details != ShowVMDetails::None {
-            let mut formatter = formatter::Formatter::new();
+            let mut formatter = Formatter::new();
             formatter.print_vm_details(&tx_result);
         }
 
@@ -277,7 +269,7 @@ impl VmRunner {
         batch_env: &L1BatchEnv,
         executor: &mut dyn BatchExecutor<ForkStorage>,
         config: &TestNodeConfig,
-        fee_input_provider: &TestNodeFeeInputProvider,
+        fee_model_config: &FeeModelConfigV2,
         impersonating: bool,
     ) -> AnvilNodeResult<TransactionResult> {
         let tx_hash = tx.hash();
@@ -298,7 +290,7 @@ impl VmRunner {
             compression_result: _,
             call_traces,
         } = self
-            .run_tx_pretty(tx, executor, config, fee_input_provider)
+            .run_tx_pretty(tx, executor, config, fee_model_config)
             .await?;
 
         if let ExecutionResult::Halt { reason } = result.result {
@@ -323,10 +315,10 @@ impl VmRunner {
 
         let mut new_bytecodes = new_bytecodes(tx, &result);
 
-        if self.system_contracts.boojum.use_boojum {
-            // In boojum, we store account properties outside of state (so state has only hash).
+        if self.system_contracts.zksync_os.zksync_os {
+            // In zksync_os, we store account properties outside of state (so state has only hash).
             // For now, we simply put the original preimages into the factory deps.
-            // The result type here is the 'era' crate - that is not modified to fit boojum os yet.
+            // The result type here is the 'era' crate - that is not modified to fit zksync_os yet.
             // once it is - we will not need this hack anymore.
             new_bytecodes.extend(result.dynamic_factory_deps.clone());
         }
@@ -352,6 +344,16 @@ impl VmRunner {
                 block_timestamp: Some(block_ctx.timestamp.into()),
             })
             .collect();
+        let base_fee = get_batch_base_fee(batch_env, VmVersion::latest());
+        let effective_gas_price = match &tx.common_data {
+            ExecuteTransactionCommon::L1(l1_common_data) => Some(l1_common_data.max_fee_per_gas),
+            ExecuteTransactionCommon::L2(l2_common_data) => {
+                Some(l2_common_data.fee.get_effective_gas_price(base_fee.into()))
+            }
+            ExecuteTransactionCommon::ProtocolUpgrade(upgrade_common_data) => {
+                Some(upgrade_common_data.max_fee_per_gas)
+            }
+        };
 
         let tx_receipt = api::TransactionReceipt {
             transaction_hash: tx_hash,
@@ -392,7 +394,7 @@ impl VmRunner {
             } else {
                 U64::from(1)
             },
-            effective_gas_price: Some(fee_input_provider.gas_price().into()),
+            effective_gas_price,
             transaction_type: Some((transaction_type as u32).into()),
             logs_bloom: Default::default(),
         };
@@ -437,14 +439,14 @@ impl VmRunner {
             l2_da_validator_address: Address::zero(),
             pubdata_type: PubdataType::Rollup,
         };
-        let mut executor = if self.system_contracts.boojum.use_boojum {
+        let mut executor = if self.system_contracts.zksync_os.zksync_os {
             self.executor_factory.init_main_batch(
                 self.fork_storage.clone(),
                 batch_env.clone(),
                 system_env.clone(),
                 pubdata_params,
-                // For boojum, we have to pass the iterator handle to the storage
-                // as boojum has different storage layout, so it has to scan over whole storage.
+                // For zksync_os, we have to pass the iterator handle to the storage
+                // as zksync_os has different storage layout, so it has to scan over whole storage.
                 Some(self.fork_storage.inner.read().unwrap().raw_storage.clone()),
             )
         } else {
@@ -492,7 +494,7 @@ impl VmRunner {
                     &batch_env,
                     &mut executor,
                     &node_inner.config,
-                    &node_inner.fee_input_provider,
+                    &node_inner.fee_input_provider.get_fee_model_config(),
                     impersonating,
                 )
                 .await;
@@ -510,13 +512,13 @@ impl VmRunner {
                     match &e {
                         // Validation errors are reported and the execution proceeds
                         AnvilNodeError::TransactionValidationFailed { .. } => {
-                            let error_report = ExecutionErrorReport::new(&e, Some(&tx));
+                            let error_report = ExecutionErrorReport::new(&e, &tx);
                             sh_eprintln!("{error_report}");
                             executor.rollback_last_tx().await?;
                         }
                         // Halts are reported and the execution proceeds
                         AnvilNodeError::TransactionHalt { inner, .. } => {
-                            let error_report = ExecutionErrorReport::new(inner.as_ref(), Some(&tx));
+                            let error_report = ExecutionErrorReport::new(inner.as_ref(), &tx);
                             sh_eprintln!("{error_report}");
                             executor.rollback_last_tx().await?;
                         }
@@ -646,22 +648,12 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
     None
 }
 
-fn warn_if_tx_recipient_no_code(tx: &Transaction, storage: &mut ForkStorage) {
-    if let Some(to_address) = tx.recipient_account() {
-        if !account_has_code(to_address, storage) {
-            sh_warn!(
-                    "Transaction {} was sent to address {to_address}, which is not associated with any contract.",
-                    tx.hash()
-                );
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::node::TestNodeFeeInputProvider;
     use crate::node::fork::{Fork, ForkClient, ForkDetails};
-    use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
+    use crate::testing::{STORAGE_CONTRACT_BYTECODE, TransactionBuilder};
     use alloy::dyn_abi::{DynSolType, DynSolValue};
     use alloy::primitives::U256 as AlloyU256;
     use anvil_zksync::node::AnvilNodeResult;
@@ -683,7 +675,7 @@ mod test {
     use zksync_types::l2::{L2Tx, TransactionType};
     use zksync_types::utils::deployed_address_create;
     use zksync_types::{
-        u256_to_h256, K256PrivateKey, L1BatchNumber, L2ChainId, Nonce, ProtocolVersionId, H256,
+        H256, K256PrivateKey, L1BatchNumber, L2ChainId, Nonce, ProtocolVersionId, u256_to_h256,
     };
 
     struct VmRunnerTester {
@@ -694,10 +686,10 @@ mod test {
 
     impl VmRunnerTester {
         fn new_custom(fork_client: Option<ForkClient>, config: TestNodeConfig) -> Self {
-            let storage_layout = if config.boojum.use_boojum {
-                StorageKeyLayout::BoojumOs
+            let storage_layout = if config.zksync_os.zksync_os {
+                StorageKeyLayout::ZKsyncOs
             } else {
-                StorageKeyLayout::ZkEra
+                StorageKeyLayout::Era
             };
 
             let time = Time::new(0);
@@ -713,7 +705,7 @@ mod test {
                 config.system_contracts_path.clone(),
                 ProtocolVersionId::latest(),
                 config.use_evm_interpreter,
-                config.boojum.clone(),
+                config.zksync_os.clone(),
             );
             let vm_runner = VmRunner::new(
                 time,
@@ -814,7 +806,7 @@ mod test {
                             &batch_env,
                             executor.as_mut(),
                             &self.config,
-                            &TestNodeFeeInputProvider::default(),
+                            &TestNodeFeeInputProvider::default().get_fee_model_config(),
                             false,
                         )
                         .await?,

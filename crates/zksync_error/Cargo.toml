@@ -9,14 +9,25 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[features]
+default = ["std", "use_anyhow", "use_serde"]
+std = [ "serde/std", "lazy_static/spin_no_std", "anyhow?/std", "strum/std"]
+use_anyhow = ["dep:anyhow"]
+use_serde = ["dep:serde"]
+runtime_documentation = ["dep:serde", "dep:serde_json"]
+serialized_errors = ["dep:serde", "dep:serde_json"]
+packed_errors = ["use_serde"]
+to_generic = []
+
 [dependencies]
-anyhow.workspace = true
+anyhow = { workspace = true, optional = true }
+lazy_static = { workspace = true, optional = true }
+serde = { workspace = true, features = [ "derive", "alloc" ], optional = true }
+serde_json = { workspace = true, optional = true }
+strum = { workspace = true, features = ["derive"] }
+strum_macros = { workspace = true }
+
 zksync_basic_types.workspace = true
-lazy_static.workspace = true
-serde = { workspace = true, features = [ "rc" ] }
-serde_json.workspace = true
-strum.workspace = true
-strum_macros.workspace = true
 zksync-error-description.workspace = true
 
 [build-dependencies]

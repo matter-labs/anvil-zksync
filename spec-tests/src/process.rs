@@ -41,7 +41,7 @@ pub fn run<S: AsRef<OsStr> + Clone + Display>(
     let process = Command::new(bin_path.clone())
         .args(options)
         .spawn()
-        .with_context(|| format!("failed to run anvil-zksync using '{}'", bin_path))?;
+        .with_context(|| format!("failed to run anvil-zksync using '{bin_path}'"))?;
     Ok(EraRunHandle {
         config,
         process: Some(process),

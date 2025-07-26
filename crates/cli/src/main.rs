@@ -1,11 +1,11 @@
 use crate::bytecode_override::override_bytecodes;
-use crate::cli::{BuiltinNetwork, Cli, Command, ForkUrl, PeriodicStateDumper};
+use crate::cli::{Cli, Command, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
-use anvil_zksync_common::shell::get_shell;
+use anvil_zksync_common::shell::{OutputMode, get_shell};
 use anvil_zksync_common::utils::predeploys::PREDEPLOYS;
-use anvil_zksync_common::{sh_eprintln, sh_err, sh_println, sh_warn};
+use anvil_zksync_common::{sh_eprintln, sh_err, sh_println};
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
@@ -23,6 +23,7 @@ use anvil_zksync_core::node::{
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContractsBuilder;
 use anvil_zksync_l1_sidecar::L1Sidecar;
+use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
 use clap::Parser;
@@ -38,13 +39,13 @@ use std::{env, net::SocketAddr, str::FromStr};
 use tokio::sync::RwLock;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::filter::LevelFilter;
-use zksync_error::anvil_zksync::gen::{generic_error, to_domain};
 use zksync_error::anvil_zksync::AnvilZksyncError;
+use zksync_error::anvil_zksync::generic::{generic_error, to_domain};
 use zksync_error::{ICustomError, IError as _};
-use zksync_telemetry::{get_telemetry, init_telemetry, TelemetryProps};
+use zksync_telemetry::{TelemetryProps, get_telemetry, init_telemetry};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{
-    L2BlockNumber, Nonce, CONTRACT_DEPLOYER_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, H160, U256,
+    CONTRACT_DEPLOYER_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, H160, L2BlockNumber, Nonce, U256,
 };
 
 mod bytecode_override;
@@ -54,33 +55,30 @@ mod utils;
 const POSTHOG_API_KEY: &str = "phc_TsD52JxwkT2OXPHA2oKX2Lc3mf30hItCBrE9s9g1MKe";
 const TELEMETRY_CONFIG_NAME: &str = "zksync-tooling";
 
-async fn start_program() -> Result<(), AnvilZksyncError> {
+async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
     // Check for deprecated options
     Cli::deprecated_config_option();
 
-    let opt = Cli::parse();
+    if opt.silent.unwrap_or(false) {
+        let mut shell = get_shell();
+        shell.output_mode = OutputMode::Quiet;
+    }
     // We keep a serialized version of the provided arguments to communicate them later if the arguments were incorrect.
     let debug_opt_string_repr = format!("{opt:#?}");
 
     let command = opt.command.clone();
 
-    // Track node start
-    let telemetry = get_telemetry().expect("telemetry is not initialized");
-    let cli_telemetry_props = opt.clone().into_telemetry_props();
-    let _ = telemetry
-        .track_event(
-            "node_started",
-            TelemetryProps::new()
-                .insert("params", Some(cli_telemetry_props))
-                .take(),
-        )
-        .await;
+    let mut config = opt.clone().into_test_node_config().map_err(to_domain)?;
 
-    let mut config = opt.into_test_node_config().map_err(to_domain)?;
     // Set verbosity level for the shell
     {
         let mut shell = get_shell();
         shell.verbosity = config.verbosity;
+        shell.output_mode = if config.silent {
+            OutputMode::Quiet
+        } else {
+            OutputMode::Normal
+        };
     }
     let log_level_filter = LevelFilter::from(config.log_level);
     let log_file = File::create(&config.log_file_path).map_err(|inner| {
@@ -103,75 +101,34 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         ),
     })?;
 
+    // Install the global signatures identifier.
+    if let Err(err) =
+        SignaturesIdentifier::install(Some(config.get_cache_dir().into()), config.offline).await
+    {
+        tracing::error!("Failed to install signatures identifier: {err}");
+    }
+
     // Use `Command::Run` as default.
     let command = command.as_ref().unwrap_or(&Command::Run);
     let (fork_client, transactions_to_replay) = match command {
         Command::Run => {
-            if config.offline {
-                sh_warn!("Running in offline mode: default fee parameters will be used.");
-                config = config
-                    .clone()
-                    .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
-                    .with_l2_gas_price(config.l2_gas_price.or(Some(DEFAULT_L2_GAS_PRICE)))
-                    .with_price_scale(
-                        config
-                            .price_scale_factor
-                            .or(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)),
-                    )
-                    .with_gas_limit_scale(
-                        config
-                            .limit_scale_factor
-                            .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
-                    )
-                    .with_l1_pubdata_price(
-                        config.l1_pubdata_price.or(Some(DEFAULT_FAIR_PUBDATA_PRICE)),
-                    )
-                    .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
-                (None, Vec::new())
-            } else {
-                // Initialize the client to get the fee params
-                let client = ForkClient::at_block_number(
-                    ForkUrl::Builtin(BuiltinNetwork::Era).to_config(),
-                    None,
+            config = config
+                .clone()
+                .with_l1_gas_price(config.l1_gas_price.or(Some(DEFAULT_L1_GAS_PRICE)))
+                .with_l2_gas_price(config.l2_gas_price.or(Some(DEFAULT_L2_GAS_PRICE)))
+                .with_price_scale(
+                    config
+                        .price_scale_factor
+                        .or(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)),
                 )
-                .await
-                .map_err(to_domain)?;
-                let fee = client.get_fee_params().await.map_err(to_domain)?;
-
-                match fee {
-                    FeeParams::V2(fee_v2) => {
-                        config = config
-                            .clone()
-                            .with_l1_gas_price(config.l1_gas_price.or(Some(fee_v2.l1_gas_price())))
-                            .with_l2_gas_price(
-                                config
-                                    .l2_gas_price
-                                    .or(Some(fee_v2.config().minimal_l2_gas_price)),
-                            )
-                            .with_price_scale(
-                                config
-                                    .price_scale_factor
-                                    .or(Some(DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR)),
-                            )
-                            .with_gas_limit_scale(
-                                config
-                                    .limit_scale_factor
-                                    .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
-                            )
-                            .with_l1_pubdata_price(
-                                config.l1_pubdata_price.or(Some(fee_v2.l1_pubdata_price())),
-                            )
-                            .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
-                    }
-                    FeeParams::V1(_) => {
-                        return Err(
-                            generic_error!("Unsupported FeeParams::V1 in this context").into()
-                        );
-                    }
-                }
-
-                (None, Vec::new())
-            }
+                .with_gas_limit_scale(
+                    config
+                        .limit_scale_factor
+                        .or(Some(DEFAULT_ESTIMATE_GAS_SCALE_FACTOR)),
+                )
+                .with_l1_pubdata_price(config.l1_pubdata_price.or(Some(DEFAULT_FAIR_PUBDATA_PRICE)))
+                .with_chain_id(config.chain_id.or(Some(TEST_NODE_NETWORK_ID)));
+            (None, Vec::new())
         }
         Command::Fork(fork) => {
             let (fork_client, earlier_txs) = if let Some(tx_hash) = fork.fork_transaction_hash {
@@ -250,7 +207,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                 return Err(to_domain(generic_error!(
                     "fork is using unsupported fee parameters: {:?}",
                     fork_client.details.fee_params
-                )))
+                )));
             }
         };
 
@@ -285,13 +242,13 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         .system_contracts_path(config.system_contracts_path.clone())
         .protocol_version(config.protocol_version())
         .with_evm_interpreter(config.use_evm_interpreter)
-        .with_boojum(config.boojum.clone())
+        .with_zksync_os(config.zksync_os.clone())
         .build();
 
-    let storage_key_layout = if config.boojum.use_boojum {
-        StorageKeyLayout::BoojumOs
+    let storage_key_layout = if config.zksync_os.zksync_os {
+        StorageKeyLayout::ZKsyncOs
     } else {
-        StorageKeyLayout::ZkEra
+        StorageKeyLayout::Era
     };
 
     let is_fork_mode = fork_client.is_some();
@@ -316,7 +273,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
                 details: "Running L1 in forking mode is unsupported".into(),
                 arguments: debug_opt_string_repr,
             }
-            .into())
+            .into());
         }
         Some(L1Config::Spawn { port }) => {
             let (l1_sidecar, l1_sidecar_runner) = L1Sidecar::process(
@@ -380,9 +337,24 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         if let Err(err) = node_executor.run().await {
             sh_err!("{err}");
 
-            let _ = telemetry.track_error(Box::new(&err)).await;
+            if let Some(tel) = get_telemetry() {
+                let _ = tel.track_error(Box::new(&err)).await;
+            }
         }
     });
+
+    // track start of node if offline is false
+    if let Some(tel) = get_telemetry() {
+        let cli_telemetry_props = opt.clone().into_telemetry_props();
+        let _ = tel
+            .track_event(
+                "node_started",
+                TelemetryProps::new()
+                    .insert("params", Some(cli_telemetry_props))
+                    .take(),
+            )
+            .await;
+    }
 
     if config.use_evm_interpreter {
         // We need to enable EVM interpreter by setting `allowedBytecodeTypesToDeploy` in `ContractDeployer`
@@ -439,7 +411,7 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         node.stop_impersonating_account(PSEUDO_CALLER).unwrap();
     }
 
-    if let Some(ref bytecodes_dir) = config.override_bytecodes_dir {
+    if let Some(bytecodes_dir) = &config.override_bytecodes_dir {
         override_bytecodes(&node, bytecodes_dir.to_string())
             .await
             .unwrap();
@@ -604,27 +576,36 @@ async fn start_program() -> Result<(), AnvilZksyncError> {
         }
     }
 
+    SignaturesIdentifier::global().save().await;
+
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<(), AnvilZksyncError> {
-    init_telemetry(
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION"),
-        TELEMETRY_CONFIG_NAME,
-        Some(POSTHOG_API_KEY.into()),
-        None,
-        None,
-    )
-    .await
-    .map_err(|inner| zksync_error::anvil_zksync::env::GenericError {
-        message: format!("Failed to initialize telemetry collection subsystem: {inner}."),
-    })?;
+    let cli = Cli::parse();
+    let offline = cli.offline;
 
-    if let Err(err) = start_program().await {
-        let telemetry = get_telemetry().expect("telemetry is not initialized");
-        let _ = telemetry.track_error(Box::new(&err.to_unified())).await;
+    if !offline {
+        init_telemetry(
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION"),
+            TELEMETRY_CONFIG_NAME,
+            Some(POSTHOG_API_KEY.into()),
+            None,
+            None,
+        )
+        .await
+        .map_err(|inner| zksync_error::anvil_zksync::env::GenericError {
+            message: format!("Failed to initialize telemetry collection subsystem: {inner}."),
+        })?;
+    }
+
+    if let Err(err) = start_program(cli).await {
+        // Track only if telemetry is active
+        if let Some(tel) = get_telemetry() {
+            let _ = tel.track_error(Box::new(&err.to_unified())).await;
+        }
         sh_eprintln!("{}", err.to_unified().get_message());
         return Err(err);
     }

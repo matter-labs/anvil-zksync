@@ -1,14 +1,14 @@
 use anvil_zksync_api_decl::AnvilNamespaceServer;
 use anvil_zksync_common::sh_warn;
 use anvil_zksync_core::node::InMemoryNode;
-use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
 use anvil_zksync_types::Numeric;
-use jsonrpsee::core::{async_trait, RpcResult};
+use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
+use jsonrpsee::core::{RpcResult, async_trait};
 use zksync_types::api::Block;
 use zksync_types::web3::Bytes;
-use zksync_types::{Address, H256, U256, U64};
+use zksync_types::{Address, H256, U64, U256};
 
-use crate::error::{rpc_unsupported, RpcErrorAdapter};
+use crate::error::{RpcErrorAdapter, rpc_unsupported};
 
 pub struct AnvilNamespace {
     node: InMemoryNode,

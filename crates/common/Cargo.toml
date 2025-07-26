@@ -11,13 +11,15 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-alloy = { workspace = true, default-features = false, features = ["dyn-abi", "sol-types"] }
+alloy = { workspace = true, default-features = false, features = [
+    "dyn-abi",
+    "sol-types",
+] }
 anstream.workspace = true
 anstyle.workspace = true
 zksync_types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-lazy_static.workspace = true
 eyre.workspace = true
 reqwest.workspace = true
 rustc-hash.workspace = true

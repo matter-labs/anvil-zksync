@@ -4,13 +4,13 @@ use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::interface::tracer::VmExecutionStopReason;
 use zksync_multivm::tracers::old::OldTracers;
 use zksync_multivm::{
+    IntoOldVmTracer,
     tracers::dynamic::vm_1_5_2::DynTracer,
     vm_latest::{HistoryMode, SimpleMemory, VmTracer},
     zk_evm_latest::{
         tracing::{AfterDecodingData, VmLocalStateData},
         vm_state::ErrorFlags,
     },
-    IntoOldVmTracer,
 };
 
 #[derive(Debug, Clone)]

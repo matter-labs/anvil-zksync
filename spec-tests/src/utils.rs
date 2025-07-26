@@ -37,9 +37,9 @@ impl LockedPort {
     pub async fn acquire_unused() -> anyhow::Result<Self> {
         loop {
             let port = Self::pick_unused_port().await?;
-            let lockpath = std::env::temp_dir().join(format!("anvil-zksync-port{}.lock", port));
+            let lockpath = std::env::temp_dir().join(format!("anvil-zksync-port{port}.lock"));
             let lockfile = File::create(lockpath)
-                .with_context(|| format!("failed to create lockfile for port={}", port))?;
+                .with_context(|| format!("failed to create lockfile for port={port}"))?;
             if lockfile.try_lock_exclusive().is_ok() {
                 break Ok(Self { port, lockfile });
             }
@@ -50,12 +50,12 @@ impl LockedPort {
     /// can take this lock). Lock lasts until the returned `LockedPort` instance is dropped.
     pub async fn acquire(port: u16) -> anyhow::Result<Self> {
         let port = Self::check_port_is_unused(port).await?;
-        let lockpath = std::env::temp_dir().join(format!("anvil-zksync-port{}.lock", port));
+        let lockpath = std::env::temp_dir().join(format!("anvil-zksync-port{port}.lock"));
         let lockfile = File::create(lockpath)
-            .with_context(|| format!("failed to create lockfile for port={}", port))?;
+            .with_context(|| format!("failed to create lockfile for port={port}"))?;
         lockfile
             .try_lock_exclusive()
-            .with_context(|| format!("failed to lock the lockfile for port={}", port))?;
+            .with_context(|| format!("failed to lock the lockfile for port={port}"))?;
         Ok(Self { port, lockfile })
     }
 }

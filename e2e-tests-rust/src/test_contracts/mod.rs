@@ -2,8 +2,8 @@ use alloy::contract::SolCallBuilder;
 use alloy::network::{Ethereum, Network, ReceiptResponse};
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
-use alloy_zksync::network::transaction_request::TransactionRequest;
 use alloy_zksync::network::Zksync;
+use alloy_zksync::network::transaction_request::TransactionRequest;
 use std::fmt::Debug;
 
 #[allow(clippy::all)]
@@ -20,7 +20,7 @@ mod private {
     );
 }
 
-pub struct Counter<N: Network, P: Provider<N>>(private::Counter::CounterInstance<(), P, N>);
+pub struct Counter<N: Network, P: Provider<N>>(private::Counter::CounterInstance<P, N>);
 
 impl<P: Provider<Zksync> + Clone> Counter<Zksync, P> {
     pub async fn deploy(provider: P) -> anyhow::Result<Self> {
@@ -55,13 +55,22 @@ impl<N: Network, P: Provider<N>> Counter<N, P> {
     }
 
     pub async fn get(&self) -> alloy::contract::Result<U256> {
-        Ok(self.0.get().call().await?._0)
+        self.0.get().call().await
     }
 
     pub fn increment(
         &self,
         x: impl TryInto<U256, Error = impl Debug>,
-    ) -> SolCallBuilder<(), &P, private::Counter::incrementCall, N> {
+    ) -> SolCallBuilder<&P, private::Counter::incrementCall, N> {
         self.0.increment(x.try_into().unwrap())
+    }
+
+    pub fn increment_with_revert(
+        &self,
+        x: impl TryInto<U256, Error = impl Debug>,
+        should_revert: bool,
+    ) -> SolCallBuilder<&P, private::Counter::incrementWithRevertCall, N> {
+        self.0
+            .incrementWithRevert(x.try_into().unwrap(), should_revert)
     }
 }

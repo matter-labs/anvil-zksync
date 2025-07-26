@@ -4,9 +4,9 @@ use crate::l1_executor::L1Executor;
 use crate::l1_sender::{L1Sender, L1SenderHandle};
 use crate::l1_watcher::L1Watcher;
 use crate::upgrade_tx::UpgradeTx;
+use crate::zkstack_config::ZkstackConfig;
 use crate::zkstack_config::contracts::ContractsConfig;
 use crate::zkstack_config::genesis::GenesisConfig;
-use crate::zkstack_config::ZkstackConfig;
 use alloy::providers::Provider;
 use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use anvil_zksync_core::node::node_executor::NodeExecutorHandle;
@@ -16,7 +16,7 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use zksync_types::protocol_upgrade::ProtocolUpgradeTxCommonData;
 use zksync_types::{
-    ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction, H256, U256,
+    ExecuteTransactionCommon, H256, L1BatchNumber, ProtocolVersionId, Transaction, U256,
 };
 
 mod anvil;

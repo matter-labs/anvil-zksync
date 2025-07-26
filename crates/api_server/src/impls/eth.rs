@@ -1,7 +1,7 @@
 use anvil_zksync_api_decl::EthNamespaceServer;
 use anvil_zksync_core::node::InMemoryNode;
 use function_name::named;
-use jsonrpsee::core::{async_trait, RpcResult};
+use jsonrpsee::core::{RpcResult, async_trait};
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::api::{
     Block, BlockIdVariant, BlockNumber, FeeHistory, Log, Transaction, TransactionReceipt,
@@ -9,10 +9,10 @@ use zksync_types::api::{
 };
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::web3::{Bytes, Index, SyncState, U64Number};
-use zksync_types::{api, Address, H256, U256, U64};
+use zksync_types::{Address, H256, U64, U256, api};
 use zksync_web3_decl::types::{Filter, FilterChanges};
 
-use crate::error::{rpc_unsupported, RpcErrorAdapter};
+use crate::error::{RpcErrorAdapter, rpc_unsupported};
 
 pub struct EthNamespace {
     node: InMemoryNode,

@@ -2,7 +2,7 @@ use anvil_zksync_types::LogLevel;
 use std::sync::{Arc, RwLock};
 use std::{fs::File, sync::Mutex};
 use tracing_subscriber::{
-    filter::LevelFilter, layer::SubscriberExt, reload, util::SubscriberInitExt, EnvFilter, Registry,
+    EnvFilter, Registry, filter::LevelFilter, layer::SubscriberExt, reload, util::SubscriberInitExt,
 };
 
 /// A sharable reference to the observability stack.

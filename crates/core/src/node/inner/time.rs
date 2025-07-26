@@ -72,8 +72,8 @@ impl Time {
         let mut this = self.get_mut();
         if timestamp <= this.current_timestamp {
             Err(anvil_zksync::node::TimestampBackwardsError {
-                timestamp_requested: timestamp.into(),
-                timestamp_now: this.current_timestamp.into(),
+                timestamp_requested: timestamp,
+                timestamp_now: this.current_timestamp,
             })
         } else {
             this.next_timestamp.replace(timestamp);

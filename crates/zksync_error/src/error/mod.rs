@@ -10,7 +10,9 @@ use crate::error::domains::Foundry;
 use crate::error::domains::Hardhat;
 use crate::error::domains::ZksyncError;
 use crate::identifier::Identifier;
-use std::error::Error;
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+use core::error::Error;
 pub trait IError<ContainedType>: Error
 where
     ContainedType: Clone,
@@ -19,6 +21,13 @@ where
     fn get_message(&self) -> String;
     fn get_data(&self) -> ContainedType;
 }
+#[cfg(not(feature = "use_serde"))]
+pub trait IUnifiedError<ContainedType>: IError<ContainedType>
+where
+    ContainedType: Clone,
+{
+}
+#[cfg(feature = "use_serde")]
 pub trait IUnifiedError<ContainedType>:
     serde::Serialize + for<'de> serde::Deserialize<'de> + IError<ContainedType>
 where
@@ -50,6 +59,7 @@ impl IError<ZksyncError> for ZksyncError {
             ZksyncError::AnvilZksync(AnvilZksync::AnvilEnvironment(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::AnvilGeneric(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::AnvilNode(error)) => error.get_message(),
+            ZksyncError::AnvilZksync(AnvilZksync::GasEstimation(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Halt(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::Revert(error)) => error.get_message(),
             ZksyncError::AnvilZksync(AnvilZksync::StateLoader(error)) => error.get_message(),

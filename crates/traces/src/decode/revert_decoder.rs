@@ -8,10 +8,10 @@
 // Note: These methods are used under the terms of the original project's license.  //
 //////////////////////////////////////////////////////////////////////////////////////
 
-use super::{decode_value, SELECTOR_LEN};
+use super::{SELECTOR_LEN, decode_value};
 use alloy::dyn_abi::JsonAbiExt;
 use alloy::json_abi::{Error, JsonAbi};
-use alloy::primitives::{map::HashMap, Selector};
+use alloy::primitives::{Selector, map::HashMap};
 use alloy::sol_types::{SolInterface, SolValue};
 use anvil_zksync_types::traces::DecodedError;
 use std::sync::OnceLock;
@@ -109,8 +109,7 @@ impl RevertDecoder {
         };
 
         // Solidity's `Error(string)` or `Panic(uint256)`
-        if let Ok(e) =
-            alloy::sol_types::ContractError::<std::convert::Infallible>::abi_decode(err, false)
+        if let Ok(e) = alloy::sol_types::ContractError::<std::convert::Infallible>::abi_decode(err)
         {
             return match e {
                 alloy::sol_types::ContractError::CustomError(_) => unreachable!(),
@@ -127,7 +126,7 @@ impl RevertDecoder {
         if let Some(errors) = self.errors.get(selector) {
             for error in errors {
                 // If we don't decode, don't return an error, try to decode as a string later.
-                if let Ok(decoded) = error.abi_decode_input(data, false) {
+                if let Ok(decoded) = error.abi_decode_input(data) {
                     return Some(DecodedError::CustomError {
                         name: error.name.to_owned(),
                         fields: decoded.into_iter().map(decode_value).collect(),
@@ -137,7 +136,7 @@ impl RevertDecoder {
         }
 
         // ABI-encoded `string`.
-        if let Ok(s) = String::abi_decode(err, true) {
+        if let Ok(s) = String::abi_decode_validate(err) {
             return Some(DecodedError::Revert(s));
         }
 

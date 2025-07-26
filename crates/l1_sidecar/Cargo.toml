@@ -11,15 +11,21 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-anvil_zksync_common.workspace = true
-anvil_zksync_core.workspace = true
+anvil_zksync_core = { workspace = true, default-features = false }
 anvil_zksync_types.workspace = true
+anvil_zksync_common.workspace = true
 
 zksync_contracts.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_types.workspace = true
 
-alloy = { workspace = true, default-features = false, features = ["sol-types", "rpc-types", "providers", "kzg", "provider-anvil-api"] }
+alloy = { workspace = true, default-features = false, features = [
+    "sol-types",
+    "rpc-types",
+    "providers",
+    "kzg",
+    "provider-anvil-api",
+] }
 anyhow.workspace = true
 hex.workspace = true
 tempfile.workspace = true
@@ -34,3 +40,7 @@ tracing.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true
+
+[features]
+default = ["zksync-os"]
+zksync-os = ["anvil_zksync_core/zksync-os"]

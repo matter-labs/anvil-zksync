@@ -49,7 +49,7 @@ fn validate_schema(validator: Validator, result: Value) {
             "=== Validation error while validating instance at '{}' against schema at '{}':",
             err.instance_path, err.schema_path
         );
-        eprintln!("{}", err);
+        eprintln!("{err}");
     }
     assert!(
         errors.is_empty(),

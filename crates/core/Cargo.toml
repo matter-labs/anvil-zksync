@@ -22,21 +22,35 @@ zksync_contracts.workspace = true
 zksync_system_constants.workspace = true
 zksync_types.workspace = true
 zksync_web3_decl.workspace = true
+zksync_basic_types.workspace = true
 zksync_error.workspace = true
 zksync-error-description.workspace = true
+
+# ZKsync OS dependencies
+forward_system = { workspace = true, optional = true }
+basic_system = { workspace = true, optional = true }
+zk_ee = { workspace = true, optional = true }
+system_hooks = { workspace = true, optional = true }
+zksync_os_api = { workspace = true, optional = true }
+crypto = { workspace = true, optional = true }
+evm_interpreter = { workspace = true, optional = true }
 
 anyhow.workspace = true
 tokio.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 
-alloy = { workspace = true, default-features = false, features = ["json-abi", "dyn-abi", "sol-types", "eip712"] }
+alloy = { workspace = true, default-features = false, features = [
+    "json-abi",
+    "dyn-abi",
+    "sol-types",
+    "eip712",
+] }
 
 serde.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 colored.workspace = true
-lazy_static.workspace = true
 eyre.workspace = true
 serde_json.workspace = true
 hex.workspace = true
@@ -51,6 +65,7 @@ async-trait.workspace = true
 url.workspace = true
 indicatif.workspace = true
 tabled.workspace = true
+ruint.workspace = true
 
 [dev-dependencies]
 maplit.workspace = true
@@ -58,3 +73,15 @@ httptest.workspace = true
 tempfile.workspace = true
 test-case.workspace = true
 backon.workspace = true
+
+[features]
+default = ["zksync-os"]
+zksync-os = [
+    "dep:forward_system",
+    "dep:basic_system",
+    "dep:zk_ee",
+    "dep:system_hooks",
+    "dep:zksync_os_api",
+    "dep:crypto",
+    "dep:evm_interpreter",
+]

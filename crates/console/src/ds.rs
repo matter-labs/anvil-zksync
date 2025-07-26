@@ -1,4 +1,4 @@
-use alloy::primitives::{hex, I256, U256};
+use alloy::primitives::{I256, U256, hex};
 use alloy::sol;
 use derive_more::Display;
 use itertools::Itertools;

@@ -194,7 +194,10 @@ struct ProcessAnvil {
     _tmpdir: TempDir,
 }
 
-async fn setup_provider(address: &str, config: &ZkstackConfig) -> anyhow::Result<impl Provider> {
+async fn setup_provider(
+    address: &str,
+    config: &ZkstackConfig,
+) -> anyhow::Result<impl Provider + use<>> {
     let blob_operator_wallet =
         EthereumWallet::from(config.wallets.blob_operator.private_key.clone());
     let provider = ProviderBuilder::new()

@@ -1,0 +1,20 @@
+{
+  "dependencies": [
+    {
+      "link": {
+        "Github": {
+          "repo": "matter-labs/anvil-zksync",
+          "path": "etc/errors/anvil.json",
+          "branch": "main"
+        }
+      },
+      "resolved": {
+        "GithubLink": {
+          "repo": "matter-labs/anvil-zksync",
+          "path": "etc/errors/anvil.json",
+          "commit": "94e8335c272485bbafcbfd1b28f7143f5b05b337"
+        }
+      }
+    }
+  ]
+}

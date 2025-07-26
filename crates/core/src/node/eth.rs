@@ -1,26 +1,26 @@
-use crate::formatter::ExecutionErrorReport;
+use crate::formatter::errors::view::ExecutionErrorReport;
 use crate::node::error::{ToHaltError, ToRevertReason};
 use anvil_zksync_common::{sh_err, sh_println, sh_warn};
 use anyhow::Context as _;
 use std::collections::HashSet;
+use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_error::anvil_zksync::{halt::HaltError, revert::RevertError};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::utils::decompose_full_nonce;
 use zksync_types::{
-    api,
+    Address, H160, H256, U64, U256,
+    web3::{self, Bytes},
+};
+use zksync_types::{
+    MAX_L1_TRANSACTION_GAS_LIMIT, PackedEthSignature, api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
     get_code_key, get_is_account_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
-    PackedEthSignature, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
-use zksync_types::{h256_to_u256, Transaction};
-use zksync_types::{
-    web3::{self, Bytes},
-    Address, H160, H256, U256, U64,
-};
+use zksync_types::{Transaction, h256_to_u256};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{FeeHistory, Filter, FilterChanges, SyncState},
@@ -32,7 +32,7 @@ use crate::{
     utils::TransparentError,
 };
 
-use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
+use super::zksync_os::ZkSyncOSHelpers;
 
 impl InMemoryNode {
     pub async fn call_impl(
@@ -57,8 +57,8 @@ impl InMemoryNode {
             }
         }
 
-        if self.system_contracts.boojum.use_boojum {
-            tx.common_data.fee.gas_limit = BOOJUM_CALL_GAS_LIMIT.into();
+        if self.system_contracts.zksync_os.zksync_os {
+            tx.common_data.fee.gas_limit = ZkSyncOSHelpers::call_gas_limit().into();
         } else {
             tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         }
@@ -79,7 +79,7 @@ impl InMemoryNode {
 
                 let revert_reason: RevertError = output.clone().to_revert_reason().await;
                 let tx = Transaction::from(tx);
-                let error_report = ExecutionErrorReport::new(&revert_reason, Some(&tx));
+                let error_report = ExecutionErrorReport::new(&revert_reason, &tx);
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(
@@ -97,7 +97,7 @@ impl InMemoryNode {
 
                 let halt_error: HaltError = reason.clone().to_halt_error().await;
                 let tx = Transaction::from(tx);
-                let error_report = ExecutionErrorReport::new(&halt_error, Some(&tx));
+                let error_report = ExecutionErrorReport::new(&halt_error, &tx);
                 sh_println!("{}", error_report);
 
                 Err(Web3Error::SubmitTransactionError(pretty_message, vec![]))
@@ -128,9 +128,10 @@ impl InMemoryNode {
         &self,
         mut tx: zksync_types::transaction_request::CallRequest,
     ) -> Result<H256, Web3Error> {
-        let (chain_id, l2_gas_price) = {
+        let (chain_id, base_fee) = {
             let reader = self.inner.read().await;
-            (self.chain_id().await, reader.fee_input_provider.gas_price())
+            let (gas_price, _) = reader.fee_input_provider.gas_price_and_gas_per_pubdata();
+            (self.chain_id().await, gas_price)
         };
 
         // Users might expect a "sensible default"
@@ -146,7 +147,7 @@ impl InMemoryNode {
                 return Err(TransparentError(err.into()).into());
             }
         } else {
-            tx.gas_price = Some(tx.max_fee_per_gas.unwrap_or(U256::from(l2_gas_price)));
+            tx.gas_price = Some(tx.max_fee_per_gas.unwrap_or(U256::from(base_fee)));
             tx.max_priority_fee_per_gas = Some(tx.max_priority_fee_per_gas.unwrap_or(U256::zero()));
             if tx.transaction_type.is_none() {
                 tx.transaction_type = Some(zksync_types::EIP_1559_TX_TYPE.into());
@@ -239,7 +240,7 @@ impl InMemoryNode {
                         }
                         TransactionVariant::Hash(_) => {
                             if full_transactions {
-                                panic!("unexpected non full transaction for block {}", block_hash)
+                                panic!("unexpected non full transaction for block {block_hash}")
                             } else {
                                 transaction
                             }
@@ -324,14 +325,19 @@ impl InMemoryNode {
         req: zksync_types::transaction_request::CallRequest,
         // TODO: Support
         _block: Option<BlockNumber>,
-    ) -> Result<U256, Web3Error> {
+    ) -> AnvilNodeResult<U256> {
         let fee = self.inner.read().await.estimate_gas_impl(req).await?;
         Ok(fee.gas_limit)
     }
 
     pub async fn gas_price_impl(&self) -> anyhow::Result<U256> {
-        let fair_l2_gas_price: u64 = self.inner.read().await.fee_input_provider.gas_price();
-        Ok(U256::from(fair_l2_gas_price))
+        let (gas_price, _) = self
+            .inner
+            .read()
+            .await
+            .fee_input_provider
+            .gas_price_and_gas_per_pubdata();
+        Ok(U256::from(gas_price))
     }
 
     pub async fn new_filter_impl(&self, filter: Filter) -> anyhow::Result<U256> {
@@ -528,8 +534,13 @@ impl InMemoryNode {
             // Can't be more than the total number of blocks
             .clamp(1, current_block.0 as usize + 1);
 
-        let mut base_fee_per_gas =
-            vec![U256::from(self.inner.read().await.fee_input_provider.gas_price()); block_count];
+        let (base_fee, _) = self
+            .inner
+            .read()
+            .await
+            .fee_input_provider
+            .gas_price_and_gas_per_pubdata();
+        let mut base_fee_per_gas = vec![U256::from(base_fee); block_count];
 
         let oldest_block = current_block + 1 - base_fee_per_gas.len() as u32;
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
@@ -563,13 +574,13 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::fork::{ForkClient, ForkConfig};
     use crate::node::TransactionResult;
+    use crate::node::fork::{ForkClient, ForkConfig};
     use crate::{
         node::InMemoryNode,
         testing::{
-            self, default_tx_debug_info, ForkBlockConfig, LogBuilder, MockServer,
-            TransactionResponseBuilder,
+            self, ForkBlockConfig, LogBuilder, MockServer, TransactionResponseBuilder,
+            default_tx_debug_info,
         },
     };
     use anvil_zksync_config::constants::{
@@ -581,13 +592,12 @@ mod tests {
     use zksync_types::block::L2BlockHasher;
     use zksync_types::l2::TransactionType;
     use zksync_types::vm::VmVersion;
+    use zksync_types::{AccountTreeId, Nonce, u256_to_h256, web3};
     use zksync_types::{
-        api,
+        Bloom, EMPTY_UNCLES_HASH, K256PrivateKey, L2BlockNumber, StorageKey, api,
         api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt},
         utils::deployed_address_create,
-        Bloom, K256PrivateKey, L2BlockNumber, StorageKey, EMPTY_UNCLES_HASH,
     };
-    use zksync_types::{u256_to_h256, web3, AccountTreeId, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
     async fn test_node(url: Url) -> InMemoryNode {
@@ -1097,8 +1107,7 @@ mod tests {
             assert_eq!(
                 U64::from(input_block_number),
                 actual_block.number,
-                "case {}",
-                block_number,
+                "case {block_number}",
             );
         }
     }
@@ -1246,8 +1255,7 @@ mod tests {
             assert_eq!(
                 U256::from(input_transaction_count),
                 actual_transaction_count,
-                "case {}",
-                block_number,
+                "case {block_number}",
             );
         }
     }
@@ -1349,7 +1357,7 @@ mod tests {
                 assert_eq!(2, result.len());
                 assert_eq!(block_hash, result[0]);
             }
-            changes => panic!("unexpected filter changes: {:?}", changes),
+            changes => panic!("unexpected filter changes: {changes:?}"),
         }
 
         match node
@@ -1358,7 +1366,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Empty(_) => (),
-            changes => panic!("expected no changes in the second call, got {:?}", changes),
+            changes => panic!("expected no changes in the second call, got {changes:?}"),
         }
     }
 
@@ -1383,7 +1391,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Logs(result) => assert_eq!(4, result.len()),
-            changes => panic!("unexpected filter changes: {:?}", changes),
+            changes => panic!("unexpected filter changes: {changes:?}"),
         }
 
         match node
@@ -1392,7 +1400,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Empty(_) => (),
-            changes => panic!("expected no changes in the second call, got {:?}", changes),
+            changes => panic!("expected no changes in the second call, got {changes:?}"),
         }
     }
 
@@ -1411,7 +1419,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Hashes(result) => assert_eq!(vec![tx.hash()], result),
-            changes => panic!("unexpected filter changes: {:?}", changes),
+            changes => panic!("unexpected filter changes: {changes:?}"),
         }
 
         match node
@@ -1420,7 +1428,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Empty(_) => (),
-            changes => panic!("expected no changes in the second call, got {:?}", changes),
+            changes => panic!("expected no changes in the second call, got {changes:?}"),
         }
     }
 
@@ -1455,8 +1463,7 @@ mod tests {
             assert_eq!(
                 Some(input_storage_value),
                 actual_cached_value,
-                "unexpected cached state value for block {}",
-                miniblock
+                "unexpected cached state value for block {miniblock}"
             );
         }
     }
@@ -1710,9 +1717,11 @@ mod tests {
                         info: testing::default_tx_execution_info(),
                         new_bytecodes: vec![],
                         receipt: TransactionReceipt {
-                            logs: vec![LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa1))
-                                .build()],
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                            ],
                             ..Default::default()
                         },
                         debug: default_tx_debug_info(),
@@ -1756,7 +1765,7 @@ mod tests {
             .expect("failed getting filter changes")
         {
             FilterChanges::Logs(result) => assert_eq!(2, result.len()),
-            changes => panic!("unexpected filter changes: {:?}", changes),
+            changes => panic!("unexpected filter changes: {changes:?}"),
         }
     }
 
@@ -1774,9 +1783,11 @@ mod tests {
                         info: testing::default_tx_execution_info(),
                         new_bytecodes: vec![],
                         receipt: TransactionReceipt {
-                            logs: vec![LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa1))
-                                .build()],
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                            ],
                             ..Default::default()
                         },
                         debug: default_tx_debug_info(),
@@ -1805,9 +1816,11 @@ mod tests {
                         info: testing::default_tx_execution_info(),
                         new_bytecodes: vec![],
                         receipt: TransactionReceipt {
-                            logs: vec![LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa1))
-                                .build()],
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                            ],
                             ..Default::default()
                         },
                         debug: testing::default_tx_debug_info(),
@@ -1882,7 +1895,7 @@ mod tests {
                 assert_eq!(expected_accounts, accounts);
             }
             Err(e) => {
-                panic!("Failed to fetch accounts: {:?}", e);
+                panic!("Failed to fetch accounts: {e:?}");
             }
         }
     }

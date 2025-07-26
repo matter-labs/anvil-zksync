@@ -14,7 +14,7 @@ impl std::fmt::Display for PrettyDecodedValue<'_> {
                 let su256: SignedU256 = (*inner).into();
                 PrettyNumberExponentialRepr(&su256.into()).fmt(f)
             }
-            DecodedValue::String(inner) => f.write_fmt(format_args!("{:?}", inner)),
+            DecodedValue::String(inner) => f.write_fmt(format_args!("{inner:?}")),
             DecodedValue::CustomStruct {
                 name,
                 prop_names,

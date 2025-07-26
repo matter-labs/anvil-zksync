@@ -9,7 +9,7 @@ use anyhow::Context;
 use std::sync::Arc;
 use std::time::Duration;
 use zksync_types::l1::L1Tx;
-use zksync_types::{PriorityOpId, L2_MESSAGE_ROOT_ADDRESS};
+use zksync_types::{L2_MESSAGE_ROOT_ADDRESS, PriorityOpId};
 
 /// Node component responsible for saving new priority L1 transactions to transaction pool.
 pub struct L1Watcher {

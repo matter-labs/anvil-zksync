@@ -22,7 +22,7 @@ impl EraApi {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .build()?;
-        let url = format!("http://127.0.0.1:{}", port);
+        let url = format!("http://127.0.0.1:{port}");
         Ok(Self { client, url })
     }
 
