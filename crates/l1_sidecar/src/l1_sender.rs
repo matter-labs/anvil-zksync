@@ -10,12 +10,11 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::commitment::L1BatchWithMetadata;
 use zksync_types::hasher::keccak::KeccakHasher;
 use zksync_types::l1::L1Tx;
-use zksync_types::{Address, H256, L2ChainId};
+use zksync_types::{Address, H256};
 
 /// Node component responsible for sending transactions to L1.
 pub struct L1Sender {
     provider: Arc<dyn Provider + 'static>,
-    l2_chain_id: L2ChainId,
     validator_timelock_addr: Address,
     command_receiver: mpsc::Receiver<Command>,
     last_committed_l1_batch: L1BatchWithMetadata,
@@ -38,7 +37,6 @@ impl L1Sender {
         let (command_sender, command_receiver) = mpsc::channel(128);
         let this = Self {
             provider,
-            l2_chain_id: zkstack_config.genesis.l2_chain_id,
             validator_timelock_addr: zkstack_config.contracts.l1.validator_timelock_addr,
             command_receiver,
             last_committed_l1_batch: genesis_metadata.clone(),
@@ -98,11 +96,8 @@ impl L1Sender {
         // Create a blob sidecar with empty data
         let sidecar = SidecarBuilder::<SimpleCoder>::from_slice(&[]).build()?;
 
-        let call = contracts::commit_batches_shared_bridge_call(
-            self.l2_chain_id,
-            &self.last_committed_l1_batch,
-            batch,
-        );
+        let call =
+            contracts::commit_batches_shared_bridge_call(&self.last_committed_l1_batch, batch);
 
         let gas_price = self.provider.get_gas_price().await?;
         let eip1559_est = self.provider.estimate_eip1559_fees().await?;
@@ -177,11 +172,7 @@ impl L1Sender {
         // Create a blob sidecar with empty data
         let sidecar = SidecarBuilder::<SimpleCoder>::from_slice(&[]).build()?;
 
-        let call = contracts::prove_batches_shared_bridge_call(
-            self.l2_chain_id,
-            &self.last_proved_l1_batch,
-            batch,
-        );
+        let call = contracts::prove_batches_shared_bridge_call(&self.last_proved_l1_batch, batch);
 
         let gas_price = self.provider.get_gas_price().await?;
         let eip1559_est = self.provider.estimate_eip1559_fees().await?;
@@ -258,11 +249,7 @@ impl L1Sender {
                 .push_hash(priority_op.onchain_data_hash);
         }
         // Generate execution call based on the batch and the new priority transaction Merkle tree
-        let call = contracts::execute_batches_shared_bridge_call(
-            self.l2_chain_id,
-            batch,
-            &self.l1_tx_merkle_tree,
-        );
+        let call = contracts::execute_batches_shared_bridge_call(batch, &self.l1_tx_merkle_tree);
 
         let gas_price = self.provider.get_gas_price().await?;
         let eip1559_est = self.provider.estimate_eip1559_fees().await?;
