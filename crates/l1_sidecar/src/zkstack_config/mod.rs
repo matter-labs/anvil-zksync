@@ -52,6 +52,20 @@ static BUILTIN_ZKSTACK_CONFIGS: Lazy<HashMap<ProtocolVersionId, ZkstackConfig>> 
                     "../../../../l1-setup/configs/v28-genesis.yaml"
                 ))
                 .unwrap(),
+                wallets: wallets.clone(),
+            },
+        ),
+        (
+            ProtocolVersionId::Version29,
+            ZkstackConfig {
+                contracts: serde_yaml::from_slice(include_bytes!(
+                    "../../../../l1-setup/configs/v29-contracts.yaml"
+                ))
+                .unwrap(),
+                genesis: serde_yaml::from_slice(include_bytes!(
+                    "../../../../l1-setup/configs/v29-genesis.yaml"
+                ))
+                .unwrap(),
                 wallets,
             },
         ),
