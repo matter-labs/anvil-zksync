@@ -163,7 +163,7 @@ const V28: ProtocolVersionId = ProtocolVersionId::Version28;
 const V29: ProtocolVersionId = ProtocolVersionId::Version29;
 
 /// Triple containing a name of a contract, its L2 address and minimum supported protocol version
-static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 41] = [
+static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 30] = [
     // *************************************************
     // *     Kernel contracts (base offset 0x8000)     *
     // *************************************************
@@ -192,24 +192,6 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 41] = [
     ("EvmGasManager", EVM_GAS_MANAGER_ADDRESS, V27),
     ("EvmPredeploysManager", EVM_PREDEPLOYS_MANAGER_ADDRESS, V27),
     ("EvmHashesStorage", EVM_HASHES_STORAGE_ADDRESS, V27),
-    // *************************************************
-    // *  Non-kernel contracts (base offset 0x010000)  *
-    // *************************************************
-    ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
-    ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
-    ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
-    ("L2AssetRouter", L2_ASSET_ROUTER_ADDRESS, V26),
-    ("L2NativeTokenVault", L2_NATIVE_TOKEN_VAULT_ADDRESS, V26),
-    ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
-    ("SloadContract", SLOAD_CONTRACT_ADDRESS, V26),
-    ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
-    ("L2InteropRootStorage", L2_INTEROP_ROOT_STORAGE_ADDRESS, V29),
-    (
-        "L2MessageVerification",
-        L2_MESSAGE_VERIFICATION_ADDRESS,
-        V29,
-    ),
-    ("ChainAssetHandler", L2_CHAIN_ASSET_HANDLER_ADDRESS, V29),
     // *************************************************
     // *                 Precompiles                   *
     // *************************************************
@@ -240,7 +222,7 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 41] = [
 /// *************************************************************
 /// *  Non-kernel contracts (base offset 0x010000)             *
 /// *************************************************************
-pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8] = [
+pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 11] = [
     ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
     ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
     ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
@@ -249,6 +231,13 @@ pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8
     ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
     ("SloadContract", SLOAD_CONTRACT_ADDRESS, V26),
     ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
+    ("L2InteropRootStorage", L2_INTEROP_ROOT_STORAGE_ADDRESS, V29),
+    (
+        "L2MessageVerification",
+        L2_MESSAGE_VERIFICATION_ADDRESS,
+        V29,
+    ),
+    ("ChainAssetHandler", L2_CHAIN_ASSET_HANDLER_ADDRESS, V29),
 ];
 
 pub fn get_deployed_contracts(
