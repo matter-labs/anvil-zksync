@@ -319,4 +319,17 @@ mod tests {
             count_protocol_contracts(ProtocolVersionId::Version28)
         );
     }
+
+    #[test]
+    fn load_v29_contracts() {
+        let contracts = get_deployed_contracts(
+            SystemContractsOptions::BuiltIn,
+            ProtocolVersionId::Version29,
+            None,
+        );
+        assert_eq!(
+            contracts.len(),
+            count_protocol_contracts(ProtocolVersionId::Version29)
+        );
+    }
 }
