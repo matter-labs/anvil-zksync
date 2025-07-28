@@ -44,14 +44,13 @@ L1_ARTIFACTS_SRC_DIR=contracts/l1-contracts/zkout
 L2_ARTIFACTS_SRC_DIR=contracts/l2-contracts/zkout
 SYSTEM_ARTIFACTS_SRC_DIR=contracts/system-contracts/zkout
 
-l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "L2NativeTokenVault" "L2WrappedBaseToken" "L2MessageVerification")
+l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "L2NativeTokenVault" "L2WrappedBaseToken")
 l2_artifacts=("TimestampAsserter")
 system_contracts_sol=(
   "AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount"
-  "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken"
+  "DefaultAccountNoSecurity" "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken"
   "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" "Create2Factory" "L2GenesisUpgrade"
-  "SloadContract" "L2InteropRootStorage"
-  "DefaultAccountNoSecurity"
+  "SloadContract"
 )
 system_contracts_yul=("EventWriter")
 precompiles=("EcAdd" "EcMul" "Ecrecover" "Keccak256" "SHA256" "EcPairing" "CodeOracle" "P256Verify")
@@ -83,6 +82,8 @@ fi
 if [[ $PROTOCOL_VERSION == v29 ]]; then
   # New L1 contract that was added in v29
   l1_artifacts+=("ChainAssetHandler" "L2MessageVerification")
+  # New system contract that was added in v29
+  system_contracts_sol+=("L2InteropRootStorage" "DefaultAccountNoSecurity")
 fi
 
 for artifact in "${l1_artifacts[@]}"; do

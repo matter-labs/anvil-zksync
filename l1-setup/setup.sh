@@ -7,7 +7,7 @@ WALLETS_PATH="${BASH_SOURCE%/*}/wallets.yaml"
 # ~75k ETH
 DEFAULT_FUND_AMOUNT=0x10000000000000000000
 
-PROTOCOL_VERSION=${1:-v28}
+PROTOCOL_VERSION=${1:-v29}
 case $PROTOCOL_VERSION in
   v26)
     # HEAD of anvil-zksync-0.4.x-release-v26
@@ -24,6 +24,12 @@ case $PROTOCOL_VERSION in
     ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
     # HEAD of draft-v28
     ERA_TAG=core-v28.0.0
+    ;;
+  v29)
+    # HEAD of anvil-zksync-0.6.x-draft-v29
+    ERA_CONTRACTS_GIT_COMMIT=4691b728fa9c411f1286bb574d2698a0aa841f70
+    # HEAD of draft-v29
+    ERA_TAG=core-v28.10.0
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
