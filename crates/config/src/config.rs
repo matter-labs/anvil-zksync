@@ -22,7 +22,7 @@ pub const VERSION_MESSAGE: &str = concat!(env!("CARGO_PKG_VERSION"));
 
 /// Protocol version that is used in anvil-zksync by default. Should match what is currently
 /// deployed to mainnet.
-pub const DEFAULT_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version29;
+pub const DEFAULT_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version28;
 
 const BANNER: &str = r#"
                       _  _         _____ _  __
