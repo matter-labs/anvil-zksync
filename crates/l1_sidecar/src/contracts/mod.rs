@@ -1,13 +1,6 @@
 // Hide ugly auto-generated alloy structs outside of this module.
 mod private {
     use zksync_types::commitment::L1BatchWithMetadata;
-    use zksync_types::{H256, ProtocolVersionId};
-
-    pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x07,
-    ]);
 
     // Macros that hide non-trivial implementations are not great. One considered alternative was to
     // use `alloy_sol_macro_expander` directly from `build.rs`, prettify generated code with
@@ -32,22 +25,62 @@ mod private {
 
     impl From<&L1BatchWithMetadata> for IExecutor::StoredBatchInfo {
         fn from(value: &L1BatchWithMetadata) -> Self {
-            let dependency_roots_rolling_hash = if value
+            Self::from((
+                value.header.number.0 as u64,
+                alloy::primitives::FixedBytes::<32>::from(value.metadata.root_hash.0),
+                value.metadata.rollup_last_leaf_index,
+                alloy::primitives::U256::from(value.header.l1_tx_count),
+                alloy::primitives::FixedBytes::<32>::from(
+                    value.header.priority_ops_onchain_data_hash().0,
+                ),
+                alloy::primitives::FixedBytes::<32>::from(value.metadata.l2_l1_merkle_root.0),
+                alloy::primitives::U256::from(value.header.timestamp),
+                alloy::primitives::FixedBytes::<32>::from(value.metadata.commitment.0),
+            ))
+        }
+    }
+}
+
+mod private_v29 {
+    use zksync_types::H256;
+    use zksync_types::commitment::L1BatchWithMetadata;
+
+    pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x07,
+    ]);
+
+    // Macros that hide non-trivial implementations are not great. One considered alternative was to
+    // use `alloy_sol_macro_expander` directly from `build.rs`, prettify generated code with
+    // `prettyplease` and then output into a VCS-tracked directory. Although this works, unfortunately
+    // the generated code is still very ugly, so I decided to not go forward with this for now.
+    //
+    // Once https://github.com/alloy-rs/core/issues/261 is resolved hopefully it will become much more
+    // human-readable.
+    //
+    // Additionally, https://github.com/alloy-rs/core/issues/601 tracks proper support for output into
+    // a file.
+    alloy::sol!("src/contracts/sol/IExecutorV29.sol");
+    // Copied from `PriorityTree.sol` as the entire file has imports that are unprocessable by `alloy::sol!`
+    alloy::sol! {
+        struct PriorityOpsBatchInfo {
+            bytes32[] leftPath;
+            bytes32[] rightPath;
+            bytes32[] itemHashes;
+        }
+    }
+    alloy::sol!(IZKChain, "src/contracts/artifacts/IZKChain.json");
+
+    impl From<&L1BatchWithMetadata> for IExecutorV29::StoredBatchInfo {
+        fn from(value: &L1BatchWithMetadata) -> Self {
+            let dependency_roots_rolling_hash = value
                 .header
-                .protocol_version
-                .unwrap_or(ProtocolVersionId::Version0)
-                .is_pre_interop_fast_blocks()
-            {
-                H256::zero()
-            } else {
-                value
-                    .header
-                    .system_logs
-                    .iter()
-                    .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
-                    .map(|log| log.0.value)
-                    .unwrap_or(H256::zero())
-            };
+                .system_logs
+                .iter()
+                .find(|log| log.0.key == MESSAGE_ROOT_ROLLING_HASH_KEY)
+                .map(|log| log.0.value)
+                .unwrap_or(H256::zero());
 
             Self::from((
                 value.header.number.0 as u64,
@@ -70,12 +103,13 @@ pub use self::private::IZKChain::NewPriorityRequest;
 use alloy::primitives::TxHash;
 
 use self::private::{IExecutor, PriorityOpsBatchInfo};
+use self::private_v29::IExecutorV29;
 use alloy::sol_types::{SolCall, SolValue};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_types::H256;
 use zksync_types::commitment::{L1BatchWithMetadata, serialize_commitments};
 use zksync_types::l1::L1Tx;
 use zksync_types::web3::keccak256;
+use zksync_types::{H256, L2ChainId};
 
 /// Current commitment encoding version as per protocol.
 pub const SUPPORTED_ENCODING_VERSION: u8 = 0;
@@ -84,15 +118,32 @@ pub const SUPPORTED_ENCODING_VERSION: u8 = 0;
 ///
 /// Assumes system log verification and DA input verification are disabled.
 pub fn commit_batches_shared_bridge_call(
+    l2_chain_id: L2ChainId,
     last_committed_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
-) -> impl SolCall {
-    IExecutor::commitBatchesSharedBridgeCall::new((
-        alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
-        alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
-        alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
-        commit_calldata(last_committed_l1_batch, batch).into(),
-    ))
+) -> Vec<u8> {
+    if last_committed_l1_batch
+        .header
+        .protocol_version
+        .unwrap_or_default()
+        .is_pre_interop_fast_blocks()
+    {
+        IExecutor::commitBatchesSharedBridgeCall::new((
+            alloy::primitives::U256::from(l2_chain_id.as_u64()),
+            alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
+            alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
+            commit_calldata(last_committed_l1_batch, batch).into(),
+        ))
+        .abi_encode()
+    } else {
+        IExecutorV29::commitBatchesSharedBridgeCall::new((
+            alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
+            alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
+            alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
+            commit_calldata(last_committed_l1_batch, batch).into(),
+        ))
+        .abi_encode()
+    }
 }
 
 /// `commitBatchesSharedBridge` expects the rest of calldata to be of very specific form. This
@@ -144,15 +195,32 @@ fn commit_calldata(
 ///
 /// Assumes `TestnetVerifier` was deployed (thus verification for empty proofs is disabled).
 pub fn prove_batches_shared_bridge_call(
+    l2_chain_id: L2ChainId,
     last_proved_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
-) -> impl SolCall {
-    IExecutor::proveBatchesSharedBridgeCall::new((
-        alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
-        alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
-        alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
-        prove_calldata(last_proved_l1_batch, batch).into(),
-    ))
+) -> Vec<u8> {
+    if last_proved_l1_batch
+        .header
+        .protocol_version
+        .unwrap_or_default()
+        .is_pre_interop_fast_blocks()
+    {
+        IExecutor::proveBatchesSharedBridgeCall::new((
+            alloy::primitives::U256::from(l2_chain_id.as_u64()),
+            alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
+            alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
+            prove_calldata(last_proved_l1_batch, batch).into(),
+        ))
+        .abi_encode()
+    } else {
+        IExecutorV29::proveBatchesSharedBridgeCall::new((
+            alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
+            alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
+            alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
+            prove_calldata(last_proved_l1_batch, batch).into(),
+        ))
+        .abi_encode()
+    }
 }
 
 /// `proveBatchesSharedBridge` expects the rest of calldata to be of very specific form. This
@@ -174,15 +242,32 @@ fn prove_calldata(
 
 /// Builds a Solidity function call to `executeBatchesSharedBridge` as expected by `IExecutor.sol`.
 pub fn execute_batches_shared_bridge_call(
+    l2_chain_id: L2ChainId,
     batch: &L1BatchWithMetadata,
     l1_tx_merkle_tree: &MiniMerkleTree<L1Tx>,
-) -> impl SolCall {
-    IExecutor::executeBatchesSharedBridgeCall::new((
-        alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
-        alloy::primitives::U256::from(batch.header.number.0),
-        alloy::primitives::U256::from(batch.header.number.0),
-        execute_calldata(batch, l1_tx_merkle_tree).into(),
-    ))
+) -> Vec<u8> {
+    if batch
+        .header
+        .protocol_version
+        .unwrap_or_default()
+        .is_pre_interop_fast_blocks()
+    {
+        IExecutor::executeBatchesSharedBridgeCall::new((
+            alloy::primitives::U256::from(l2_chain_id.as_u64()),
+            alloy::primitives::U256::from(batch.header.number.0),
+            alloy::primitives::U256::from(batch.header.number.0),
+            execute_calldata(batch, l1_tx_merkle_tree).into(),
+        ))
+        .abi_encode()
+    } else {
+        IExecutorV29::executeBatchesSharedBridgeCall::new((
+            alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
+            alloy::primitives::U256::from(batch.header.number.0),
+            alloy::primitives::U256::from(batch.header.number.0),
+            execute_calldata(batch, l1_tx_merkle_tree).into(),
+        ))
+        .abi_encode()
+    }
 }
 
 /// `executeBatchesSharedBridge` expects the rest of calldata to be of very specific form. This
