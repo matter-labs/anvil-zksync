@@ -398,7 +398,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
-                    println!("Starting new L2 block {:?}", l2_block_env);
                     vm.start_new_l2_block(l2_block_env);
                     if resp.send(()).is_err() {
                         break;
