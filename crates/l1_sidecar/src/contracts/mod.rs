@@ -1,6 +1,13 @@
 // Hide ugly auto-generated alloy structs outside of this module.
 mod private {
+    use zksync_types::H256;
     use zksync_types::commitment::L1BatchWithMetadata;
+
+    pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x07,
+    ]);
 
     // Macros that hide non-trivial implementations are not great. One considered alternative was to
     // use `alloy_sol_macro_expander` directly from `build.rs`, prettify generated code with
@@ -24,55 +31,6 @@ mod private {
     alloy::sol!(IZKChain, "src/contracts/artifacts/IZKChain.json");
 
     impl From<&L1BatchWithMetadata> for IExecutor::StoredBatchInfo {
-        fn from(value: &L1BatchWithMetadata) -> Self {
-            Self::from((
-                value.header.number.0 as u64,
-                alloy::primitives::FixedBytes::<32>::from(value.metadata.root_hash.0),
-                value.metadata.rollup_last_leaf_index,
-                alloy::primitives::U256::from(value.header.l1_tx_count),
-                alloy::primitives::FixedBytes::<32>::from(
-                    value.header.priority_ops_onchain_data_hash().0,
-                ),
-                alloy::primitives::FixedBytes::<32>::from(value.metadata.l2_l1_merkle_root.0),
-                alloy::primitives::U256::from(value.header.timestamp),
-                alloy::primitives::FixedBytes::<32>::from(value.metadata.commitment.0),
-            ))
-        }
-    }
-}
-
-mod private_v29 {
-    use zksync_types::H256;
-    use zksync_types::commitment::L1BatchWithMetadata;
-
-    pub const MESSAGE_ROOT_ROLLING_HASH_KEY: H256 = H256([
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x07,
-    ]);
-
-    // Macros that hide non-trivial implementations are not great. One considered alternative was to
-    // use `alloy_sol_macro_expander` directly from `build.rs`, prettify generated code with
-    // `prettyplease` and then output into a VCS-tracked directory. Although this works, unfortunately
-    // the generated code is still very ugly, so I decided to not go forward with this for now.
-    //
-    // Once https://github.com/alloy-rs/core/issues/261 is resolved hopefully it will become much more
-    // human-readable.
-    //
-    // Additionally, https://github.com/alloy-rs/core/issues/601 tracks proper support for output into
-    // a file.
-    alloy::sol!("src/contracts/sol/IExecutorV29.sol");
-    // Copied from `PriorityTree.sol` as the entire file has imports that are unprocessable by `alloy::sol!`
-    alloy::sol! {
-        struct PriorityOpsBatchInfo {
-            bytes32[] leftPath;
-            bytes32[] rightPath;
-            bytes32[] itemHashes;
-        }
-    }
-    alloy::sol!(IZKChain, "src/contracts/artifacts/IZKChain.json");
-
-    impl From<&L1BatchWithMetadata> for IExecutorV29::StoredBatchInfo {
         fn from(value: &L1BatchWithMetadata) -> Self {
             let dependency_roots_rolling_hash = value
                 .header
@@ -99,11 +57,44 @@ mod private_v29 {
     }
 }
 
+mod private_v28 {
+    use zksync_types::commitment::L1BatchWithMetadata;
+
+    // Macros that hide non-trivial implementations are not great. One considered alternative was to
+    // use `alloy_sol_macro_expander` directly from `build.rs`, prettify generated code with
+    // `prettyplease` and then output into a VCS-tracked directory. Although this works, unfortunately
+    // the generated code is still very ugly, so I decided to not go forward with this for now.
+    //
+    // Once https://github.com/alloy-rs/core/issues/261 is resolved hopefully it will become much more
+    // human-readable.
+    //
+    // Additionally, https://github.com/alloy-rs/core/issues/601 tracks proper support for output into
+    // a file.
+    alloy::sol!("src/contracts/sol/IExecutorV28.sol");
+
+    impl From<&L1BatchWithMetadata> for IExecutorV28::StoredBatchInfo {
+        fn from(value: &L1BatchWithMetadata) -> Self {
+            Self::from((
+                value.header.number.0 as u64,
+                alloy::primitives::FixedBytes::<32>::from(value.metadata.root_hash.0),
+                value.metadata.rollup_last_leaf_index,
+                alloy::primitives::U256::from(value.header.l1_tx_count),
+                alloy::primitives::FixedBytes::<32>::from(
+                    value.header.priority_ops_onchain_data_hash().0,
+                ),
+                alloy::primitives::FixedBytes::<32>::from(value.metadata.l2_l1_merkle_root.0),
+                alloy::primitives::U256::from(value.header.timestamp),
+                alloy::primitives::FixedBytes::<32>::from(value.metadata.commitment.0),
+            ))
+        }
+    }
+}
+
 pub use self::private::IZKChain::NewPriorityRequest;
 use alloy::primitives::TxHash;
 
 use self::private::{IExecutor, PriorityOpsBatchInfo};
-use self::private_v29::IExecutorV29;
+use self::private_v28::IExecutorV28;
 use alloy::sol_types::{SolCall, SolValue};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::commitment::{L1BatchWithMetadata, serialize_commitments};
@@ -128,7 +119,7 @@ pub fn commit_batches_shared_bridge_call(
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        IExecutor::commitBatchesSharedBridgeCall::new((
+        IExecutorV28::commitBatchesSharedBridgeCall::new((
             alloy::primitives::U256::from(l2_chain_id.as_u64()),
             alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
             alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
@@ -136,7 +127,7 @@ pub fn commit_batches_shared_bridge_call(
         ))
         .abi_encode()
     } else {
-        IExecutorV29::commitBatchesSharedBridgeCall::new((
+        IExecutor::commitBatchesSharedBridgeCall::new((
             alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
             alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
             alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
@@ -205,7 +196,7 @@ pub fn prove_batches_shared_bridge_call(
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        IExecutor::proveBatchesSharedBridgeCall::new((
+        IExecutorV28::proveBatchesSharedBridgeCall::new((
             alloy::primitives::U256::from(l2_chain_id.as_u64()),
             alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
             alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
@@ -213,7 +204,7 @@ pub fn prove_batches_shared_bridge_call(
         ))
         .abi_encode()
     } else {
-        IExecutorV29::proveBatchesSharedBridgeCall::new((
+        IExecutor::proveBatchesSharedBridgeCall::new((
             alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
             alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
             alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
@@ -252,7 +243,7 @@ pub fn execute_batches_shared_bridge_call(
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        IExecutor::executeBatchesSharedBridgeCall::new((
+        IExecutorV28::executeBatchesSharedBridgeCall::new((
             alloy::primitives::U256::from(l2_chain_id.as_u64()),
             alloy::primitives::U256::from(batch.header.number.0),
             alloy::primitives::U256::from(batch.header.number.0),
@@ -260,7 +251,7 @@ pub fn execute_batches_shared_bridge_call(
         ))
         .abi_encode()
     } else {
-        IExecutorV29::executeBatchesSharedBridgeCall::new((
+        IExecutor::executeBatchesSharedBridgeCall::new((
             alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
             alloy::primitives::U256::from(batch.header.number.0),
             alloy::primitives::U256::from(batch.header.number.0),
