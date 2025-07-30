@@ -147,20 +147,6 @@ fn commit_calldata(
     last_committed_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
-    let stored_batch_info = if batch
-        .header
-        .protocol_version
-        .unwrap_or_default()
-        .is_pre_interop_fast_blocks()
-    {
-        IExecutorV28::StoredBatchInfo::from(last_committed_l1_batch).abi_encode_params()
-    } else {
-        IExecutor::StoredBatchInfo::from(last_committed_l1_batch).abi_encode_params()
-    };
-
-    let last_batch_hash = H256(keccak256(stored_batch_info.as_slice()));
-    tracing::info!(?last_batch_hash, "preparing commit calldata");
-
     let commit_batch_info = IExecutor::CommitBatchInfo::from((
         batch.header.number.0 as u64,
         batch.header.timestamp,
@@ -188,7 +174,22 @@ fn commit_calldata(
                 .0,
         ),
     ));
-    let encoded_data = (stored_batch_info, vec![commit_batch_info]).abi_encode_params();
+    let encoded_data = if batch
+        .header
+        .protocol_version
+        .unwrap_or_default()
+        .is_pre_interop_fast_blocks()
+    {
+        let stored_batch_info = IExecutorV28::StoredBatchInfo::from(last_committed_l1_batch);
+        let last_batch_hash = H256(keccak256(stored_batch_info.abi_encode_params().as_slice()));
+        tracing::info!(?last_batch_hash, "preparing commit calldata");
+        (stored_batch_info, vec![commit_batch_info]).abi_encode_params()
+    } else {
+        let stored_batch_info = IExecutor::StoredBatchInfo::from(last_committed_l1_batch);
+        let last_batch_hash = H256(keccak256(stored_batch_info.abi_encode_params().as_slice()));
+        tracing::info!(?last_batch_hash, "preparing commit calldata");
+        (stored_batch_info, vec![commit_batch_info]).abi_encode_params()
+    };
 
     // Prefixed by current encoding version as expected by protocol
     [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]

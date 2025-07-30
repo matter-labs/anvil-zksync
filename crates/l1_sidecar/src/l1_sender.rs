@@ -154,7 +154,6 @@ impl L1Sender {
                     .try_into_call_frame()
                     .expect("failed to convert call frame; should never happen");
                 tracing::error!("failed call frame: {call_frame:#?}");
-                anyhow::bail!("transaction failed when it was expected to succeed");
             }
 
             anyhow::bail!(
