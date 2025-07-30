@@ -55,24 +55,8 @@ mod private {
             ))
         }
     }
-}
 
-mod private_v28 {
-    use zksync_types::commitment::L1BatchWithMetadata;
-
-    // Macros that hide non-trivial implementations are not great. One considered alternative was to
-    // use `alloy_sol_macro_expander` directly from `build.rs`, prettify generated code with
-    // `prettyplease` and then output into a VCS-tracked directory. Although this works, unfortunately
-    // the generated code is still very ugly, so I decided to not go forward with this for now.
-    //
-    // Once https://github.com/alloy-rs/core/issues/261 is resolved hopefully it will become much more
-    // human-readable.
-    //
-    // Additionally, https://github.com/alloy-rs/core/issues/601 tracks proper support for output into
-    // a file.
-    alloy::sol!("src/contracts/sol/IExecutorV28.sol");
-
-    impl From<&L1BatchWithMetadata> for IExecutorV28::StoredBatchInfo {
+    impl From<&L1BatchWithMetadata> for IExecutor::LegacyStoredBatchInfo {
         fn from(value: &L1BatchWithMetadata) -> Self {
             Self::from((
                 value.header.number.0 as u64,
@@ -90,6 +74,10 @@ mod private_v28 {
     }
 }
 
+mod private_v28 {
+    alloy::sol!("src/contracts/sol/IExecutorV28.sol");
+}
+
 pub use self::private::IZKChain::NewPriorityRequest;
 use alloy::primitives::TxHash;
 
@@ -102,8 +90,19 @@ use zksync_types::l1::L1Tx;
 use zksync_types::web3::keccak256;
 use zksync_types::{H256, L2ChainId};
 
-/// Current commitment encoding version as per protocol.
-pub const SUPPORTED_ENCODING_VERSION: u8 = 0;
+/// Current commitment encoding version by protocol version.
+pub fn supported_encoding_version(batch: &L1BatchWithMetadata) -> u8 {
+    if batch
+        .header
+        .protocol_version
+        .unwrap_or_default()
+        .is_pre_interop_fast_blocks()
+    {
+        0
+    } else {
+        1
+    }
+}
 
 /// Builds a Solidity function call to `commitBatchesSharedBridge` as expected by `IExecutor.sol`.
 ///
@@ -174,13 +173,14 @@ fn commit_calldata(
                 .0,
         ),
     ));
+
     let encoded_data = if batch
         .header
         .protocol_version
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        let stored_batch_info = IExecutorV28::StoredBatchInfo::from(last_committed_l1_batch);
+        let stored_batch_info = IExecutor::LegacyStoredBatchInfo::from(last_committed_l1_batch);
         let last_batch_hash = H256(keccak256(stored_batch_info.abi_encode_params().as_slice()));
         tracing::info!(?last_batch_hash, "preparing commit calldata");
         (stored_batch_info, vec![commit_batch_info]).abi_encode_params()
@@ -192,7 +192,7 @@ fn commit_calldata(
     };
 
     // Prefixed by current encoding version as expected by protocol
-    [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+    [[supported_encoding_version(batch)].to_vec(), encoded_data]
         .concat()
         .to_vec()
 }
@@ -235,28 +235,25 @@ fn prove_calldata(
     last_proved_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
-    let prev_l1_batch_info;
-    let batches_arg;
-    if batch
+    let encoded_data = if batch
         .header
         .protocol_version
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        prev_l1_batch_info =
-            IExecutorV28::StoredBatchInfo::from(last_proved_l1_batch).abi_encode_params();
-        batches_arg = vec![IExecutorV28::StoredBatchInfo::from(batch).abi_encode_params()];
+        let prev_l1_batch_info = IExecutor::LegacyStoredBatchInfo::from(last_proved_l1_batch);
+        let batches_arg = vec![IExecutor::LegacyStoredBatchInfo::from(batch)];
+        let proof_input = Vec::<alloy::primitives::U256>::new();
+        (prev_l1_batch_info, batches_arg, proof_input).abi_encode_params()
     } else {
-        prev_l1_batch_info =
-            IExecutor::StoredBatchInfo::from(last_proved_l1_batch).abi_encode_params();
-        batches_arg = vec![IExecutor::StoredBatchInfo::from(batch).abi_encode_params()];
-    }
-
-    let proof_input = Vec::<alloy::primitives::U256>::new();
-    let encoded_data = (prev_l1_batch_info, batches_arg, proof_input).abi_encode_params();
+        let prev_l1_batch_info = IExecutor::StoredBatchInfo::from(last_proved_l1_batch);
+        let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch)];
+        let proof_input = Vec::<alloy::primitives::U256>::new();
+        (prev_l1_batch_info, batches_arg, proof_input).abi_encode_params()
+    };
 
     // Prefixed by current encoding version as expected by protocol
-    [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+    [[supported_encoding_version(batch)].to_vec(), encoded_data]
         .concat()
         .to_vec()
 }
@@ -331,15 +328,15 @@ fn execute_calldata(
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        let batches_arg = vec![IExecutorV28::StoredBatchInfo::from(batch).abi_encode_params()];
+        let batches_arg = vec![IExecutor::LegacyStoredBatchInfo::from(batch)];
         (batches_arg, priority_ops_proofs).abi_encode_params()
     } else {
-        let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch).abi_encode_params()];
+        let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch)];
         (batches_arg, priority_ops_proofs).abi_encode_params()
     };
 
     // Prefixed by current encoding version as expected by protocol
-    [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+    [[supported_encoding_version(batch)].to_vec(), encoded_data]
         .concat()
         .to_vec()
 }
