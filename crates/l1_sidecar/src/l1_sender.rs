@@ -2,9 +2,10 @@ use crate::contracts;
 use crate::zkstack_config::ZkstackConfig;
 use alloy::consensus::{SidecarBuilder, SimpleCoder};
 use alloy::network::{ReceiptResponse, TransactionBuilder, TransactionBuilder4844};
-use alloy::providers::Provider;
+use alloy::providers::ext::DebugApi;
+use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::TransactionRequest;
-use std::sync::Arc;
+use alloy::rpc::types::trace::geth::{CallConfig, GethDebugTracingOptions};
 use tokio::sync::{mpsc, oneshot};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::commitment::L1BatchWithMetadata;
@@ -14,7 +15,7 @@ use zksync_types::{Address, H256, L2ChainId};
 
 /// Node component responsible for sending transactions to L1.
 pub struct L1Sender {
-    provider: Arc<dyn Provider + 'static>,
+    provider: DynProvider,
     l2_chain_id: L2ChainId,
     validator_timelock_addr: Address,
     command_receiver: mpsc::Receiver<Command>,
@@ -33,7 +34,7 @@ impl L1Sender {
     pub fn new(
         zkstack_config: &ZkstackConfig,
         genesis_metadata: L1BatchWithMetadata,
-        provider: Arc<dyn Provider + 'static>,
+        provider: DynProvider,
     ) -> (Self, L1SenderHandle) {
         let (command_sender, command_receiver) = mpsc::channel(128);
         let this = Self {
@@ -140,6 +141,22 @@ impl L1Sender {
                 block_number = receipt.block_number.unwrap(),
                 "commit transaction failed"
             );
+
+            if let Ok(trace) = self
+                .provider
+                .debug_trace_transaction(
+                    receipt.transaction_hash,
+                    GethDebugTracingOptions::call_tracer(CallConfig::default()),
+                )
+                .await
+            {
+                let call_frame = trace
+                    .try_into_call_frame()
+                    .expect("failed to convert call frame; should never happen");
+                tracing::error!("failed call frame: {call_frame:#?}");
+                anyhow::bail!("transaction failed when it was expected to succeed");
+            }
+
             anyhow::bail!(
                 "commit transaction failed, see L1 transaction's trace for more details (tx_hash='{:?}')",
                 receipt.transaction_hash

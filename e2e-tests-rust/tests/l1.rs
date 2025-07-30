@@ -13,7 +13,7 @@ use anvil_zksync_e2e_tests::test_contracts::Counter;
 use anvil_zksync_e2e_tests::{AnvilZKsyncApi, AnvilZksyncTesterBuilder, ReceiptExt};
 use anyhow::Context;
 use std::time::Duration;
-use test_casing::{TestCases, cases, test_casing};
+use test_casing::{cases, test_casing, TestCases};
 
 const SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {
     [26, 27, 28, 29]
@@ -25,8 +25,12 @@ async fn commit_batch_to_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
         .with_node_fn(&move |node| {
-            node.timeout(60_000)
-                .args(["--protocol-version", &protocol_version.to_string()])
+            node.timeout(60_000).args([
+                "--protocol-version",
+                &protocol_version.to_string(),
+                "--log",
+                "info",
+            ])
         })
         .build()
         .await?;

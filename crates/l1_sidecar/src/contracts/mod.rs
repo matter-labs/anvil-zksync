@@ -113,6 +113,10 @@ pub fn commit_batches_shared_bridge_call(
     last_committed_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
+    tracing::error!(
+        "batch protocol version: {:?}",
+        batch.header.protocol_version
+    );
     if batch
         .header
         .protocol_version
@@ -238,10 +242,12 @@ fn prove_calldata(
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        prev_l1_batch_info = IExecutorV28::StoredBatchInfo::from(last_proved_l1_batch).abi_encode_params();
+        prev_l1_batch_info =
+            IExecutorV28::StoredBatchInfo::from(last_proved_l1_batch).abi_encode_params();
         batches_arg = vec![IExecutorV28::StoredBatchInfo::from(batch).abi_encode_params()];
     } else {
-        prev_l1_batch_info = IExecutor::StoredBatchInfo::from(last_proved_l1_batch).abi_encode_params();
+        prev_l1_batch_info =
+            IExecutor::StoredBatchInfo::from(last_proved_l1_batch).abi_encode_params();
         batches_arg = vec![IExecutor::StoredBatchInfo::from(batch).abi_encode_params()];
     }
 
@@ -318,7 +324,12 @@ fn execute_calldata(
         }]
     };
 
-    let encoded_data = if batch.header.protocol_version.unwrap_or_default().is_pre_interop_fast_blocks() {
+    let encoded_data = if batch
+        .header
+        .protocol_version
+        .unwrap_or_default()
+        .is_pre_interop_fast_blocks()
+    {
         let batches_arg = vec![IExecutorV28::StoredBatchInfo::from(batch).abi_encode_params()];
         (batches_arg, priority_ops_proofs).abi_encode_params()
     } else {

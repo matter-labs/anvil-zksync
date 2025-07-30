@@ -2,7 +2,7 @@ use crate::zkstack_config::ZkstackConfig;
 use alloy::network::EthereumWallet;
 use alloy::primitives::{Address, Bytes, U256};
 use alloy::providers::ext::AnvilApi;
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::providers::{DynProvider, Provider, ProviderBuilder};
 use alloy::rpc::types::TransactionRequest;
 use alloy::transports::RpcError;
 use anvil_zksync_common::sh_println;
@@ -12,7 +12,6 @@ use semver::Version;
 use std::collections::HashMap;
 use std::fs::File;
 use std::process::Stdio;
-use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
@@ -117,7 +116,7 @@ async fn ensure_anvil_1_x_x() -> anyhow::Result<()> {
 pub async fn spawn_process(
     port: u16,
     zkstack_config: &ZkstackConfig,
-) -> anyhow::Result<(AnvilHandle, Arc<dyn Provider + 'static>)> {
+) -> anyhow::Result<(AnvilHandle, DynProvider)> {
     ensure_anvil_1_x_x().await?;
 
     let tmpdir = tempfile::Builder::new()
@@ -156,13 +155,13 @@ pub async fn spawn_process(
     });
     let provider = setup_provider(&format!("http://localhost:{port}"), zkstack_config).await?;
 
-    Ok((AnvilHandle { env }, Arc::new(provider)))
+    Ok((AnvilHandle { env }, DynProvider::new(provider)))
 }
 
 pub async fn external(
     address: &str,
     zkstack_config: &ZkstackConfig,
-) -> anyhow::Result<(AnvilHandle, Arc<dyn Provider + 'static>)> {
+) -> anyhow::Result<(AnvilHandle, DynProvider)> {
     let env = L1AnvilEnv::External;
     let provider = setup_provider(address, zkstack_config).await?;
     inject_l1_state(zkstack_config.genesis.genesis_protocol_version, &provider).await?;
@@ -182,7 +181,7 @@ pub async fn external(
         .get_receipt()
         .await?;
 
-    Ok((AnvilHandle { env }, Arc::new(provider)))
+    Ok((AnvilHandle { env }, DynProvider::new(provider)))
 }
 
 /// An environment that holds live resources that were used to spawn an anvil node.
