@@ -113,7 +113,7 @@ pub fn commit_batches_shared_bridge_call(
     last_committed_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
-    if last_committed_l1_batch
+    if batch
         .header
         .protocol_version
         .unwrap_or_default()
@@ -143,8 +143,18 @@ fn commit_calldata(
     last_committed_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
-    let stored_batch_info = IExecutor::StoredBatchInfo::from(last_committed_l1_batch);
-    let last_batch_hash = H256(keccak256(stored_batch_info.abi_encode_params().as_slice()));
+    let stored_batch_info = if batch
+        .header
+        .protocol_version
+        .unwrap_or_default()
+        .is_pre_interop_fast_blocks()
+    {
+        IExecutorV28::StoredBatchInfo::from(last_committed_l1_batch).abi_encode_params()
+    } else {
+        IExecutor::StoredBatchInfo::from(last_committed_l1_batch).abi_encode_params()
+    };
+
+    let last_batch_hash = H256(keccak256(stored_batch_info.as_slice()));
     tracing::info!(?last_batch_hash, "preparing commit calldata");
 
     let commit_batch_info = IExecutor::CommitBatchInfo::from((
@@ -190,7 +200,7 @@ pub fn prove_batches_shared_bridge_call(
     last_proved_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
-    if last_proved_l1_batch
+    if batch
         .header
         .protocol_version
         .unwrap_or_default()
@@ -220,8 +230,21 @@ fn prove_calldata(
     last_proved_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
-    let prev_l1_batch_info = IExecutor::StoredBatchInfo::from(last_proved_l1_batch);
-    let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch)];
+    let prev_l1_batch_info;
+    let batches_arg;
+    if batch
+        .header
+        .protocol_version
+        .unwrap_or_default()
+        .is_pre_interop_fast_blocks()
+    {
+        prev_l1_batch_info = IExecutorV28::StoredBatchInfo::from(last_proved_l1_batch).abi_encode_params();
+        batches_arg = vec![IExecutorV28::StoredBatchInfo::from(batch).abi_encode_params()];
+    } else {
+        prev_l1_batch_info = IExecutor::StoredBatchInfo::from(last_proved_l1_batch).abi_encode_params();
+        batches_arg = vec![IExecutor::StoredBatchInfo::from(batch).abi_encode_params()];
+    }
+
     let proof_input = Vec::<alloy::primitives::U256>::new();
     let encoded_data = (prev_l1_batch_info, batches_arg, proof_input).abi_encode_params();
 
@@ -294,8 +317,14 @@ fn execute_calldata(
             itemHashes: vec![],
         }]
     };
-    let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch)];
-    let encoded_data = (batches_arg, priority_ops_proofs).abi_encode_params();
+
+    let encoded_data = if batch.header.protocol_version.unwrap_or_default().is_pre_interop_fast_blocks() {
+        let batches_arg = vec![IExecutorV28::StoredBatchInfo::from(batch).abi_encode_params()];
+        (batches_arg, priority_ops_proofs).abi_encode_params()
+    } else {
+        let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch).abi_encode_params()];
+        (batches_arg, priority_ops_proofs).abi_encode_params()
+    };
 
     // Prefixed by current encoding version as expected by protocol
     [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
