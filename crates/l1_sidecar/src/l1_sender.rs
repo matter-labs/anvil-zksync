@@ -17,6 +17,7 @@ use zksync_types::{Address, H256, L2ChainId};
 pub struct L1Sender {
     provider: DynProvider,
     l2_chain_id: L2ChainId,
+    chain_address: Address,
     validator_timelock_addr: Address,
     command_receiver: mpsc::Receiver<Command>,
     last_committed_l1_batch: L1BatchWithMetadata,
@@ -40,6 +41,7 @@ impl L1Sender {
         let this = Self {
             provider,
             l2_chain_id: zkstack_config.genesis.l2_chain_id,
+            chain_address: zkstack_config.contracts.l1.diamond_proxy_addr,
             validator_timelock_addr: zkstack_config.contracts.l1.validator_timelock_addr,
             command_receiver,
             last_committed_l1_batch: genesis_metadata.clone(),
@@ -101,6 +103,7 @@ impl L1Sender {
 
         let calldata = contracts::commit_batches_shared_bridge_call(
             self.l2_chain_id,
+            self.chain_address,
             &self.last_committed_l1_batch,
             batch,
         );
@@ -195,6 +198,7 @@ impl L1Sender {
 
         let calldata = contracts::prove_batches_shared_bridge_call(
             self.l2_chain_id,
+            self.chain_address,
             &self.last_proved_l1_batch,
             batch,
         );
@@ -276,6 +280,7 @@ impl L1Sender {
         // Generate execution call based on the batch and the new priority transaction Merkle tree
         let calldata = contracts::execute_batches_shared_bridge_call(
             self.l2_chain_id,
+            self.chain_address,
             batch,
             &self.l1_tx_merkle_tree,
         );

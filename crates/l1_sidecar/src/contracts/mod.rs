@@ -88,7 +88,7 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::commitment::{L1BatchWithMetadata, serialize_commitments};
 use zksync_types::l1::L1Tx;
 use zksync_types::web3::keccak256;
-use zksync_types::{H256, L2ChainId};
+use zksync_types::{Address, H256, L2ChainId};
 
 /// Current commitment encoding version by protocol version.
 pub fn supported_encoding_version(batch: &L1BatchWithMetadata) -> u8 {
@@ -109,6 +109,7 @@ pub fn supported_encoding_version(batch: &L1BatchWithMetadata) -> u8 {
 /// Assumes system log verification and DA input verification are disabled.
 pub fn commit_batches_shared_bridge_call(
     l2_chain_id: L2ChainId,
+    chain_address: Address,
     last_committed_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
@@ -131,7 +132,7 @@ pub fn commit_batches_shared_bridge_call(
         .abi_encode()
     } else {
         IExecutor::commitBatchesSharedBridgeCall::new((
-            alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
+            chain_address.0.into(),
             alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
             alloy::primitives::U256::from(last_committed_l1_batch.header.number.0 + 1),
             commit_calldata(last_committed_l1_batch, batch).into(),
@@ -202,6 +203,7 @@ fn commit_calldata(
 /// Assumes `TestnetVerifier` was deployed (thus verification for empty proofs is disabled).
 pub fn prove_batches_shared_bridge_call(
     l2_chain_id: L2ChainId,
+    chain_address: Address,
     last_proved_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
@@ -220,7 +222,7 @@ pub fn prove_batches_shared_bridge_call(
         .abi_encode()
     } else {
         IExecutor::proveBatchesSharedBridgeCall::new((
-            alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
+            chain_address.0.into(),
             alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
             alloy::primitives::U256::from(last_proved_l1_batch.header.number.0 + 1),
             prove_calldata(last_proved_l1_batch, batch).into(),
@@ -261,6 +263,7 @@ fn prove_calldata(
 /// Builds a Solidity function call to `executeBatchesSharedBridge` as expected by `IExecutor.sol`.
 pub fn execute_batches_shared_bridge_call(
     l2_chain_id: L2ChainId,
+    chain_address: Address,
     batch: &L1BatchWithMetadata,
     l1_tx_merkle_tree: &MiniMerkleTree<L1Tx>,
 ) -> Vec<u8> {
@@ -279,7 +282,7 @@ pub fn execute_batches_shared_bridge_call(
         .abi_encode()
     } else {
         IExecutor::executeBatchesSharedBridgeCall::new((
-            alloy::primitives::Address::ZERO, // This value is not currently used in the implementation
+            chain_address.0.into(),
             alloy::primitives::U256::from(batch.header.number.0),
             alloy::primitives::U256::from(batch.header.number.0),
             execute_calldata(batch, l1_tx_merkle_tree).into(),
