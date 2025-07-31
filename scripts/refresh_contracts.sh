@@ -80,10 +80,8 @@ if [[ ! $PROTOCOL_VERSION < v28 ]]; then
 fi
 
 if [[ $PROTOCOL_VERSION == v29 ]]; then
-  # New L1 contract that was added in v29
-  l1_artifacts+=("ChainAssetHandler" "L2MessageVerification")
-  # New system contract that was added in v29
-  system_contracts_sol+=("L2InteropRootStorage" "DefaultAccountNoSecurity")
+  # New L1 contracts that were added in v29
+  l1_artifacts+=("ChainAssetHandler" "L2MessageVerification" "L2InteropRootStorage")
 fi
 
 for artifact in "${l1_artifacts[@]}"; do
