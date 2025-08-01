@@ -107,7 +107,7 @@ for precompile in "${precompiles[@]}"; do
 done
 
 for bootloader in "${bootloaders[@]}"; do
-  FILES="$FILES $SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/Bootloader.json"
+  FILES="$FILES $SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/$bootloader.json"
 done
 
 # Make sure we are using GNU tar
