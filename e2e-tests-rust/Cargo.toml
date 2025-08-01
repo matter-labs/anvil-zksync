@@ -39,6 +39,7 @@ anvil_zksync_common = { path = "../crates/common" }
 tempdir = "0.3.7"
 flate2 = "1.0"
 hex = "0.4"
+zk_evm_abstractions = "=0.152.3"
 
 [dev-dependencies]
 test-casing = "0.1.3"

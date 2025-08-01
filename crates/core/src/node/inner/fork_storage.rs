@@ -20,8 +20,8 @@ use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    H256, L2ChainId, ProtocolVersionId, SYSTEM_CONTEXT_CHAIN_ID_POSITION, StorageKey, StorageValue,
-    get_system_context_key, h256_to_u256,
+    H256, L2BlockNumber, L2ChainId, ProtocolVersionId, SLChainId, SYSTEM_CONTEXT_CHAIN_ID_POSITION,
+    StorageKey, StorageValue, get_system_context_key, h256_to_u256,
 };
 
 /// In memory storage, that allows 'forking' from other network.
@@ -147,6 +147,14 @@ impl ForkStorage {
     fn get_enumeration_index_internal(&self, _key: &StorageKey) -> Option<u64> {
         // TODO: Update this file to use proper enumeration index value once it's exposed for forks via API
         Some(0_u64)
+    }
+
+    fn _get_message_root_internal(
+        &self,
+        _chain_id: SLChainId,
+        _block_number: L2BlockNumber,
+    ) -> Option<H256> {
+        todo!()
     }
 
     /// Creates a serializable representation of current storage state. It will contain both locally
