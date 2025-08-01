@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.10](https://github.com/matter-labs/anvil-zksync/compare/v0.6.9...v0.6.10) (2025-08-01)
+
+
+### Features
+
+* adds l1-l2 testing guide to mdbook ([#755](https://github.com/matter-labs/anvil-zksync/issues/755)) ([5e0a0f6](https://github.com/matter-labs/anvil-zksync/commit/5e0a0f6a3f58b457c8f7283a64656ed8897f28ed))
+* Bump alloy and foundry deps ([#746](https://github.com/matter-labs/anvil-zksync/issues/746)) ([627dac1](https://github.com/matter-labs/anvil-zksync/commit/627dac14d447149e5f6d7ba74329bab97880474a))
+* feature gate zksync os ([#754](https://github.com/matter-labs/anvil-zksync/issues/754)) ([995970d](https://github.com/matter-labs/anvil-zksync/commit/995970df1f2fd347845d0176c7f3d97d6907b508))
+* Update ZKsync OS to v0.0.5 ([#759](https://github.com/matter-labs/anvil-zksync/issues/759)) ([2c42bf3](https://github.com/matter-labs/anvil-zksync/commit/2c42bf35b04bd602fcd77acf238a3f903e368798))
+
+
+### Bug Fixes
+
+* workaround to fix deploy docs ci issue ([#762](https://github.com/matter-labs/anvil-zksync/issues/762)) ([106941f](https://github.com/matter-labs/anvil-zksync/commit/106941f6852cc9209a058fbadeabed13f2f26c3f))
+
 ## [0.6.9](https://github.com/matter-labs/anvil-zksync/compare/v0.6.8...v0.6.9) (2025-07-11)
 
 
