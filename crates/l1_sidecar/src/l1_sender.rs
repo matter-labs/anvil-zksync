@@ -294,10 +294,10 @@ impl L1Sender {
             .with_max_priority_fee_per_gas(eip1559_est.max_priority_fee_per_gas)
             // Default value for `max_aggregated_tx_gas` from zksync-era, should always be enough
             .with_gas_limit(15000000)
-            .with_input(calldata.clone())
+            .with_input(calldata)
             .with_blob_sidecar(sidecar);
 
-        let pending_tx = self.provider.send_transaction(tx.clone()).await?;
+        let pending_tx = self.provider.send_transaction(tx).await?;
         tracing::debug!(
             batch = batch.header.number.0,
             pending_tx_hash = ?pending_tx.tx_hash(),
@@ -321,21 +321,9 @@ impl L1Sender {
                 block_number = receipt.block_number.unwrap(),
                 "execute transaction failed"
             );
-
-            let trace = self
-                .provider
-                .debug_trace_transaction(
-                    receipt.transaction_hash,
-                    GethDebugTracingOptions::call_tracer(CallConfig::default()),
-                )
-                .await?;
-        
             anyhow::bail!(
-                "execute transaction failed, see L1 transaction's trace for more details (tx_hash='{:?}'), calldata='{:?}', to='{:?}', trace='{:?}'",
-                receipt.transaction_hash,
-                hex::encode(calldata.as_slice()),
-                tx.to,
-                trace
+                "execute transaction failed, see L1 transaction's trace for more details (tx_hash='{:?}')",
+                receipt.transaction_hash
             );
         }
 
