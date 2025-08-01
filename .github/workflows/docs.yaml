@@ -67,7 +67,7 @@ jobs:
           cargo doc --no-deps
           cp -r target/doc docs/book/src/rustdoc
 
-      - name: Neutralize local changes caused by build
+      - name: Restore zksync_error crate if needed
         if: ${{ github.event_name != 'pull_request' }}
         run: |
           git restore --worktree --staged crates/zksync_error/src || true
