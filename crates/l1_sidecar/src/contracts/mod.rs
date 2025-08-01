@@ -28,6 +28,14 @@ mod private {
             bytes32[] itemHashes;
         }
     }
+    // Copied from `Messaging.sol`
+    alloy::sol! {
+        struct InteropRoot {
+            uint256 chainId;
+            uint256 blockOrBatchNumber;
+            bytes32[] sides;
+        }
+    }
     alloy::sol!(IZKChain, "src/contracts/artifacts/IZKChain.json");
 
     impl From<&L1BatchWithMetadata> for IExecutor::StoredBatchInfo {
@@ -81,7 +89,7 @@ mod private_v28 {
 pub use self::private::IZKChain::NewPriorityRequest;
 use alloy::primitives::TxHash;
 
-use self::private::{IExecutor, PriorityOpsBatchInfo};
+use self::private::{IExecutor, InteropRoot, PriorityOpsBatchInfo};
 use self::private_v28::IExecutorV28;
 use alloy::sol_types::{SolCall, SolValue};
 use zksync_mini_merkle_tree::MiniMerkleTree;
@@ -334,8 +342,9 @@ fn execute_calldata(
         let batches_arg = vec![IExecutor::LegacyStoredBatchInfo::from(batch)];
         (batches_arg, priority_ops_proofs).abi_encode_params()
     } else {
+        let dependency_roots: Vec<Vec<InteropRoot>> = vec![vec![]];
         let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch)];
-        (batches_arg, priority_ops_proofs).abi_encode_params()
+        (batches_arg, priority_ops_proofs, dependency_roots).abi_encode_params()
     };
 
     // Prefixed by current encoding version as expected by protocol
