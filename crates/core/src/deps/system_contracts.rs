@@ -97,11 +97,7 @@ pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
 }
 
 pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name: &str) -> Vec<u8> {
-    let artifact_path = if protocol_version == ProtocolVersionId::Version29 {
-        format!("{}.json", artifact_name)
-    } else {
-        format!("{artifact_name}.json")
-    };
+    let artifact_path = format!("{artifact_name}.json");
 
     bytecode_from_slice(
         artifact_name,
