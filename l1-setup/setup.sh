@@ -7,7 +7,7 @@ WALLETS_PATH="${BASH_SOURCE%/*}/wallets.yaml"
 # ~75k ETH
 DEFAULT_FUND_AMOUNT=0x10000000000000000000
 
-PROTOCOL_VERSION=${1:-v28}
+PROTOCOL_VERSION=${1:-v29}
 case $PROTOCOL_VERSION in
   v26)
     # HEAD of anvil-zksync-0.4.x-release-v26
@@ -24,6 +24,12 @@ case $PROTOCOL_VERSION in
     ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
     # HEAD of draft-v28
     ERA_TAG=core-v28.0.0
+    ;;
+  v29)
+    # HEAD of anvil-zksync-0.6.x-draft-v29
+    ERA_CONTRACTS_GIT_COMMIT=4691b728fa9c411f1286bb574d2698a0aa841f70
+    # HEAD of draft-v29
+    ERA_TAG=core-v29.0.0
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
@@ -113,7 +119,7 @@ echo "* Patching ecosystem..."
 # Checkout correct version of zksync-era
 pushd "./$ECOSYSTEM_ERA_DIR" > /dev/null
 echo "Using zksync-era tag: $ERA_TAG"
-git fetch && git checkout $ERA_TAG
+git fetch && git checkout --force $ERA_TAG
 popd > /dev/null
 # Substitute zksync-era's contracts with anvil-zksync's version
 rm -rf "./$ECOSYSTEM_ERA_DIR/contracts"

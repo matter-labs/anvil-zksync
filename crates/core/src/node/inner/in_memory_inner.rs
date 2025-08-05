@@ -60,13 +60,13 @@ use zksync_multivm::vm_latest::constants::{
 };
 use zksync_multivm::vm_latest::{HistoryDisabled, Vm};
 use zksync_multivm::{MultiVmTracer, VmVersion};
+use zksync_system_constants::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::api::{BlockIdVariant, TransactionVariant};
 use zksync_types::block::build_bloom;
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput};
 use zksync_types::l1::L1Tx;
 use zksync_types::l2::{L2Tx, TransactionType};
-use zksync_types::message_root::{AGG_TREE_HEIGHT_KEY, AGG_TREE_NODES_KEY};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::decompose_full_nonce;
 use zksync_types::web3::{Index, keccak256};
@@ -203,6 +203,7 @@ impl InMemoryNodeInner {
                 // incorrect replays of transacions during the migration period, that
                 // depend on block number or timestamp.
                 max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
             },
         };
 

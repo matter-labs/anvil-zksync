@@ -25,6 +25,7 @@ alloy = { workspace = true, default-features = false, features = [
     "providers",
     "kzg",
     "provider-anvil-api",
+    "provider-debug-api",
 ] }
 anyhow.workspace = true
 hex.workspace = true

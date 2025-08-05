@@ -1,7 +1,7 @@
 #!/bin/bash
 set -xe
 
-PROTOCOL_VERSION=${1:-v28}
+PROTOCOL_VERSION=${1:-v29}
 case $PROTOCOL_VERSION in
   v26)
     # HEAD of anvil-zksync-0.4.x-release-v26
@@ -15,6 +15,10 @@ case $PROTOCOL_VERSION in
     # HEAD of anvil-zksync-0.4.x-release-v28
     ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
     ;;
+  v29)
+    # HEAD of anvil-zksync-0.6.x-draft-v29
+    ERA_CONTRACTS_GIT_COMMIT=4691b728fa9c411f1286bb574d2698a0aa841f70
+    ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
     exit 1
@@ -24,10 +28,13 @@ esac
 # Checkout the right revision of contracts and compile them
 cd contracts
 echo "Using era-contracts commit: $ERA_CONTRACTS_GIT_COMMIT"
+git fetch
 git checkout $ERA_CONTRACTS_GIT_COMMIT
-cd system-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
+yarn install
+cd da-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
 cd l1-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
 cd l2-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
+cd system-contracts && yarn install --frozen-lockfile && yarn build:foundry && cd ..
 cd ..
 
 BUILTIN_CONTRACTS_OUTPUT_PATH="crates/core/src/deps/contracts/builtin-contracts-$PROTOCOL_VERSION.tar.gz"
@@ -53,7 +60,7 @@ bootloaders=(
 
 # zksolc 1.5.11 changed where yul artifacts' path
 # TODO: Check is this was intended and get rid of this workaround if not
-if [[ $PROTOCOL_VERSION == v28 ]]; then
+if [[ ! $PROTOCOL_VERSION < v28 ]]; then
   for bootloader in "${bootloaders[@]}"; do
     cp "$SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/Bootloader.json" "$SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/$bootloader.json"
   done
@@ -70,6 +77,13 @@ fi
 if [[ ! $PROTOCOL_VERSION < v28 ]]; then
   # New precompile that was added in v28
   precompiles+=("Modexp")
+fi
+
+if [[ $PROTOCOL_VERSION == v29 ]]; then
+  # New L1 contracts that were added in v29
+  l1_artifacts+=("ChainAssetHandler" "L2MessageVerification")
+  # New system contract that was added in v29
+  system_contracts_sol+=("L2InteropRootStorage")
 fi
 
 for artifact in "${l1_artifacts[@]}"; do

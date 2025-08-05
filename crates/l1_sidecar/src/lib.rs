@@ -7,11 +7,10 @@ use crate::upgrade_tx::UpgradeTx;
 use crate::zkstack_config::ZkstackConfig;
 use crate::zkstack_config::contracts::ContractsConfig;
 use crate::zkstack_config::genesis::GenesisConfig;
-use alloy::providers::Provider;
+use alloy::providers::DynProvider;
 use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use anvil_zksync_core::node::node_executor::NodeExecutorHandle;
 use anvil_zksync_core::node::{TxBatch, TxPool};
-use std::sync::Arc;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use zksync_types::protocol_upgrade::ProtocolUpgradeTxCommonData;
@@ -51,7 +50,7 @@ impl L1Sidecar {
         pool: TxPool,
         zkstack_config: ZkstackConfig,
         anvil_handle: AnvilHandle,
-        anvil_provider: Arc<dyn Provider + 'static>,
+        anvil_provider: DynProvider,
         auto_execute_l1: bool,
     ) -> anyhow::Result<(Self, L1SidecarRunner)> {
         let commitment_generator = CommitmentGenerator::new(&zkstack_config, blockchain);
