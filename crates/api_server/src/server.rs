@@ -9,17 +9,17 @@ use anvil_zksync_api_decl::{
 };
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_l1_sidecar::L1Sidecar;
-use futures::future::BoxFuture;
 use futures::FutureExt;
+use futures::future::BoxFuture;
 use http::Method;
+use jsonrpsee::RpcModule;
 use jsonrpsee::server::middleware::http::ProxyGetRequestLayer;
 use jsonrpsee::server::middleware::rpc::RpcServiceT;
 use jsonrpsee::server::{MethodResponse, RpcServiceBuilder, ServerBuilder, ServerHandle};
 use jsonrpsee::types::Request;
-use jsonrpsee::RpcModule;
 use std::net::SocketAddr;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use zksync_telemetry::{get_telemetry, TelemetryProps};
+use zksync_telemetry::{TelemetryProps, get_telemetry};
 
 #[derive(Clone)]
 pub struct NodeServerBuilder {
@@ -97,7 +97,7 @@ impl NodeServerBuilder {
             )
             .set_rpc_middleware(RpcServiceBuilder::new().rpc_logger(100))
             .set_rpc_middleware(
-                RpcServiceBuilder::new().layer_fn(move |service| TelemetryReporter { service }),
+                RpcServiceBuilder::new().layer_fn(|service| TelemetryReporter { service }),
             );
 
         match server_builder.build(addr).await {
@@ -111,7 +111,7 @@ impl NodeServerBuilder {
                     run_fn: Box::new(move || server.start(rpc)),
                 })
             }
-            Err(e) => Err(format!("Failed to bind to address {}: {}", addr, e)),
+            Err(e) => Err(format!("Failed to bind to address {addr}: {e}")),
         }
     }
 }
@@ -150,18 +150,20 @@ where
 
     fn call(&self, req: Request<'a>) -> Self::Future {
         let service = self.service.clone();
-        let telemetry = get_telemetry().expect("telemetry is not initialized");
+        let telemetry_opt = get_telemetry();
 
         async move {
-            let method = req.method_name();
-            // Report only anvil and config API usage
-            if method.starts_with("anvil_") || method.starts_with("config_") {
-                let _ = telemetry
-                    .track_event(
-                        "rpc_call",
-                        TelemetryProps::new().insert("method", Some(method)).take(),
-                    )
-                    .await;
+            if let Some(tel) = telemetry_opt {
+                let method = req.method_name();
+                // Report only anvil and config API usage
+                if method.starts_with("anvil_") || method.starts_with("config_") {
+                    let _ = tel
+                        .track_event(
+                            "rpc_call",
+                            TelemetryProps::new().insert("method", Some(method)).take(),
+                        )
+                        .await;
+                }
             }
             service.call(req).await
         }

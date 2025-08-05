@@ -1,8 +1,8 @@
+use super::InMemoryNode;
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
-use super::InMemoryNode;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use std::str::FromStr;
 use std::time::Duration;
 use url::Url;
@@ -10,7 +10,7 @@ use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::bytecode::{BytecodeHash, BytecodeMarker};
 use zksync_types::u256_to_h256;
-use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H256, U256, U64};
+use zksync_types::{AccountTreeId, Address, H256, L2BlockNumber, StorageKey, U64, U256};
 
 type Result<T> = anyhow::Result<T>;
 
@@ -193,7 +193,9 @@ impl InMemoryNode {
             return Ok(());
         }
         if num_blocks > 1 && interval_sec == 0 {
-            anyhow::bail!("Provided interval is `0`; unable to produce {num_blocks} blocks with the same timestamp");
+            anyhow::bail!(
+                "Provided interval is `0`; unable to produce {num_blocks} blocks with the same timestamp"
+            );
         }
 
         // TODO: Remove locking once `TestNodeConfig` is refactored into mutable/immutable components
@@ -294,7 +296,9 @@ impl InMemoryNode {
             BytecodeMarker::Evm => {
                 let evm_interpreter_enabled = self.inner.read().await.config.use_evm_interpreter;
                 if !evm_interpreter_enabled {
-                    anyhow::bail!("EVM bytecode detected in 'set_code', but EVM interpreter is disabled in config");
+                    anyhow::bail!(
+                        "EVM bytecode detected in 'set_code', but EVM interpreter is disabled in config"
+                    );
                 }
                 BytecodeHash::for_raw_evm_bytecode(&bytecode)
             }
@@ -393,7 +397,9 @@ impl InMemoryNode {
         if let Some(old_url) = self.node_handle.set_fork_url_sync(url.clone()).await? {
             tracing::info!("Updated fork rpc from \"{}\" to \"{}\"", old_url, url);
         } else {
-            tracing::info!("Non-forking node tried to switch RPC URL to '{url}'. Call `anvil_reset` instead if you wish to switch to forking mode");
+            tracing::info!(
+                "Non-forking node tried to switch RPC URL to '{url}'. Call `anvil_reset` instead if you wish to switch to forking mode"
+            );
         }
         Ok(())
     }
@@ -414,8 +420,8 @@ mod tests {
     use crate::testing::TransactionBuilder;
     use std::str::FromStr;
     use zksync_multivm::interface::storage::ReadStorage;
-    use zksync_types::{api, L1BatchNumber, Transaction};
-    use zksync_types::{h256_to_u256, L2ChainId, H256};
+    use zksync_types::{H256, L2ChainId, h256_to_u256};
+    use zksync_types::{L1BatchNumber, Transaction, api};
 
     #[tokio::test]
     async fn test_set_balance() {

@@ -43,8 +43,8 @@ curl -X POST http://localhost:8011 \
 
 | Method                                                    | ✓ / ✗ | Purpose            |
 | --------------------------------------------------------- | ----- | ------------------ |
-| [`zks_getAllAccountBalances`](#zks_getallaccountbalances) | ✓     | All token balances |
-| [`zks_getConfirmedTokens`](#zks_getconfirmedtokens)       | ✓     | Token list slice   |
+| [`zks_getAllAccountBalances`](#zks_getallaccountbalances) | deprecated     | All token balances |
+| [`zks_getConfirmedTokens`](#zks_getconfirmedtokens)       | deprecated     | Token list slice   |
 | [`zks_getBaseTokenL1Address`](#zks_getbasetokenl1address) | ✓     | Base‑token L1 addr |
 
 ### Bridges & contracts
@@ -96,7 +96,7 @@ curl -s -X POST http://localhost:8011 \
       }'
 ```
 
-### zks_getAllAccountBalances <a id="zks_getallaccountbalances" />
+### Deprecated zks_getAllAccountBalances <a id="zks_getallaccountbalances" />
 
 ```bash
 curl -s -X POST http://localhost:8011 \
@@ -139,7 +139,7 @@ curl -s -X POST http://localhost:8011 \
   -d '{"jsonrpc":"2.0","id":1,"method":"zks_getBytecodeByHash","params":["0x…hash…"]}'
 ```
 
-### zks_getConfirmedTokens <a id="zks_getconfirmedtokens" />
+### Deprecated zks_getConfirmedTokens <a id="zks_getconfirmedtokens" />
 
 ```bash
 curl -s -X POST http://localhost:8011 \

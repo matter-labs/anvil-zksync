@@ -70,9 +70,9 @@ pub fn abi_decode_calldata(
     }
 
     let res = if input {
-        func.abi_decode_input(calldata, false)
+        func.abi_decode_input(calldata)
     } else {
-        func.abi_decode_output(calldata, false)
+        func.abi_decode_output(calldata)
     }?;
 
     // in case the decoding worked but nothing was decoded
@@ -185,7 +185,7 @@ mod tests {
 
         // Now convert the VmEvent into a `LogData`
         let log_data = vm_event_to_log_data(&vm_event);
-        let decoded = updated_event.decode_log(&log_data, false).unwrap();
+        let decoded = updated_event.decode_log(&log_data).unwrap();
 
         assert_eq!(
             updated_event

@@ -2,9 +2,9 @@ use super::executor::{Command, MainBatchExecutor};
 use super::shared::Sealed;
 use crate::bootloader_debug::{BootloaderDebug, BootloaderDebugTracer};
 use crate::deps::InMemoryStorage;
-use crate::node::boojumos::BoojumOsVM;
 use crate::node::traces::call_error::CallErrorTracer;
-use anvil_zksync_config::types::BoojumConfig;
+use crate::node::zksync_os::ZKsyncOsVM;
+use anvil_zksync_config::types::ZKsyncOsConfig;
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use std::sync::RwLock;
@@ -12,13 +12,14 @@ use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc};
 use tokio::sync::mpsc;
 use zksync_multivm::interface::{InspectExecutionMode, VmExecutionResultAndLogs};
 use zksync_multivm::{
+    FastVmInstance, LegacyVmInstance, MultiVmTracer,
     interface::{
+        BatchTransactionExecutionResult, Call, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
+        L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         executor::{BatchExecutor, BatchExecutorFactory},
         pubdata::PubdataBuilder,
         storage::{ReadStorage, StoragePtr, StorageView},
         utils::{DivergenceHandler, ShadowMut},
-        BatchTransactionExecutionResult, Call, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
-        L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     is_supported_by_fast_vm,
     pubdata_builders::pubdata_params_to_builder,
@@ -26,9 +27,8 @@ use zksync_multivm::{
     vm_fast,
     vm_fast::FastValidationTracer,
     vm_latest::HistoryEnabled,
-    FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
-use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
+use zksync_types::{Transaction, commitment::PubdataParams, vm::FastVmMode};
 
 #[doc(hidden)]
 pub trait CallTracingTracer: vm_fast::interface::Tracer + Default {
@@ -93,7 +93,7 @@ pub struct MainBatchExecutorFactory<Tr> {
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
-    boojum: BoojumConfig,
+    zksync_os: ZKsyncOsConfig,
     _tracer: PhantomData<Tr>,
 }
 
@@ -101,7 +101,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
     pub fn new(
         enforced_bytecode_compression: bool,
         legacy_bootloader_debug_result: Arc<RwLock<eyre::Result<BootloaderDebug, String>>>,
-        boojum: BoojumConfig,
+        zksync_os: ZKsyncOsConfig,
     ) -> Self {
         Self {
             enforced_bytecode_compression,
@@ -109,7 +109,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
             skip_signature_verification: false,
             divergence_handler: None,
             legacy_bootloader_debug_result,
-            boojum,
+            zksync_os,
             _tracer: PhantomData,
         }
     }
@@ -132,7 +132,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
         let executor = CommandReceiver {
             enforced_bytecode_compression: self.enforced_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
-            boojum: self.boojum.clone(),
+            zksync_os: self.zksync_os.clone(),
             skip_signature_verification: self.skip_signature_verification,
             divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
@@ -173,7 +173,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
 enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
     Fast(FastVmInstance<S, Tr::Fast>),
-    BoojumOS(BoojumOsVM<StorageView<S>, HistoryEnabled>),
+    ZKsyncOs(ZKsyncOsVM<StorageView<S>, HistoryEnabled>),
 }
 
 macro_rules! dispatch_batch_vm {
@@ -181,7 +181,7 @@ macro_rules! dispatch_batch_vm {
         match $self {
             Self::Legacy(vm) => vm.$function($($params)*),
             Self::Fast(vm) => vm.$function($($params)*),
-            Self::BoojumOS(vm) => vm.$function($($params)*),
+            Self::ZKsyncOs(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -192,16 +192,16 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         system_env: SystemEnv,
         storage_ptr: StoragePtr<StorageView<S>>,
         mode: FastVmMode,
-        boojum: &BoojumConfig,
+        zksync_os: &ZKsyncOsConfig,
         all_values: Option<InMemoryStorage>,
     ) -> Self {
-        if boojum.use_boojum {
-            return Self::BoojumOS(BoojumOsVM::new(
+        if zksync_os.zksync_os {
+            return Self::ZKsyncOs(ZKsyncOsVM::new(
                 l1_batch_env,
                 system_env,
                 storage_ptr,
                 &all_values.unwrap(),
-                boojum,
+                zksync_os,
             ));
         }
         if !is_supported_by_fast_vm(system_env.version) {
@@ -273,7 +273,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
                 tx,
                 with_compression,
             ),
-            Self::BoojumOS(vm) => {
+            Self::ZKsyncOs(vm) => {
                 vm.push_transaction(tx);
                 let res = vm.inspect(&mut legacy_tracer.into(), InspectExecutionMode::OneTx);
 
@@ -303,7 +303,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .unwrap_or_default();
         let call_traces = match self {
             Self::Legacy(_) => legacy_traces,
-            Self::BoojumOS(_) => legacy_traces,
+            Self::ZKsyncOs(_) => legacy_traces,
             Self::Fast(FastVmInstance::Fast(_)) => fast_traces,
             Self::Fast(FastVmInstance::Shadowed(vm)) => {
                 vm.get_custom_mut("call_traces", |r| match r {
@@ -332,7 +332,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
 struct CommandReceiver<S, Tr> {
     enforced_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
-    boojum: BoojumConfig,
+    zksync_os: ZKsyncOsConfig,
     skip_signature_verification: bool,
     divergence_handler: Option<DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
@@ -351,8 +351,8 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         all_values: Option<InMemoryStorage>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
-        if self.boojum.use_boojum {
-            tracing::info!("Using BoojumOS VM");
+        if self.zksync_os.zksync_os {
+            tracing::info!("Using ZKsyncOs VM");
         }
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
@@ -361,7 +361,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             system_env,
             storage_view.clone(),
             self.fast_vm_mode,
-            &self.boojum,
+            &self.zksync_os,
             all_values,
         );
 

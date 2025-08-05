@@ -11,7 +11,7 @@ mod utils;
 pub use ext::{ReceiptExt, ZksyncWalletProviderExt};
 pub use headers_inspector::ResponseHeadersInspector;
 pub use provider::{
-    AnvilZKsyncApi, AnvilZksyncTester, AnvilZksyncTesterBuilder, FullZksyncProvider,
-    DEFAULT_TX_VALUE,
+    AnvilZKsyncApi, AnvilZksyncTester, AnvilZksyncTesterBuilder, DEFAULT_TX_VALUE,
+    FullZksyncProvider,
 };
-pub use utils::{get_node_binary_path, LockedPort};
+pub use utils::{LockedPort, get_node_binary_path};

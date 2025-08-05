@@ -1,11 +1,11 @@
 use crate::node::fork::ForkDetails;
+use anvil_zksync_config::BaseTokenConfig;
 use anvil_zksync_config::constants::{
     DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR, DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,
     DEFAULT_FAIR_PUBDATA_PRICE, DEFAULT_L1_GAS_PRICE, DEFAULT_L2_GAS_PRICE,
 };
-use anvil_zksync_config::BaseTokenConfig;
-use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_multivm::VmVersion;
+use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_types::fee_model::{
     BaseTokenConversionRatio, BatchFeeInput, FeeModelConfigV2, FeeParams, FeeParamsV2,
 };
@@ -138,12 +138,16 @@ impl TestNodeFeeInputProvider {
         self.enforce_base_fee(fee_input)
     }
 
-    pub fn gas_price(&self) -> u64 {
-        let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
+    pub fn gas_price_and_gas_per_pubdata(&self) -> (u64, u64) {
+        let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
             self.get_batch_fee_input_scaled(),
             VmVersion::latest(),
         );
-        base_fee
+        (base_fee, gas_per_pubdata)
+    }
+
+    pub fn fair_l2_gas_price(&self) -> u64 {
+        self.get_batch_fee_input_scaled().fair_l2_gas_price()
     }
 
     pub fn fair_pubdata_price(&self) -> u64 {

@@ -3,6 +3,7 @@ use anvil_zksync_core::node::blockchain::ReadBlockchain;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_types::L1BatchNumber;
 use zksync_types::blob::num_blobs_required;
 use zksync_types::block::{L1BatchHeader, L1BatchTreeData};
 use zksync_types::commitment::{
@@ -10,7 +11,6 @@ use zksync_types::commitment::{
     L1BatchWithMetadata,
 };
 use zksync_types::writes::StateDiffRecord;
-use zksync_types::L1BatchNumber;
 use zksync_types::{Address, H256};
 
 /// Node component that can generate batch's metadata (with commitment) on demand.
@@ -205,6 +205,7 @@ mod tests {
         Block, BlockDetails, BlockId, DebugCall, Log, Transaction, TransactionDetails,
         TransactionReceipt, TransactionVariant,
     };
+    use zksync_types::web3::Bytes;
     use zksync_types::{L2BlockNumber, ProtocolVersionId};
 
     // TODO: Consider moving to a separate testing crate
@@ -363,6 +364,13 @@ mod tests {
             } else {
                 None
             }
+        }
+
+        async fn get_raw_transaction(&self, _tx_hash: H256) -> Option<Bytes> {
+            unimplemented!()
+        }
+        async fn get_raw_transactions(&self, _block_number: BlockId) -> Vec<Bytes> {
+            unimplemented!()
         }
     }
 

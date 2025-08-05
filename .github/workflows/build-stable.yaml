@@ -1,0 +1,23 @@
+# Ensure that we can disable ZKsync OS and build on stable without it.
+name: build-stable
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-stable:
+    name: build-stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Build on stable without features
+        run: cargo +stable build --all --no-default-features

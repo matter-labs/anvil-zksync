@@ -60,14 +60,17 @@ jobs:
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
 
       - name: Prepare rustdoc
         shell: 'bash -ex {0}'
         run: |
           cargo doc --no-deps
           cp -r target/doc docs/book/src/rustdoc
+
+      - name: Restore zksync_error crate if needed
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          git restore --worktree --staged crates/zksync_error/src || true
 
       - name: Deploy core docs
         uses: matter-labs/deploy-mdbooks@c72ae3825faeb7d20cbf3e67714f7253dd0ee7cb # v1

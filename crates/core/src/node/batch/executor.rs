@@ -7,9 +7,9 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
+    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv, VmExecutionResultAndLogs,
     executor::BatchExecutor,
     storage::{ReadStorage, StorageView},
-    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv, VmExecutionResultAndLogs,
 };
 use zksync_types::Transaction;
 
@@ -179,6 +179,20 @@ where
         };
         let storage_view = self.handle.wait().await?;
         Ok((finished_batch, storage_view))
+    }
+
+    async fn rollback_l2_block(
+        &mut self
+    ) -> anyhow::Result<()> {
+        // This method is not implemented in the main executor.
+        Err(anyhow::anyhow!("Rollback of L2 block is not supported in the main executor."))
+    }
+
+    async fn commit_l2_block(
+        &mut self
+    ) -> anyhow::Result<()> {
+        // This method is not implemented in the main executor.
+        Err(anyhow::anyhow!("Commit of L2 block is not supported in the main executor."))
     }
 }
 

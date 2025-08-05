@@ -1,14 +1,14 @@
 use std::sync::{Arc, RwLock};
 use zksync_multivm::{
-    interface::tracer::VmExecutionStopReason, tracers::dynamic::vm_1_5_2::DynTracer,
-    IntoOldVmTracer,
+    IntoOldVmTracer, interface::tracer::VmExecutionStopReason,
+    tracers::dynamic::vm_1_5_2::DynTracer,
 };
 
 use zksync_multivm::interface::storage::WriteStorage;
 use zksync_multivm::tracers::old::OldTracers;
 use zksync_multivm::vm_latest::{
-    constants::BOOTLOADER_HEAP_PAGE, BootloaderState, HistoryMode, SimpleMemory, VmTracer,
-    ZkSyncVmState,
+    BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState,
+    constants::BOOTLOADER_HEAP_PAGE,
 };
 use zksync_types::U256;
 

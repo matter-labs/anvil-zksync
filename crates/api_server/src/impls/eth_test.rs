@@ -1,8 +1,8 @@
 use anvil_zksync_api_decl::EthTestNamespaceServer;
 use anvil_zksync_core::node::InMemoryNode;
-use jsonrpsee::core::{async_trait, RpcResult};
-use zksync_types::transaction_request::CallRequest;
+use jsonrpsee::core::{RpcResult, async_trait};
 use zksync_types::H256;
+use zksync_types::transaction_request::CallRequest;
 
 use crate::error::RpcErrorAdapter;
 

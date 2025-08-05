@@ -1,22 +1,15 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-#![allow(unused_imports)]
-
-//! Interfaces that use boojumos for VM execution.
+//! Interfaces that use zksync_os for VM execution.
 //! This is still experimental code.
 
-use anvil_zksync_config::types::BoojumConfig;
-
+use anvil_zksync_config::types::ZKsyncOsConfig;
 use zksync_multivm::{
+    HistoryMode,
     interface::{
+        L1BatchEnv, SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
         storage::{StoragePtr, WriteStorage},
-        ExecutionResult, InspectExecutionMode, L1BatchEnv, PushTransactionResult, Refunds,
-        SystemEnv, TxExecutionMode, VmExecutionLogs, VmExecutionResultAndLogs, VmInterface,
-        VmInterfaceHistoryEnabled, VmRevertReason,
     },
     tracers::TracerDispatcher,
     vm_latest::TracerPointer,
-    HistoryMode,
 };
 
 use zksync_multivm::MultiVmTracerPointer;
@@ -24,50 +17,37 @@ use zksync_types::{Address, StorageKey, Transaction};
 
 use crate::deps::InMemoryStorage;
 
-pub const BOOJUM_CALL_GAS_LIMIT: u64 = 100_000_000;
-
-pub fn boojumos_get_batch_witness(key: &u32) -> Option<Vec<u8>> {
-    todo!()
-}
-
-pub fn boojumos_get_nonce_key(account: &Address) -> StorageKey {
-    todo!()
-}
-
-pub fn boojumos_storage_key_for_eth_balance(address: &Address) -> StorageKey {
-    todo!();
-}
-
 #[derive(Debug)]
-pub struct BoojumOsVM<S: WriteStorage, H: HistoryMode> {
-    pub storage: StoragePtr<S>,
-
-    _phantom: std::marker::PhantomData<H>,
+pub struct MockZKsyncOsVM<S: WriteStorage, H: HistoryMode> {
+    _s: std::marker::PhantomData<S>,
+    _h: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> BoojumOsVM<S, H> {
+impl<S: WriteStorage, H: HistoryMode> MockZKsyncOsVM<S, H> {
     pub fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<S>,
-        raw_storage: &InMemoryStorage,
-        config: &BoojumConfig,
+        _batch_env: L1BatchEnv,
+        _system_env: SystemEnv,
+        _storage: StoragePtr<S>,
+        _raw_storage: &InMemoryStorage,
+        _config: &ZKsyncOsConfig,
     ) -> Self {
-        todo!()
+        panic!(
+            "Cannot instantiate mock ZKsyncOsVM, make sure 'zksync-os' feature is enabled in Cargo.toml"
+        );
     }
 
     /// If any keys are updated in storage externally, but not reflected in internal tree.
-    pub fn update_inconsistent_keys(&mut self, inconsistent_nodes: &[&StorageKey]) {
-        todo!()
+    pub fn update_inconsistent_keys(&mut self, _inconsistent_nodes: &[&StorageKey]) {
+        unimplemented!();
     }
 }
 
-pub struct BoojumOsTracerDispatcher<S: WriteStorage, H: HistoryMode> {
+pub struct ZkSyncOSTracerDispatcher<S: WriteStorage, H: HistoryMode> {
     _tracers: Vec<S>,
     _marker: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> Default for BoojumOsTracerDispatcher<S, H> {
+impl<S: WriteStorage, H: HistoryMode> Default for ZkSyncOSTracerDispatcher<S, H> {
     fn default() -> Self {
         Self {
             _tracers: Default::default(),
@@ -77,7 +57,7 @@ impl<S: WriteStorage, H: HistoryMode> Default for BoojumOsTracerDispatcher<S, H>
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
-    for BoojumOsTracerDispatcher<S, H>
+    for ZkSyncOSTracerDispatcher<S, H>
 {
     fn from(_value: Vec<TracerPointer<S, H>>) -> Self {
         Self {
@@ -88,7 +68,7 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<TracerPointer<S, H>>>
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<Vec<MultiVmTracerPointer<S, H>>>
-    for BoojumOsTracerDispatcher<S, H>
+    for ZkSyncOSTracerDispatcher<S, H>
 {
     fn from(_value: Vec<MultiVmTracerPointer<S, H>>) -> Self {
         Self {
@@ -99,7 +79,7 @@ impl<S: WriteStorage, H: HistoryMode> From<Vec<MultiVmTracerPointer<S, H>>>
 }
 
 impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
-    for BoojumOsTracerDispatcher<S, H>
+    for ZkSyncOSTracerDispatcher<S, H>
 {
     fn from(_value: TracerDispatcher<S, H>) -> Self {
         Self {
@@ -109,26 +89,26 @@ impl<S: WriteStorage, H: HistoryMode> From<TracerDispatcher<S, H>>
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface for BoojumOsVM<S, H> {
-    type TracerDispatcher = BoojumOsTracerDispatcher<S, H>;
+impl<S: WriteStorage, H: HistoryMode> VmInterface for MockZKsyncOsVM<S, H> {
+    type TracerDispatcher = ZkSyncOSTracerDispatcher<S, H>;
 
     fn push_transaction(
         &mut self,
-        tx: Transaction,
+        _tx: Transaction,
     ) -> zksync_multivm::interface::PushTransactionResult<'_> {
-        todo!()
+        unimplemented!()
     }
 
     fn inspect(
         &mut self,
         _dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: zksync_multivm::interface::InspectExecutionMode,
+        _execution_mode: zksync_multivm::interface::InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        todo!()
+        unimplemented!()
     }
 
     fn start_new_l2_block(&mut self, _l2_block_env: zksync_multivm::interface::L2BlockEnv) {
-        todo!()
+        // no-op
     }
 
     fn inspect_transaction_with_bytecode_compression(
@@ -151,11 +131,11 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for BoojumOsVM<S, H> {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for BoojumOsVM<S, H> {
+impl<S: WriteStorage, H: HistoryMode> VmInterfaceHistoryEnabled for MockZKsyncOsVM<S, H> {
     fn make_snapshot(&mut self) {}
 
     fn rollback_to_the_latest_snapshot(&mut self) {
-        panic!("Not implemented for boojumos");
+        panic!("Not implemented for zksync_os");
     }
 
     fn pop_snapshot_no_rollback(&mut self) {}

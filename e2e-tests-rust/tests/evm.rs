@@ -1,9 +1,9 @@
 use alloy::primitives::U256;
 use anvil_zksync_e2e_tests::test_contracts::Counter;
-use anvil_zksync_e2e_tests::{get_node_binary_path, AnvilZksyncTesterBuilder, ReceiptExt};
+use anvil_zksync_e2e_tests::{AnvilZksyncTesterBuilder, ReceiptExt, get_node_binary_path};
 use std::process::Stdio;
 use std::time::Duration;
-use test_casing::{cases, test_casing, TestCases};
+use test_casing::{TestCases, cases, test_casing};
 use tokio::process::Command as CommandAsync;
 
 const EVM_SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {
@@ -14,7 +14,7 @@ const EVM_SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {
 #[tokio::test]
 async fn deploy_evm_counter(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000).args([
                 "--evm-interpreter",
                 "--protocol-version",
@@ -60,7 +60,7 @@ async fn no_evm_emulator_on_v26() -> anyhow::Result<()> {
 async fn deploy_evm_counter_with_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
-        .with_node_fn(&|node| {
+        .with_node_fn(&move |node| {
             node.timeout(60_000).args([
                 "--evm-interpreter",
                 "--protocol-version",

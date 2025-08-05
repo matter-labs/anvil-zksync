@@ -1,5 +1,5 @@
 use crate::utils::{
-    get_cli_command_telemetry_props, parse_genesis_file, TELEMETRY_SENSITIVE_VALUE,
+    TELEMETRY_SENSITIVE_VALUE, get_cli_command_telemetry_props, parse_genesis_file,
 };
 use alloy::signers::local::coins_bip39::{English, Mnemonic};
 use anvil_zksync_common::{
@@ -8,21 +8,21 @@ use anvil_zksync_common::{
     utils::io::write_json_file,
 };
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
+use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_config::{
     constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID},
-    types::BoojumConfig,
+    types::ZKsyncOsConfig,
 };
-use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_core::node::fork::ForkConfig;
 use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anvil_zksync_types::{
     LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
-use clap::{arg, command, ArgAction, Parser, Subcommand, ValueEnum};
+use clap::{ArgAction, Parser, Subcommand, ValueEnum, arg, command};
 use flate2::read::GzDecoder;
 use futures::FutureExt;
 use num::rational::Ratio;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use std::collections::HashMap;
 use std::env;
 use std::io::Read;
@@ -40,7 +40,7 @@ use tokio::time::{Instant, Interval};
 use url::Url;
 use zksync_telemetry::TelemetryProps;
 use zksync_types::fee_model::BaseTokenConversionRatio;
-use zksync_types::{ProtocolVersionId, H256, U256};
+use zksync_types::{H256, ProtocolVersionId, U256};
 
 const DEFAULT_PORT: &str = "8011";
 const DEFAULT_HOST: &str = "0.0.0.0";
@@ -173,8 +173,8 @@ pub struct Cli {
     pub evm_interpreter: bool,
 
     #[clap(flatten)]
-    /// BoojumOS detailed config.
-    pub boojum_group: BoojumGroup,
+    /// ZKsync OS detailed config.
+    pub zksync_os_group: ZKsyncOsGroup,
 
     // Logging Configuration
     #[arg(long, help_heading = "Logging Configuration")]
@@ -340,21 +340,21 @@ pub struct Cli {
 }
 
 #[derive(Clone, Debug, clap::Args)]
-pub struct BoojumGroup {
-    /// Enables boojum.
-    #[arg(long, help_heading = "UNSTABLE - Boojum OS")]
-    pub use_boojum: bool,
+pub struct ZKsyncOsGroup {
+    /// Enables ZKsync OS.
+    #[arg(long, help_heading = "UNSTABLE - ZKsync OS")]
+    pub zksync_os: bool,
 
-    /// Path to boojum binary (if you need to compute witnesses).
-    #[arg(long, requires = "use_boojum", help_heading = "UNSTABLE - Boojum OS")]
-    pub boojum_bin_path: Option<String>,
+    /// Path to ZKsync OS binary (if you need to compute witnesses).
+    #[arg(long, requires = "zksync_os", help_heading = "UNSTABLE - ZKsync OS")]
+    pub zksync_os_bin_path: Option<String>,
 }
 
-impl From<BoojumGroup> for BoojumConfig {
-    fn from(group: BoojumGroup) -> Self {
-        BoojumConfig {
-            use_boojum: group.use_boojum,
-            boojum_bin_path: group.boojum_bin_path,
+impl From<ZKsyncOsGroup> for ZKsyncOsConfig {
+    fn from(group: ZKsyncOsGroup) -> Self {
+        ZKsyncOsConfig {
+            zksync_os: group.zksync_os,
+            zksync_os_bin_path: group.zksync_os_bin_path,
         }
     }
 }
@@ -587,7 +587,7 @@ impl FromStr for ForkUrl {
         }
         Url::parse(s)
             .map(ForkUrl::Custom)
-            .map_err(|e| format!("`{}` is neither a known network nor a valid URL: {}", s, e))
+            .map_err(|e| format!("`{s}` is neither a known network nor a valid URL: {e}"))
     }
 }
 
@@ -723,7 +723,7 @@ impl Cli {
             } else {
                 None
             })
-            .with_boojum(self.boojum_group.into())
+            .with_zksync_os(self.zksync_os_group.into())
             .with_health_check_endpoint(if self.health_check_endpoint {
                 Some(true)
             } else {
@@ -835,7 +835,7 @@ impl Cli {
             })
             .insert(
                 "dev_system_contracts",
-                self.dev_system_contracts.map(|v| format!("{:?}", v)),
+                self.dev_system_contracts.map(|v| format!("{v:?}")),
             )
             .insert(
                 "protocol_version",
@@ -847,7 +847,7 @@ impl Cli {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)
             })
             .insert("silent", self.silent)
-            .insert("cache", self.cache.map(|v| format!("{:?}", v)))
+            .insert("cache", self.cache.map(|v| format!("{v:?}")))
             .insert("reset_cache", self.reset_cache)
             .insert_with("cache_dir", self.cache_dir, |v| {
                 v.map(|_| TELEMETRY_SENSITIVE_VALUE)
@@ -893,7 +893,7 @@ impl Cli {
             .insert_with("auto_impersonate", self.auto_impersonate, |v| {
                 v.then_some(v)
             })
-            .insert("block_time", self.block_time.map(|v| format!("{:?}", v)))
+            .insert("block_time", self.block_time.map(|v| format!("{v:?}")))
             .insert_with("no_mining", self.no_mining, |v| v.then_some(v))
             .insert_with("allow_origin", self.allow_origin, |v| {
                 (v != DEFAULT_ALLOW_ORIGIN).then_some(TELEMETRY_SENSITIVE_VALUE)
@@ -906,27 +906,27 @@ impl Cli {
     }
 
     fn account_generator(&self) -> AccountGenerator {
-        let mut gen = AccountGenerator::new(self.accounts as usize)
+        let mut generator = AccountGenerator::new(self.accounts as usize)
             .phrase(DEFAULT_MNEMONIC)
             .chain_id(self.chain_id.unwrap_or(TEST_NODE_NETWORK_ID));
         if let Some(ref mnemonic) = self.mnemonic {
-            gen = gen.phrase(mnemonic);
+            generator = generator.phrase(mnemonic);
         } else if let Some(count) = self.mnemonic_random {
             let mut rng = rand::thread_rng();
             let mnemonic = match Mnemonic::<English>::new_with_count(&mut rng, count) {
                 Ok(mnemonic) => mnemonic.to_phrase(),
                 Err(_) => DEFAULT_MNEMONIC.to_string(),
             };
-            gen = gen.phrase(mnemonic);
+            generator = generator.phrase(mnemonic);
         } else if let Some(seed) = self.mnemonic_seed {
             let mut seed = StdRng::seed_from_u64(seed);
             let mnemonic = Mnemonic::<English>::new(&mut seed).to_phrase();
-            gen = gen.phrase(mnemonic);
+            generator = generator.phrase(mnemonic);
         }
         if let Some(ref derivation) = self.derivation_path {
-            gen = gen.derivation_path(derivation);
+            generator = generator.derivation_path(derivation);
         }
-        gen
+        generator
     }
 }
 
@@ -1068,7 +1068,7 @@ mod tests {
     use super::Cli;
     use anvil_zksync_core::node::InMemoryNode;
     use clap::Parser;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use std::{
         env,
         net::{IpAddr, Ipv4Addr},
@@ -1105,11 +1105,15 @@ mod tests {
                 .to_vec()
         );
 
-        env::set_var("ANVIL_ZKSYNC_IP_ADDR", "1.1.1.1");
+        unsafe {
+            env::set_var("ANVIL_ZKSYNC_IP_ADDR", "1.1.1.1");
+        }
         let args = Cli::parse_from(["anvil-zksync"]);
         assert_eq!(args.host, vec!["1.1.1.1".parse::<IpAddr>().unwrap()]);
 
-        env::set_var("ANVIL_ZKSYNC_IP_ADDR", "::1,1.1.1.1,2.2.2.2");
+        unsafe {
+            env::set_var("ANVIL_ZKSYNC_IP_ADDR", "::1,1.1.1.1,2.2.2.2");
+        }
         let args = Cli::parse_from(["anvil-zksync"]);
         assert_eq!(
             args.host,

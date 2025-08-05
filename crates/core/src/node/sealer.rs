@@ -1,9 +1,9 @@
 use super::inner::node_executor::NodeExecutorHandle;
 use super::pool::{TxBatch, TxPool};
+use futures::Stream;
 use futures::channel::mpsc::Receiver;
 use futures::stream::{Fuse, StreamExt};
 use futures::task::AtomicWaker;
-use futures::Stream;
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use std::task::{Context, Poll};

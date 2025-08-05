@@ -19,8 +19,8 @@ use zksync_types::fee_model::FeeParams;
 use zksync_types::url::SensitiveUrl;
 use zksync_types::web3::Index;
 use zksync_types::{
-    api, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
-    U256,
+    Address, H256, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, U256,
+    api,
 };
 use zksync_web3_decl::client::{DynClient, L2};
 use zksync_web3_decl::error::Web3Error;
@@ -58,7 +58,7 @@ pub trait ForkSource: fmt::Debug + Send + Sync {
 
     /// Fetches fork's transaction for a given hash.
     async fn get_transaction_by_hash(&self, hash: H256)
-        -> anyhow::Result<Option<api::Transaction>>;
+    -> anyhow::Result<Option<api::Transaction>>;
 
     /// Fetches fork's transaction details for a given hash.
     async fn get_transaction_details(
@@ -279,9 +279,9 @@ impl ForkClient {
         };
         if !SupportedProtocolVersions::is_supported(protocol_version) {
             anyhow::bail!(
-                    "Block #{block_number} from fork={url} is using unsupported protocol version `{protocol_version}`. \
+                "Block #{block_number} from fork={url} is using unsupported protocol version `{protocol_version}`. \
                     anvil-zksync only supports the following versions: {SupportedProtocolVersions}."
-                )
+            )
         }
 
         let fee_params = l2_client.get_fee_params().await?;
@@ -389,7 +389,7 @@ impl ForkClient {
 #[cfg(test)]
 impl ForkClient {
     pub fn mock(details: ForkDetails, storage: crate::deps::InMemoryStorage) -> Self {
-        use zksync_types::{u256_to_h256, AccountTreeId, StorageKey, H160};
+        use zksync_types::{AccountTreeId, H160, StorageKey, u256_to_h256};
 
         let storage = Arc::new(RwLock::new(storage));
         let storage_clone = storage.clone();
@@ -892,7 +892,7 @@ mod test {
     use maplit::hashmap;
     use zksync_types::block::{pack_block_info, unpack_block_info};
     use zksync_types::fee_model::{BaseTokenConversionRatio, FeeModelConfigV2, FeeParamsV2};
-    use zksync_types::{h256_to_u256, u256_to_h256, AccountTreeId, StorageKey};
+    use zksync_types::{AccountTreeId, StorageKey, h256_to_u256, u256_to_h256};
 
     impl Default for ForkDetails {
         fn default() -> Self {

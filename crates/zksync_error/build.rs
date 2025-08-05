@@ -29,24 +29,28 @@ fn main() -> ExitCode {
 
     let arguments = GenerationArguments {
         verbose: true,
-        input_links: vec![root_link.into(),
-                          local_core_path],
-        override_links: vec![
-            ( "https://raw.githubusercontent.com/matter-labs/anvil-zksync/refs/heads/main/etc/errors/anvil.json".to_owned(),
-               local_anvil_path)
-        ],
+        input_links: vec![root_link.into(), local_core_path],
+        mode: zksync_error_codegen::arguments::ResolutionMode::Normal {
+            override_links: vec![(
+                r#"{
+                    "repo": "matter-labs/anvil-zksync",
+                    "branch" : "main",
+                    "path" : "etc/errors/anvil.json"
+                }"#
+                .to_owned(),
+                local_anvil_path,
+            )],
+            lock_file: "zksync-errors.lock".to_owned(),
+        },
         outputs: vec![
             // Overwrite the crate `zksync-error`, add the converter from
             // `anyhow` to a generic error of the appropriate domain.
             zksync_error_codegen::arguments::BackendOutput {
                 output_path: format!("{REPOSITORY_ROOT}/crates/zksync_error").into(),
                 backend: Backend::Rust,
-                arguments: vec![
-                    ("use_anyhow".to_owned(), "true".to_owned()),
-                    ("generate_cargo_toml".to_owned(), "false".to_owned()),
-                ],
+                arguments: vec![("generate_cargo_toml".to_owned(), "false".to_owned())],
             },
-            ],
+        ],
     };
     if let Err(e) = zksync_error_codegen::load_and_generate(arguments) {
         println!("{e}");

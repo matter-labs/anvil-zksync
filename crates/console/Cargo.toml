@@ -18,8 +18,6 @@ zksync_types.workspace = true
 zksync_multivm.workspace = true
 
 alloy.workspace = true
-foundry-common-fmt.workspace = true
-foundry-macros.workspace = true
 derive_more.workspace = true
 itertools.workspace = true
 colored.workspace = true

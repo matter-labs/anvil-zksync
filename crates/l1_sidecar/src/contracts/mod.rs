@@ -49,10 +49,10 @@ use alloy::primitives::TxHash;
 use self::private::{IExecutor, PriorityOpsBatchInfo};
 use alloy::sol_types::{SolCall, SolValue};
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_types::commitment::{serialize_commitments, L1BatchWithMetadata};
+use zksync_types::commitment::{L1BatchWithMetadata, serialize_commitments};
 use zksync_types::l1::L1Tx;
 use zksync_types::web3::keccak256;
-use zksync_types::{L2ChainId, H256};
+use zksync_types::{H256, L2ChainId};
 
 /// Current commitment encoding version as per protocol.
 pub const SUPPORTED_ENCODING_VERSION: u8 = 0;

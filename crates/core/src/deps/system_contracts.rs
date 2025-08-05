@@ -22,7 +22,7 @@ use zksync_types::{
     L2_MESSAGE_ROOT_ADDRESS, L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
     L2_WRAPPED_BASE_TOKEN_IMPL, MODEXP_PRECOMPILE_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     NONCE_HOLDER_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
-    SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
+    SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS
 };
 use zksync_types::{AccountTreeId, Address, H160};
 
@@ -90,14 +90,14 @@ pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
     let artifact: Value = serde_json::from_slice(contents).expect(artifact_name);
     let bytecode = artifact["bytecode"]
         .as_object()
-        .unwrap_or_else(|| panic!("Bytecode not found in {:?}", artifact_name))
+        .unwrap_or_else(|| panic!("Bytecode not found in {artifact_name:?}"))
         .get("object")
-        .unwrap_or_else(|| panic!("Bytecode object not found in {:?}", artifact_name))
+        .unwrap_or_else(|| panic!("Bytecode object not found in {artifact_name:?}"))
         .as_str()
-        .unwrap_or_else(|| panic!("Bytecode object is not a string in {:?}", artifact_name));
+        .unwrap_or_else(|| panic!("Bytecode object is not a string in {artifact_name:?}"));
 
     hex::decode(bytecode)
-        .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_name, err))
+        .unwrap_or_else(|err| panic!("Can't decode bytecode in {artifact_name:?}: {err}"))
 }
 
 pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name: &str) -> Vec<u8> {
@@ -125,6 +125,41 @@ pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name:
             }),
     )
 }
+
+/// Build a static map of “everything” (kernel + non-kernel + precompile + L2 + empty).
+static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>> =
+    Lazy::new(|| {
+        let mut result = HashMap::new();
+
+        for (protocol_version, _) in BUILTIN_CONTRACT_ARCHIVES {
+            let mut list = Vec::new();
+
+            // (1) Kernel
+            list.extend(
+                BUILTIN_CONTRACT_LOCATIONS
+                    .iter()
+                    .filter(|(_, _, min_version)| &protocol_version >= min_version)
+                    .map(|(artifact_name, address, _)| DeployedContract {
+                        account_id: AccountTreeId::new(*address),
+                        bytecode: load_builtin_contract(protocol_version, artifact_name),
+                    }),
+            );
+
+            list.extend(
+                NON_KERNEL_CONTRACT_LOCATIONS
+                    .iter()
+                    .filter(|(_, _, min_version)| &protocol_version >= min_version)
+                    .map(|(artifact_name, address, _)| DeployedContract {
+                        account_id: AccountTreeId::new(*address),
+                        bytecode: load_builtin_contract(protocol_version, artifact_name),
+                    }),
+            );
+
+            result.insert(protocol_version, list);
+        }
+
+        result
+    });
 
 const V26: ProtocolVersionId = ProtocolVersionId::Version26;
 const V27: ProtocolVersionId = ProtocolVersionId::Version27;
@@ -210,24 +245,19 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 44] = [
     ("EmptyContract", BOOTLOADER_ADDRESS, V26),
 ];
 
-static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>> =
-    Lazy::new(|| {
-        let mut result = HashMap::new();
-        for (protocol_version, _) in BUILTIN_CONTRACT_ARCHIVES {
-            result.insert(
-                protocol_version,
-                BUILTIN_CONTRACT_LOCATIONS
-                    .iter()
-                    .filter(|(_, _, min_version)| &protocol_version >= min_version)
-                    .map(|(artifact_name, address, _)| DeployedContract {
-                        account_id: AccountTreeId::new(*address),
-                        bytecode: load_builtin_contract(protocol_version, artifact_name),
-                    })
-                    .collect(),
-            );
-        }
-        result
-    });
+/// *************************************************************
+/// *  Non-kernel contracts (base offset 0x010000)             *
+/// *************************************************************
+pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8] = [
+    ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
+    ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
+    ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
+    ("L2AssetRouter", L2_ASSET_ROUTER_ADDRESS, V26),
+    ("L2NativeTokenVault", L2_NATIVE_TOKEN_VAULT_ADDRESS, V26),
+    ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
+    ("SloadContract", SLOAD_CONTRACT_ADDRESS, V26),
+    ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
+];
 
 pub fn get_deployed_contracts(
     options: SystemContractsOptions,
@@ -257,10 +287,17 @@ mod tests {
     use super::*;
 
     fn count_protocol_contracts(protocol_version: ProtocolVersionId) -> usize {
-        BUILTIN_CONTRACT_LOCATIONS
+        let kernel_count = BUILTIN_CONTRACT_LOCATIONS
             .iter()
             .filter(|(_, _, min_version)| &protocol_version >= min_version)
-            .count()
+            .count();
+
+        let non_kernel_count = NON_KERNEL_CONTRACT_LOCATIONS
+            .iter()
+            .filter(|(_, _, min_version)| &protocol_version >= min_version)
+            .count();
+
+        kernel_count + non_kernel_count
     }
 
     #[test]

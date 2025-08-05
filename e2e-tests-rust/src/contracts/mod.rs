@@ -1,12 +1,12 @@
 use alloy::contract::SolCallBuilder;
 use alloy::network::ReceiptResponse as _;
 use alloy::network::{Ethereum, TransactionBuilder};
-use alloy::primitives::{address, Address, Bytes, ChainId, FixedBytes, U256};
+use alloy::primitives::{Address, Bytes, ChainId, FixedBytes, U256, address};
 use alloy::providers::{DynProvider, PendingTransactionBuilder, Provider};
 use alloy::rpc::types::TransactionReceipt;
+use alloy_zksync::network::Zksync;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_request::TransactionRequest;
-use alloy_zksync::network::Zksync;
 use alloy_zksync::provider::ZksyncProvider;
 use anyhow::Context;
 use std::fmt::Debug;
@@ -54,9 +54,7 @@ pub use private::IExecutor::BlockExecution;
 const L1_MESSENGER_ADDRESS: Address = address!("0000000000000000000000000000000000008008");
 const L2_BASE_TOKEN_ADDRESS: Address = address!("000000000000000000000000000000000000800a");
 
-pub struct L1Messenger<P: Provider<Zksync>>(
-    private::IL1Messenger::IL1MessengerInstance<(), P, Zksync>,
-);
+pub struct L1Messenger<P: Provider<Zksync>>(private::IL1Messenger::IL1MessengerInstance<P, Zksync>);
 
 impl<P: Provider<Zksync>> L1Messenger<P> {
     pub fn new(provider: P) -> Self {
@@ -70,7 +68,7 @@ impl<P: Provider<Zksync>> L1Messenger<P> {
     pub fn send_to_l1(
         &self,
         bytes: impl Into<Bytes>,
-    ) -> SolCallBuilder<(), &P, private::IL1Messenger::sendToL1Call, Zksync> {
+    ) -> SolCallBuilder<&P, private::IL1Messenger::sendToL1Call, Zksync> {
         self.0.sendToL1(bytes.into())
     }
 }
@@ -79,7 +77,7 @@ pub type L2Log = private::IBridgehub::L2Log;
 pub type L2Message = private::IBridgehub::L2Message;
 
 pub struct Bridgehub<P: Provider<Ethereum>> {
-    instance: private::IBridgehub::IBridgehubInstance<(), P, Ethereum>,
+    instance: private::IBridgehub::IBridgehubInstance<P, Ethereum>,
     chain_id: ChainId,
 }
 
@@ -106,7 +104,7 @@ impl<P: Provider<Ethereum>> Bridgehub<P> {
         index: impl TryInto<U256, Error = impl Debug>,
         msg: L2Message,
         proof: Vec<FixedBytes<32>>,
-    ) -> SolCallBuilder<(), &P, private::IBridgehub::proveL2MessageInclusionCall, Ethereum> {
+    ) -> SolCallBuilder<&P, private::IBridgehub::proveL2MessageInclusionCall, Ethereum> {
         self.instance.proveL2MessageInclusion(
             U256::from(self.chain_id),
             batch_number.try_into().unwrap(),
@@ -142,8 +140,7 @@ impl<P: Provider<Ethereum>> Bridgehub<P> {
                 gas_per_pubdata_byte_limit,
             )
             .call()
-            .await?
-            ._0;
+            .await?;
         // Assuming no operator tip for now
         let operator_tip = U256::from(0);
         let l2_costs = base_cost + operator_tip + l2_value;
@@ -194,7 +191,7 @@ impl<P: Provider<Ethereum>> Bridgehub<P> {
     }
 }
 
-pub struct L2BaseToken<P: Provider<Zksync>>(private::IBaseToken::IBaseTokenInstance<(), P, Zksync>);
+pub struct L2BaseToken<P: Provider<Zksync>>(private::IBaseToken::IBaseTokenInstance<P, Zksync>);
 
 impl<P: Provider<Zksync>> L2BaseToken<P> {
     pub fn new(l2_provider: P) -> Self {
@@ -224,7 +221,7 @@ impl<P: Provider<Zksync>> L2BaseToken<P> {
 }
 
 pub struct L1Nullifier<P: Provider<Ethereum>> {
-    instance: private::IL1Nullifier::IL1NullifierInstance<(), P, Ethereum>,
+    instance: private::IL1Nullifier::IL1NullifierInstance<P, Ethereum>,
     l2_provider: DynProvider<Zksync>,
 }
 
@@ -297,7 +294,7 @@ impl<P: Provider<Ethereum>> L1Nullifier<P> {
 }
 
 pub struct L1AssetRouter<P: Provider<Ethereum>> {
-    instance: private::IL1AssetRouter::IL1AssetRouterInstance<(), P, Ethereum>,
+    instance: private::IL1AssetRouter::IL1AssetRouterInstance<P, Ethereum>,
     l2_provider: DynProvider<Zksync>,
 }
 
@@ -318,7 +315,7 @@ impl<P: Provider<Ethereum> + Clone> L1AssetRouter<P> {
     }
 
     pub async fn l1_nullifier(&self) -> anyhow::Result<L1Nullifier<P>> {
-        let l1_nullifier_address = self.instance.L1_NULLIFIER().call().await?._0;
+        let l1_nullifier_address = self.instance.L1_NULLIFIER().call().await?;
         Ok(L1Nullifier::new(
             l1_nullifier_address,
             self.instance.provider().clone(),

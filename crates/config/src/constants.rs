@@ -2,11 +2,11 @@ use alloy::primitives::hex;
 use zksync_types::H160;
 
 /// Default L1 gas price for transactions
-pub const DEFAULT_L1_GAS_PRICE: u64 = 35_932_364_075;
+pub const DEFAULT_L1_GAS_PRICE: u64 = 2_365_348_956;
 /// Default L2 gas price for transactions if not provided via CLI
 pub const DEFAULT_L2_GAS_PRICE: u64 = 45_250_000;
 /// Default price for fair pubdata based on predefined value
-pub const DEFAULT_FAIR_PUBDATA_PRICE: u64 = 13_607_659_111;
+pub const DEFAULT_FAIR_PUBDATA_PRICE: u64 = 1;
 /// Scale factor for estimating L1 gas prices
 pub const DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR: f64 = 2.0;
 /// Scale factor for estimating gas limits

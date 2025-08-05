@@ -1,7 +1,7 @@
 use crate::filters::LogFilter;
 use crate::node::inner::fork::ForkDetails;
 use crate::node::time::{ReadTime, Time};
-use crate::node::{create_genesis, create_genesis_from_json, TransactionResult};
+use crate::node::{TransactionResult, create_genesis, create_genesis_from_json};
 use crate::utils::utc_datetime_from_epoch_ms;
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_types::api::DetailedTransaction;
@@ -16,7 +16,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::interface::storage::{ReadStorage, StoragePtr};
 use zksync_multivm::interface::{FinishedL1Batch, L2Block, VmEvent};
 use zksync_multivm::vm_latest::utils::l2_blocks::load_last_l2_block;
-use zksync_types::block::{unpack_block_info, L1BatchHeader, L2BlockHasher};
+use zksync_types::block::{L1BatchHeader, L2BlockHasher, unpack_block_info};
 use zksync_types::l2::L2Tx;
 use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
@@ -162,8 +162,10 @@ pub trait ReadBlockchain: Send + Sync + Debug {
     /// Retrieve batch aggregation root by its number.
     async fn get_batch_aggregation_root(&self, batch_number: L1BatchNumber) -> Option<H256>;
 
+    /// Retrieves raw transaction by its hash.
     async fn get_raw_transaction(&self, tx_hash: H256) -> Option<Bytes>;
 
+    /// Retrieves raw transactions from a block by its id or number.
     async fn get_raw_transactions(&self, block_number: BlockId) -> Vec<Bytes>;
 }
 
@@ -445,18 +447,15 @@ impl ReadBlockchain for Blockchain {
     }
 
     async fn get_detailed_tx(&self, tx: api::Transaction) -> Option<DetailedTransaction> {
-        self.inspect_tx(
-            &tx.hash.clone(),
-            |TransactionResult { ref debug, .. }| {
-                let output = Some(debug.output.clone());
-                let revert_reason = debug.revert_reason.clone();
-                DetailedTransaction {
-                    inner: tx,
-                    output,
-                    revert_reason,
-                }
-            },
-        )
+        self.inspect_tx(&tx.hash.clone(), |TransactionResult { debug, .. }| {
+            let output = Some(debug.output.clone());
+            let revert_reason = debug.revert_reason.clone();
+            DetailedTransaction {
+                inner: tx,
+                output,
+                revert_reason,
+            }
+        })
         .await
     }
 
@@ -535,17 +534,26 @@ impl ReadBlockchain for Blockchain {
     }
 
     async fn get_raw_transaction(&self, tx_hash: H256) -> Option<Bytes> {
-        // self.inspect_tx(tx_hash, |TransactionResult { info, .. }| info.tx.clone())
-        //     .await
-        None
-        // kl todo
+        self.inspect_tx(&tx_hash, |TransactionResult { info, .. }| {
+            info.tx.raw_bytes.clone()
+        })
+        .await
+        .flatten()
     }
 
-    async fn get_raw_transactions(&self, block_number: BlockId) -> Vec<Bytes> {
-        // self.inspect_block_by_number(block_number, |block| block.transactions.clone())
-        //     .await
-        vec![]
-        // kl todo
+    async fn get_raw_transactions(&self, block_id: BlockId) -> Vec<Bytes> {
+        self.inspect_block_by_id(block_id, |block| {
+            block
+                .transactions
+                .iter()
+                .filter_map(|tv| match tv {
+                    api::TransactionVariant::Full(tx) => tx.raw.clone(),
+                    api::TransactionVariant::Hash(_) => None,
+                })
+                .collect::<Vec<Bytes>>()
+        })
+        .await
+        .unwrap_or_default()
     }
 }
 
@@ -657,8 +665,8 @@ impl BlockchainState {
         match block_id {
             api::BlockId::Number(number) => {
                 let number = match number {
-                    api::BlockNumber::FastFinalized | // TODO: Review how we handle these
-                    api::BlockNumber::Finalized
+                    api::BlockNumber::FastFinalized
+                    | api::BlockNumber::Finalized
                     | api::BlockNumber::Pending
                     | api::BlockNumber::Committed
                     | api::BlockNumber::L1Committed
@@ -774,6 +782,7 @@ impl BlockchainState {
             pubdata_input: finished_l1_batch.pubdata_input,
             fee_address: Default::default(), // TODO: Use real fee address
             batch_fee_input: Default::default(), // TODO: Use real batch fee input
+            pubdata_limit: Default::default(), // TODO: Use real pubdata limit
         };
         let batch_info = StoredL1BatchInfo {
             header,
