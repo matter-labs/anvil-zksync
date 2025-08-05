@@ -17,9 +17,10 @@ case $PROTOCOL_VERSION in
     ;;
   v29)
     # HEAD of anvil-zksync-0.6.x-draft-v29
-    ERA_CONTRACTS_GIT_COMMIT=5649d56d916804a200348743577ce043ea4ff3b6
+    ERA_CONTRACTS_GIT_COMMIT=4691b728fa9c411f1286bb574d2698a0aa841f70
     ;;
   v30)
+    # TODO: update commit hash so its HEAD of anvil-zksync-0.6.x-draft-v30
     ERA_CONTRACTS_GIT_COMMIT=7d9275f48be1e31c26186b8149db28fbd63bb43c
     ;;
   *)
@@ -51,10 +52,9 @@ l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "InteropCenter" "AssetTr
 l2_artifacts=("TimestampAsserter")
 system_contracts_sol=(
   "AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount"
-  "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken"
+  "DefaultAccountNoSecurity" "EmptyContract" "ImmutableSimulator" "KnownCodesStorage" "L1Messenger" "L2BaseToken"
   "MsgValueSimulator" "NonceHolder" "SystemContext" "PubdataChunkPublisher" "Create2Factory" "L2GenesisUpgrade"
-  "SloadContract" "L2InteropRootStorage"
-  "DefaultAccountNoSecurity"
+  "SloadContract"
 )
 system_contracts_yul=("EventWriter")
 precompiles=("EcAdd" "EcMul" "Ecrecover" "Keccak256" "SHA256" "EcPairing" "CodeOracle" "P256Verify")
@@ -84,8 +84,10 @@ if [[ ! $PROTOCOL_VERSION < v28 ]]; then
 fi
 
 if [[ $PROTOCOL_VERSION == v29 ]]; then
-  # New L1 contract that was added in v29
+  # New L1 contracts that were added in v29
   l1_artifacts+=("ChainAssetHandler" "L2MessageVerification")
+  # New system contract that was added in v29
+  system_contracts_sol+=("L2InteropRootStorage")
 fi
 
 for artifact in "${l1_artifacts[@]}"; do
@@ -109,7 +111,7 @@ for precompile in "${precompiles[@]}"; do
 done
 
 for bootloader in "${bootloaders[@]}"; do
-  FILES="$FILES $SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/Bootloader.json"
+  FILES="$FILES $SYSTEM_ARTIFACTS_SRC_DIR/$bootloader.yul/$bootloader.json"
 done
 
 # Make sure we are using GNU tar

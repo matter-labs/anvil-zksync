@@ -20,9 +20,9 @@ use zksync_types::block::{L1BatchHeader, L2BlockHasher, unpack_block_info};
 use zksync_types::l2::L2Tx;
 use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
-    api, api::BlockId, h256_to_u256, web3::Bytes, AccountTreeId, Address, ExecuteTransactionCommon,
-    L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_BLOCK_INFO_POSITION, U256, U64,
+    AccountTreeId, Address, ExecuteTransactionCommon, H256, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION, StorageKey, U64,
+    U256, api, api::BlockId, h256_to_u256, web3::Bytes,
 };
 
 /// Read-only view on blockchain state.
@@ -671,10 +671,9 @@ impl BlockchainState {
                     | api::BlockNumber::Committed
                     | api::BlockNumber::L1Committed
                     | api::BlockNumber::Latest
-                    | api::BlockNumber::FastFinalized
                     | api::BlockNumber::Precommitted => self.current_block,
                     api::BlockNumber::Earliest => L2BlockNumber(0),
-                    api::BlockNumber::Number(n) => L2BlockNumber(n.as_u32())
+                    api::BlockNumber::Number(n) => L2BlockNumber(n.as_u32()),
                 };
                 self.hashes.get(&number).copied()
             }

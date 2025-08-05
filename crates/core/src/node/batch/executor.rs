@@ -181,18 +181,12 @@ where
         Ok((finished_batch, storage_view))
     }
 
-    async fn rollback_l2_block(
-        &mut self
-    ) -> anyhow::Result<()> {
-        // This method is not implemented in the main executor.
-        Err(anyhow::anyhow!("Rollback of L2 block is not supported in the main executor."))
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        todo!();
     }
 
-    async fn commit_l2_block(
-        &mut self
-    ) -> anyhow::Result<()> {
-        // This method is not implemented in the main executor.
-        Err(anyhow::anyhow!("Commit of L2 block is not supported in the main executor."))
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()> {
+        todo!();
     }
 }
 

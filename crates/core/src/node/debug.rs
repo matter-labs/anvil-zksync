@@ -9,7 +9,7 @@ use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer, Vm};
 use zksync_types::l2::L2Tx;
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::{api, api::BlockId, web3::Bytes, PackedEthSignature, Transaction, H256};
+use zksync_types::{H256, PackedEthSignature, Transaction, api, web3::Bytes};
 use zksync_web3_decl::error::Web3Error;
 
 use super::zksync_os::ZkSyncOSHelpers;

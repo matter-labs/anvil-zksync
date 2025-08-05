@@ -1,3 +1,4 @@
+use crate::error::{RpcErrorAdapter, rpc_unsupported};
 use anvil_zksync_api_decl::ZksNamespaceServer;
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_l1_sidecar::L1Sidecar;
@@ -12,8 +13,6 @@ use zksync_types::fee::Fee;
 use zksync_types::fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput};
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::{Address, H256, L1BatchNumber, L2BlockNumber, Transaction, U64, U256};
-use zksync_web3_decl::types::Token;
-use crate::error::{RpcErrorAdapter, rpc_unsupported};
 
 pub struct ZksNamespace {
     node: InMemoryNode,

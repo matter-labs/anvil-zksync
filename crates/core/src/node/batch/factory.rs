@@ -28,6 +28,7 @@ use zksync_multivm::{
     vm_fast::FastValidationTracer,
     vm_latest::HistoryEnabled,
 };
+use zksync_types::ProtocolVersionId;
 use zksync_types::{Transaction, commitment::PubdataParams, vm::FastVmMode};
 
 #[doc(hidden)]
@@ -146,7 +147,7 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
                 storage,
                 l1_batch_params,
                 system_env,
-                pubdata_params_to_builder(pubdata_params),
+                pubdata_params_to_builder(pubdata_params, ProtocolVersionId::latest()),
                 iterable_storage,
             )
         });
@@ -397,7 +398,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
-                    println!("Starting new L2 block {:?}", l2_block_env);
                     vm.start_new_l2_block(l2_block_env);
                     if resp.send(()).is_err() {
                         break;
