@@ -1,5 +1,6 @@
 // Hide ugly auto-generated alloy structs outside of this module.
 mod private {
+    use crate::contracts::private::IZKChain::L2Log;
     use zksync_types::H256;
     use zksync_types::commitment::L1BatchWithMetadata;
 
@@ -64,7 +65,31 @@ mod private {
         }
     }
 
-    impl From<&L1BatchWithMetadata> for IExecutor::LegacyStoredBatchInfo {
+    // impl From<&L1BatchWithMetadata> for IExecutor::LegacyStoredBatchInfo {
+    //     fn from(value: &L1BatchWithMetadata) -> Self {
+    //         Self::from((
+    //             value.header.number.0 as u64,
+    //             alloy::primitives::FixedBytes::<32>::from(value.metadata.root_hash.0),
+    //             value.metadata.rollup_last_leaf_index,
+    //             alloy::primitives::U256::from(value.header.l1_tx_count),
+    //             alloy::primitives::FixedBytes::<32>::from(
+    //                 value.header.priority_ops_onchain_data_hash().0,
+    //             ),
+    //             alloy::primitives::FixedBytes::<32>::from(value.metadata.l2_l1_merkle_root.0),
+    //             alloy::primitives::FixedBytes::<32>::from(value.metadata.commitment.0),
+    //             alloy::primitives::U256::from(value.header.timestamp),
+    //             alloy::primitives::FixedBytes::<32>::from(value.header.system_logs[7].0.value.0),
+    //         ))
+    //     }
+    // }
+}
+
+mod private_v28 {
+    alloy::sol!("src/contracts/sol/IExecutorV28.sol");
+
+    use zksync_types::commitment::L1BatchWithMetadata;
+
+    impl From<&L1BatchWithMetadata> for IExecutorV28::StoredBatchInfo {
         fn from(value: &L1BatchWithMetadata) -> Self {
             Self::from((
                 value.header.number.0 as u64,
@@ -80,10 +105,6 @@ mod private {
             ))
         }
     }
-}
-
-mod private_v28 {
-    alloy::sol!("src/contracts/sol/IExecutorV28.sol");
 }
 
 pub use self::private::IZKChain::NewPriorityRequest;
@@ -155,55 +176,94 @@ fn commit_calldata(
     last_committed_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
-    let commit_batch_info = IExecutor::CommitBatchInfo::from((
-        batch.header.number.0 as u64,
-        batch.header.timestamp,
-        batch.metadata.rollup_last_leaf_index,
-        alloy::primitives::FixedBytes::<32>::from(batch.metadata.root_hash.0),
-        alloy::primitives::U256::from(batch.header.l1_tx_count),
-        alloy::primitives::FixedBytes::<32>::from(batch.header.priority_ops_onchain_data_hash().0),
-        alloy::primitives::FixedBytes::<32>::from(
-            batch
-                .metadata
-                .bootloader_initial_content_commitment
-                .unwrap()
-                .0,
-        ),
-        alloy::primitives::FixedBytes::<32>::from(
-            batch.metadata.events_queue_commitment.unwrap().0,
-        ),
-        alloy::primitives::Bytes::from(serialize_commitments(&batch.header.system_logs)),
-        // Our DA input consists only of state diff hash. Executor is patched to not use anything else.
-        alloy::primitives::Bytes::from(
-            batch
-                .metadata
-                .state_diff_hash
-                .expect("Failed to get state_diff_hash from metadata")
-                .0,
-        ),
-    ));
-
-    let encoded_data = if batch
+    if batch
         .header
         .protocol_version
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        let stored_batch_info = IExecutor::LegacyStoredBatchInfo::from(last_committed_l1_batch);
+        // v28 branch: use v28 types
+        let commit_batch_info = IExecutorV28::CommitBatchInfo::from((
+            batch.header.number.0 as u64,
+            batch.header.timestamp,
+            batch.metadata.rollup_last_leaf_index,
+            alloy::primitives::FixedBytes::<32>::from(batch.metadata.root_hash.0),
+            alloy::primitives::U256::from(batch.header.l1_tx_count),
+            alloy::primitives::FixedBytes::<32>::from(
+                batch.header.priority_ops_onchain_data_hash().0,
+            ),
+            alloy::primitives::FixedBytes::<32>::from(
+                batch
+                    .metadata
+                    .bootloader_initial_content_commitment
+                    .unwrap()
+                    .0,
+            ),
+            alloy::primitives::FixedBytes::<32>::from(
+                batch.metadata.events_queue_commitment.unwrap().0,
+            ),
+            alloy::primitives::Bytes::from(serialize_commitments(&batch.header.system_logs)),
+            alloy::primitives::Bytes::from(
+                batch
+                    .metadata
+                    .state_diff_hash
+                    .expect("Failed to get state_diff_hash from metadata")
+                    .0,
+            ),
+        ));
+
+        let stored_batch_info = IExecutorV28::StoredBatchInfo::from(last_committed_l1_batch);
         let last_batch_hash = H256(keccak256(stored_batch_info.abi_encode_params().as_slice()));
-        tracing::info!(?last_batch_hash, "preparing commit calldata");
-        (stored_batch_info, vec![commit_batch_info]).abi_encode_params()
+        tracing::info!(?last_batch_hash, "preparing commit calldata (v28)");
+
+        // (StoredBatchInfo, CommitBatchInfo[])
+        let encoded_data = (stored_batch_info, vec![commit_batch_info]).abi_encode_params();
+
+        [[supported_encoding_version(batch)].to_vec(), encoded_data]
+            .concat()
+            .to_vec()
     } else {
+        // new branch: use new types with dependencyRootsRollingHash
+        let commit_batch_info = IExecutor::CommitBatchInfo::from((
+            batch.header.number.0 as u64,
+            batch.header.timestamp,
+            batch.metadata.rollup_last_leaf_index,
+            alloy::primitives::FixedBytes::<32>::from(batch.metadata.root_hash.0),
+            alloy::primitives::U256::from(batch.header.l1_tx_count),
+            alloy::primitives::FixedBytes::<32>::from(
+                batch.header.priority_ops_onchain_data_hash().0,
+            ),
+            alloy::primitives::FixedBytes::<32>::from(
+                batch
+                    .metadata
+                    .bootloader_initial_content_commitment
+                    .unwrap()
+                    .0,
+            ),
+            alloy::primitives::FixedBytes::<32>::from(
+                batch.metadata.events_queue_commitment.unwrap().0,
+            ),
+            alloy::primitives::Bytes::from(serialize_commitments(&batch.header.system_logs)),
+            alloy::primitives::Bytes::from(
+                batch
+                    .metadata
+                    .state_diff_hash
+                    .expect("Failed to get state_diff_hash from metadata")
+                    .0,
+            ),
+        ));
+
         let stored_batch_info = IExecutor::StoredBatchInfo::from(last_committed_l1_batch);
         let last_batch_hash = H256(keccak256(stored_batch_info.abi_encode_params().as_slice()));
-        tracing::info!(?last_batch_hash, "preparing commit calldata");
-        (stored_batch_info, vec![commit_batch_info]).abi_encode_params()
-    };
+        tracing::info!(?last_batch_hash, "preparing commit calldata (new)");
 
-    // Prefixed by current encoding version as expected by protocol
-    [[supported_encoding_version(batch)].to_vec(), encoded_data]
-        .concat()
-        .to_vec()
+        // (StoredBatchInfo, CommitBatchInfo[])
+        let encoded_data = (stored_batch_info, vec![commit_batch_info]).abi_encode_params();
+
+        [[supported_encoding_version(batch)].to_vec(), encoded_data]
+            .concat()
+            .to_vec()
+    }
 }
 
 /// Builds a Solidity function call to `proveBatchesSharedBridge` as expected by `IExecutor.sol`.
@@ -245,27 +305,24 @@ fn prove_calldata(
     last_proved_l1_batch: &L1BatchWithMetadata,
     batch: &L1BatchWithMetadata,
 ) -> Vec<u8> {
-    let encoded_data = if batch
+    if batch
         .header
         .protocol_version
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        let prev_l1_batch_info = IExecutor::LegacyStoredBatchInfo::from(last_proved_l1_batch);
-        let batches_arg = vec![IExecutor::LegacyStoredBatchInfo::from(batch)];
+        let prev_l1_batch_info = IExecutorV28::StoredBatchInfo::from(last_proved_l1_batch);
+        let batches_arg = vec![IExecutorV28::StoredBatchInfo::from(batch)];
         let proof_input = Vec::<alloy::primitives::U256>::new();
+
         (prev_l1_batch_info, batches_arg, proof_input).abi_encode_params()
     } else {
         let prev_l1_batch_info = IExecutor::StoredBatchInfo::from(last_proved_l1_batch);
         let batches_arg = vec![IExecutor::StoredBatchInfo::from(batch)];
         let proof_input = Vec::<alloy::primitives::U256>::new();
-        (prev_l1_batch_info, batches_arg, proof_input).abi_encode_params()
-    };
 
-    // Prefixed by current encoding version as expected by protocol
-    [[supported_encoding_version(batch)].to_vec(), encoded_data]
-        .concat()
-        .to_vec()
+        (prev_l1_batch_info, batches_arg, proof_input).abi_encode_params()
+    }
 }
 
 /// Builds a Solidity function call to `executeBatchesSharedBridge` as expected by `IExecutor.sol`.
@@ -339,7 +396,7 @@ fn execute_calldata(
         .unwrap_or_default()
         .is_pre_interop_fast_blocks()
     {
-        let batches_arg = vec![IExecutor::LegacyStoredBatchInfo::from(batch)];
+        let batches_arg = vec![IExecutorV28::StoredBatchInfo::from(batch)];
         (batches_arg, priority_ops_proofs).abi_encode_params()
     } else {
         let dependency_roots: Vec<Vec<InteropRoot>> = vec![vec![]];

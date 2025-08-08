@@ -13,7 +13,7 @@ use zksync_multivm::{
 };
 
 use zksync_multivm::MultiVmTracerPointer;
-use zksync_types::{StorageKey, Transaction};
+use zksync_types::{Address, StorageKey, Transaction};
 
 use crate::deps::InMemoryStorage;
 

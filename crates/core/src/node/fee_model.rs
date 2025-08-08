@@ -51,16 +51,8 @@ impl TestNodeFeeInputProvider {
             )
         } else {
             let ratio = base_token_config.ratio;
-            let l1_gas_price = ((DEFAULT_L1_GAS_PRICE as u128)
-                * u128::from(ratio.l1_conversion_ratio().denominator.get())
-                / u128::from(ratio.l1_conversion_ratio().numerator.get()))
-            .try_into()
-            .expect("L1 gas price exceeded 2^64; base token ratio is too large");
-            let fair_pubdata_price = ((DEFAULT_FAIR_PUBDATA_PRICE as u128)
-                * u128::from(ratio.l1_conversion_ratio().denominator.get())
-                / u128::from(ratio.l1_conversion_ratio().numerator.get()))
-            .try_into()
-            .expect("pubdata gas price exceeded 2^64; base token ratio is too large");
+            let l1_gas_price = DEFAULT_L1_GAS_PRICE;
+            let fair_pubdata_price = DEFAULT_FAIR_PUBDATA_PRICE;
             Self {
                 estimate_gas_price_scale_factor: DEFAULT_ESTIMATE_GAS_PRICE_SCALE_FACTOR,
                 estimate_gas_scale_factor: DEFAULT_ESTIMATE_GAS_SCALE_FACTOR,

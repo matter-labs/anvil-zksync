@@ -72,8 +72,8 @@ use zksync_types::storage::{
 use zksync_types::web3::Bytes;
 use zksync_types::{
     AccountTreeId, Address, Bloom, H64, H160, H256, L1BatchNumber, L2BlockNumber, L2ChainId,
-    PackedEthSignature, ProtocolVersionId, StorageKey, StorageValue, Transaction, U64, U256,
-    h256_to_u256,
+    PackedEthSignature, ProtocolVersionId, SLChainId, StorageKey, StorageValue, Transaction, U64,
+    U256, h256_to_u256, settlement::SettlementLayer,
 };
 
 /// Max possible size of an ABI encoded tx (in bytes).
@@ -125,6 +125,7 @@ pub fn create_genesis_from_json(
             max_virtual_blocks_to_create: 0,
             interop_roots: vec![],
         },
+        settlement_layer: SettlementLayer::L1(SLChainId(31337)), // TODO: Default chain ID for Anvil?
     });
 
     let genesis_block = create_block(
@@ -167,6 +168,7 @@ pub fn create_genesis<TX>(
             max_virtual_blocks_to_create: 0,
             interop_roots: vec![],
         },
+        settlement_layer: SettlementLayer::L1(SLChainId(31337)), // TODO: Default chain ID for Anvil?
     };
     let genesis_block = create_block(
         &batch_env,
