@@ -179,18 +179,6 @@ impl Cache {
         self.block_raw_transactions.get(number)
     }
 
-    /// Returns the cached confirmed tokens.
-    pub fn get_confirmed_tokens(
-        &self,
-        from: u32,
-        limit: u8,
-    ) -> Option<&Vec<zksync_web3_decl::types::Token>> {
-        if matches!(self.config, CacheConfig::None) {
-            return None;
-        }
-        self.confirmed_tokens.get(&(from, limit))
-    }
-
     /// Cache confirmed tokens
     pub fn set_confirmed_tokens(
         &mut self,

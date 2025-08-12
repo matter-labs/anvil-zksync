@@ -16,8 +16,9 @@ use zksync_types::{
     EVM_GAS_MANAGER_ADDRESS, EVM_HASHES_STORAGE_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS,
     IDENTITY_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS,
     KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, L2_ASSET_ROUTER_ADDRESS,
-    L2_BASE_TOKEN_ADDRESS, L2_BRIDGEHUB_ADDRESS, L2_GENESIS_UPGRADE_ADDRESS,
-    L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL,
+    L2_BASE_TOKEN_ADDRESS, L2_BRIDGEHUB_ADDRESS, L2_CHAIN_ASSET_HANDLER_ADDRESS,
+    L2_GENESIS_UPGRADE_ADDRESS, L2_INTEROP_ROOT_STORAGE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS,
+    L2_MESSAGE_VERIFICATION_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS, L2_WRAPPED_BASE_TOKEN_IMPL,
     MODEXP_PRECOMPILE_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, NONCE_HOLDER_ADDRESS,
     PUBDATA_CHUNK_PUBLISHER_ADDRESS, ProtocolVersionId, SECP256R1_VERIFY_PRECOMPILE_ADDRESS,
     SHA256_PRECOMPILE_ADDRESS, SLOAD_CONTRACT_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
@@ -30,7 +31,7 @@ pub const TIMESTAMP_ASSERTER_ADDRESS: Address = H160([
     0x00, 0x80, 0x80, 0x12,
 ]);
 
-static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 3] = [
+static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 4] = [
     (
         ProtocolVersionId::Version26,
         include_bytes!("contracts/builtin-contracts-v26.tar.gz"),
@@ -42,6 +43,10 @@ static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 3] = [
     (
         ProtocolVersionId::Version28,
         include_bytes!("contracts/builtin-contracts-v28.tar.gz"),
+    ),
+    (
+        ProtocolVersionId::Version29,
+        include_bytes!("contracts/builtin-contracts-v29.tar.gz"),
     ),
 ];
 
@@ -93,6 +98,7 @@ pub fn bytecode_from_slice(artifact_name: &str, contents: &[u8]) -> Vec<u8> {
 
 pub fn load_builtin_contract(protocol_version: ProtocolVersionId, artifact_name: &str) -> Vec<u8> {
     let artifact_path = format!("{artifact_name}.json");
+
     bytecode_from_slice(
         artifact_name,
         BUILTIN_CONTRACT_ARTIFACTS
@@ -143,6 +149,7 @@ static BUILTIN_CONTRACTS: Lazy<HashMap<ProtocolVersionId, Vec<DeployedContract>>
 const V26: ProtocolVersionId = ProtocolVersionId::Version26;
 const V27: ProtocolVersionId = ProtocolVersionId::Version27;
 const V28: ProtocolVersionId = ProtocolVersionId::Version28;
+const V29: ProtocolVersionId = ProtocolVersionId::Version29;
 
 /// Triple containing a name of a contract, its L2 address and minimum supported protocol version
 static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 30] = [
@@ -204,7 +211,7 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 30] = [
 /// *************************************************************
 /// *  Non-kernel contracts (base offset 0x010000)             *
 /// *************************************************************
-pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8] = [
+pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 11] = [
     ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
     ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
     ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
@@ -213,6 +220,13 @@ pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 8
     ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
     ("SloadContract", SLOAD_CONTRACT_ADDRESS, V26),
     ("L2WrappedBaseToken", L2_WRAPPED_BASE_TOKEN_IMPL, V26),
+    ("L2InteropRootStorage", L2_INTEROP_ROOT_STORAGE_ADDRESS, V29),
+    (
+        "L2MessageVerification",
+        L2_MESSAGE_VERIFICATION_ADDRESS,
+        V29,
+    ),
+    ("ChainAssetHandler", L2_CHAIN_ASSET_HANDLER_ADDRESS, V29),
 ];
 
 pub fn get_deployed_contracts(

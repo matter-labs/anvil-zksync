@@ -16,17 +16,21 @@ use std::time::Duration;
 use test_casing::{TestCases, cases, test_casing};
 
 const SUPPORTED_PROTOCOL_VERSIONS: TestCases<u16> = cases! {
-    [26, 27, 28]
+    [26, 27, 28, 29]
 };
 
-#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
+#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
 async fn commit_batch_to_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
         .with_node_fn(&move |node| {
-            node.timeout(60_000)
-                .args(["--protocol-version", &protocol_version.to_string()])
+            node.timeout(60_000).args([
+                "--protocol-version",
+                &protocol_version.to_string(),
+                "--log",
+                "info",
+            ])
         })
         .build()
         .await?;
@@ -73,7 +77,7 @@ async fn commit_batch_to_l1(protocol_version: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
+#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
 async fn prove_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
@@ -137,7 +141,7 @@ async fn prove_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
+#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
 async fn execute_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
@@ -211,7 +215,7 @@ async fn execute_batch_on_l1(protocol_version: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
+#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
 async fn send_l2_to_l1_message(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
@@ -300,7 +304,7 @@ async fn send_l2_to_l1_message(protocol_version: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
+#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
 async fn l1_priority_tx(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
@@ -338,7 +342,7 @@ async fn l1_priority_tx(protocol_version: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
+#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
 async fn deposit(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
@@ -379,7 +383,7 @@ async fn deposit(protocol_version: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
+#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
 async fn withdraw(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
@@ -447,7 +451,7 @@ async fn withdraw(protocol_version: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test_casing(3, SUPPORTED_PROTOCOL_VERSIONS)]
+#[test_casing(4, SUPPORTED_PROTOCOL_VERSIONS)]
 #[tokio::test]
 async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()

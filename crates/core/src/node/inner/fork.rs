@@ -435,6 +435,10 @@ impl ForkClient {
                             execute_tx_hash: None,
                             executed_at: None,
                             execute_chain_id: None,
+                            precommit_tx_hash: None,
+                            precommit_tx_finality: None,
+                            precommitted_at: None,
+                            precommit_chain_id: None,
                             l1_gas_price: 123,
                             l2_fair_gas_price: 234,
                             fair_pubdata_price: Some(345),
@@ -861,10 +865,11 @@ impl ForkSource for Fork {
 struct SupportedProtocolVersions;
 
 impl SupportedProtocolVersions {
-    const SUPPORTED_VERSIONS: [ProtocolVersionId; 3] = [
+    const SUPPORTED_VERSIONS: [ProtocolVersionId; 4] = [
         ProtocolVersionId::Version26,
         ProtocolVersionId::Version27,
         ProtocolVersionId::Version28,
+        ProtocolVersionId::Version29,
     ];
 
     fn is_supported(version: ProtocolVersionId) -> bool {

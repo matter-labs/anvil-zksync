@@ -557,6 +557,7 @@ impl VmRunner {
                 timestamp: block_ctx.timestamp + 1,
                 prev_block_hash: block_ctx.hash,
                 max_virtual_blocks_to_create: 1,
+                interop_roots: vec![],
             };
             executor.start_next_l2_block(l2_block_env).await?;
             block_ctxs.push(virtual_block_ctx);
@@ -782,6 +783,7 @@ mod test {
                     timestamp: block_ctx.timestamp,
                     prev_block_hash: block_ctx.prev_block_hash,
                     max_virtual_blocks_to_create: 1,
+                    interop_roots: vec![],
                 },
             };
             let mut executor = self.vm_runner.executor_factory.init_batch(

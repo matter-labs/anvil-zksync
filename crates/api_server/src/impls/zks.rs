@@ -5,8 +5,8 @@ use function_name::named;
 use jsonrpsee::core::{RpcResult, async_trait};
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::api::{
-    BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-    TransactionDetails,
+    BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails, L2ToL1LogProof, Proof,
+    ProtocolVersion, TransactionDetails,
 };
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput};
@@ -112,6 +112,7 @@ impl ZksNamespaceServer for ZksNamespace {
         &self,
         tx_hash: H256,
         index: Option<usize>,
+        _interop_mode: Option<InteropMode>,
     ) -> RpcResult<Option<L2ToL1LogProof>> {
         self.node
             .get_l2_to_l1_log_proof_impl(tx_hash, index)
