@@ -27,7 +27,7 @@ case $PROTOCOL_VERSION in
     ;;
   v29)
     # HEAD of anvil-zksync-0.6.x-draft-v29
-    ERA_CONTRACTS_GIT_COMMIT=4691b728fa9c411f1286bb574d2698a0aa841f70
+    ERA_CONTRACTS_GIT_COMMIT=db63f0257db849aa8517101633a23cf530fe34d3
     # HEAD of draft-v29
     ERA_TAG=core-v29.0.0
     ;;
