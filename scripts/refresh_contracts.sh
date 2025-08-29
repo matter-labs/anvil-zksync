@@ -9,11 +9,11 @@ case $PROTOCOL_VERSION in
     ;;
   v27)
     # HEAD of anvil-zksync-0.4.x-release-v27
-    ERA_CONTRACTS_GIT_COMMIT=f0e17d700929e25292be971ea5196368bf120cea
+    ERA_CONTRACTS_GIT_COMMIT=76259394f7361897d67a7d21d55b86167140b39d
     ;;
   v28)
     # HEAD of anvil-zksync-0.4.x-release-v28
-    ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
+    ERA_CONTRACTS_GIT_COMMIT=59374a3a6cd0cf323cdb5ec0caa22396432ee9db
     ;;
   v29)
     # HEAD of anvil-zksync-0.6.x-draft-v29
