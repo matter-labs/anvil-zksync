@@ -497,11 +497,11 @@ impl Fork {
         }
     }
 
-    fn read(&self) -> RwLockReadGuard<ForkState> {
+    fn read(&self) -> RwLockReadGuard<'_, ForkState> {
         self.state.read().expect("Fork lock is poisoned")
     }
 
-    fn write(&self) -> RwLockWriteGuard<ForkState> {
+    fn write(&self) -> RwLockWriteGuard<'_, ForkState> {
         self.state.write().expect("Fork lock is poisoned")
     }
 

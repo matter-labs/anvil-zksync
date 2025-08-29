@@ -42,13 +42,13 @@ impl Time {
         Self { internal }
     }
 
-    fn get(&self) -> RwLockReadGuard<TimeState> {
+    fn get(&self) -> RwLockReadGuard<'_, TimeState> {
         self.internal
             .read()
             .expect("TimestampWriter lock is poisoned")
     }
 
-    fn get_mut(&self) -> RwLockWriteGuard<TimeState> {
+    fn get_mut(&self) -> RwLockWriteGuard<'_, TimeState> {
         self.internal
             .write()
             .expect("TimestampWriter lock is poisoned")

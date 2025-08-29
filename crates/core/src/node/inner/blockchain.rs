@@ -614,11 +614,11 @@ impl Blockchain {
 }
 
 impl Blockchain {
-    pub(super) async fn read(&self) -> RwLockReadGuard<BlockchainState> {
+    pub(super) async fn read(&self) -> RwLockReadGuard<'_, BlockchainState> {
         self.inner.read().await
     }
 
-    pub(super) async fn write(&self) -> RwLockWriteGuard<BlockchainState> {
+    pub(super) async fn write(&self) -> RwLockWriteGuard<'_, BlockchainState> {
         self.inner.write().await
     }
 }
