@@ -16,18 +16,18 @@ case $PROTOCOL_VERSION in
     ;;
   v27)
     # HEAD of anvil-zksync-0.4.x-release-v27
-    ERA_CONTRACTS_GIT_COMMIT=f0e17d700929e25292be971ea5196368bf120cea
+    ERA_CONTRACTS_GIT_COMMIT=76259394f7361897d67a7d21d55b86167140b39d
     ERA_TAG=core-v27.0.0
     ;;
   v28)
     # HEAD of anvil-zksync-0.4.x-release-v28
-    ERA_CONTRACTS_GIT_COMMIT=054a4745385119e7275dad801a2e830105f21e3e
+    ERA_CONTRACTS_GIT_COMMIT=59374a3a6cd0cf323cdb5ec0caa22396432ee9db
     # HEAD of draft-v28
     ERA_TAG=core-v28.0.0
     ;;
   v29)
     # HEAD of anvil-zksync-0.6.x-draft-v29
-    ERA_CONTRACTS_GIT_COMMIT=4691b728fa9c411f1286bb574d2698a0aa841f70
+    ERA_CONTRACTS_GIT_COMMIT=db63f0257db849aa8517101633a23cf530fe34d3
     # HEAD of draft-v29
     ERA_TAG=core-v29.0.0
     ;;
