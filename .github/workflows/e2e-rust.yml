@@ -24,6 +24,10 @@ jobs:
       - name: Build anvil-zksync for x86_64-unknown-linux-gnu
         run: |
           cargo build --bin anvil-zksync --release --target x86_64-unknown-linux-gnu
+          ls ./target
+          ls ./target/x86_64-unknown-linux-gnu
+          ls ./target/x86_64-unknown-linux-gnu/release
+          cp ./target/x86_64-unknown-linux-gnu/release/anvil-zksync anvil-zksync
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -45,4 +49,4 @@ jobs:
         working-directory: ./e2e-tests-rust
         run: cargo test
         env:
-          ANVIL_ZKSYNC_BINARY_PATH: ../target/release/anvil-zksync
+          ANVIL_ZKSYNC_BINARY_PATH: ./anvil-zksync
