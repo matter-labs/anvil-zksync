@@ -61,4 +61,4 @@ jobs:
         working-directory: ./e2e-tests-rust
         run: cargo test
         env:
-          ANVIL_ZKSYNC_BINARY_PATH: ./anvil-zksync
+          ANVIL_ZKSYNC_BINARY_PATH: ../anvil-zksync
