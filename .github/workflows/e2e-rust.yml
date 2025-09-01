@@ -24,10 +24,22 @@ jobs:
       - name: Build anvil-zksync for x86_64-unknown-linux-gnu
         run: |
           cargo build --bin anvil-zksync --release --target x86_64-unknown-linux-gnu
+          echo 1
           ls ./target
+          echo 2
           ls ./target/x86_64-unknown-linux-gnu
+          echo 3
           ls ./target/x86_64-unknown-linux-gnu/release
+          echo 4
           cp ./target/x86_64-unknown-linux-gnu/release/anvil-zksync anvil-zksync
+          echo 5
+          ls
+          echo 6
+          chmod +x anvil-zksync
+          echo 7
+          ls -l
+          echo 8
+          ./anvil-zksync -V
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
