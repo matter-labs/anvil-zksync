@@ -8,53 +8,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # os: [ ubuntu-latest, macos-latest ]
-        os: [ ubuntu-latest ]
+        os: [ ubuntu-latest, macos-latest ]
     name: e2e-rust
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: x86_64-unknown-linux-gnu
-
-      - name: Build anvil-zksync for x86_64-unknown-linux-gnu
-        run: |
-          cargo build --bin anvil-zksync --release --target x86_64-unknown-linux-gnu
-          echo 1
-          ls ./target
-          echo 2
-          ls ./target/x86_64-unknown-linux-gnu
-          echo 3
-          ls ./target/x86_64-unknown-linux-gnu/release
-          echo 4
-          cp ./target/x86_64-unknown-linux-gnu/release/anvil-zksync anvil-zksync
-          echo 5
-          ls
-          echo 6
-          chmod +x anvil-zksync
-          echo 7
-          ls -l
-          echo 8
-          ./anvil-zksync -V
-
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
 
-      # - name: Download artifacts
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: anvil-zksync-${{ matrix.os }}.tar.gz
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: anvil-zksync-${{ matrix.os }}.tar.gz
 
-      # - name: Extract anvil-zksync
-      #   id: extract_node
-      #   run: |
-      #     echo "Extracting anvil-zksync binary"
-      #     tar -xzf anvil-zksync-${{ matrix.os }}.tar.gz
-      #     chmod +x anvil-zksync
+      - name: Extract anvil-zksync
+        id: extract_node
+        run: |
+          echo "Extracting anvil-zksync binary"
+          tar -xzf anvil-zksync-${{ matrix.os }}.tar.gz
+          chmod +x anvil-zksync
 
       - name: Launch tests
         id: launch
