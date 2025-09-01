@@ -192,7 +192,7 @@ impl<T> ArcRLock<T> {
 
     /// Locks this `ArcRLock` with shared read access, causing the current task
     /// to yield until the lock has been acquired.
-    pub async fn read(&self) -> RwLockReadGuard<T> {
+    pub async fn read(&self) -> RwLockReadGuard<'_, T> {
         self.0.read().await
     }
 }
