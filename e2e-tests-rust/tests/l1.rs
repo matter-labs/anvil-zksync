@@ -469,14 +469,14 @@ async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
     let filter = Filter::new().event_signature(BlockExecution::SIGNATURE_HASH);
     let filter_id = tester.l1_provider().new_filter(&filter).await?;
 
-    const BATCHES: usize = 3;
+    const BATCHES: usize = 5;
 
     // Pre-generate a few batches for the rest of the test
     for _ in 0..BATCHES {
         tester.tx().finalize().await?.assert_successful()?;
     }
 
-    const ATTEMPTS: usize = 10;
+    const ATTEMPTS: usize = 30;
     let mut logs = Vec::with_capacity(BATCHES);
     for _ in 0..ATTEMPTS {
         let new_logs = tester
@@ -487,7 +487,7 @@ async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
         if logs.len() >= BATCHES {
             return Ok(());
         }
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        tokio::time::sleep(Duration::from_millis(1)).await;
     }
     anyhow::bail!("failed to produce {BATCHES} batches in time, logs: {logs:?}")
 }
