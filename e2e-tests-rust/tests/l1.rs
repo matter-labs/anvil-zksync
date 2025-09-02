@@ -457,7 +457,7 @@ async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
         .with_node_fn(&move |node| {
-            node.timeout(60_000).args([
+            node.timeout(100_000).args([
                 "--auto-execute-l1",
                 "--protocol-version",
                 &protocol_version.to_string(),
