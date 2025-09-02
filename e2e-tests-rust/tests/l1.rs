@@ -487,7 +487,7 @@ async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
         if logs.len() >= BATCHES {
             return Ok(());
         }
-        tokio::time::sleep(Duration::from_millis(1)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
     anyhow::bail!("failed to produce {BATCHES} batches in time, logs: {logs:?}")
 }
