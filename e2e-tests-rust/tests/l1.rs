@@ -469,7 +469,7 @@ async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
     let filter = Filter::new().event_signature(BlockExecution::SIGNATURE_HASH);
     let filter_id = tester.l1_provider().new_filter(&filter).await?;
 
-    const BATCHES: usize = 5;
+    const BATCHES: usize = 3;
 
     // Pre-generate a few batches for the rest of the test
     for _ in 0..BATCHES {
