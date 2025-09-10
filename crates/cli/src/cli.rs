@@ -382,6 +382,10 @@ pub enum Command {
     /// Starts a local network that is a fork of another network, and replays a given TX on it.
     #[command(name = "replay_tx")]
     ReplayTx(ReplayArgs),
+
+    /// Fetches debug_traceTransaction for a TX and prints formatted traces (respects -v).
+    #[command(name = "debug-trace")]
+    DebugTrace(DebugTxArgs),
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -458,6 +462,28 @@ pub struct ReplayArgs {
     pub tx: H256,
 }
 
+#[derive(Debug, Parser, Clone)]
+pub struct DebugTxArgs {
+    #[arg(
+        long,
+        alias = "network",
+        value_enum,
+        help = "Which network to fork (builtins) or an HTTP(S) URL"
+    )]
+    pub rpc_url: ForkUrl,
+
+    /// Transaction hash to debug.
+    pub tx: H256,
+
+    /// Only top-level call from debug API (passes through to `only_top_call`).
+    #[arg(long)]
+    pub only_top: bool,
+
+    /// Also print raw debug JSON before the formatted trace.
+    #[arg(long)]
+    pub raw: bool,
+}
+
 // Elastic Network ZK Chains
 #[derive(Debug, Clone, ValueEnum)]
 #[value(rename_all = "kebab-case")]
@@ -477,7 +503,6 @@ pub enum BuiltinNetwork {
     LensTestnet,
     Openzk,
     OpenzkTestnet,
-    WonderchainTestnet,
     Zkcandy,
 }
 
@@ -551,11 +576,6 @@ impl BuiltinNetwork {
                 url: "https://openzk-testnet.rpc.caldera.xyz/http"
                     .parse()
                     .unwrap(),
-                estimate_gas_price_scale_factor: 1.5,
-                estimate_gas_scale_factor: 1.3,
-            },
-            BuiltinNetwork::WonderchainTestnet => ForkConfig {
-                url: "https://rpc.testnet.wonderchain.org".parse().unwrap(),
                 estimate_gas_price_scale_factor: 1.5,
                 estimate_gas_scale_factor: 1.3,
             },

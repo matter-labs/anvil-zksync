@@ -2,6 +2,7 @@ use crate::cli::{Command, ForkUrl};
 use anvil_zksync_config::TestNodeConfig;
 use anvil_zksync_config::types::Genesis;
 use anvil_zksync_core::node::fork::ForkDetails;
+use serde_json::json;
 use std::fs;
 use zksync_telemetry::TelemetryProps;
 
@@ -64,6 +65,13 @@ pub fn get_cli_command_telemetry_props(command: Option<Command>) -> Option<Telem
                 .take();
             (Some("replay_tx"), Some(command_args))
         }
+        Some(Command::DebugTrace(args)) => {
+            let command_args = TelemetryProps::new()
+                .insert_with("tx", args.tx, |_| Some(TELEMETRY_SENSITIVE_VALUE))
+                .insert_with("fork_url", args.rpc_url, get_sensitive_fork_url)
+                .take();
+            (Some("debug_trace"), Some(command_args))
+        }
         None => (None, None),
     };
 
@@ -74,4 +82,48 @@ pub fn get_cli_command_telemetry_props(command: Option<Command>) -> Option<Telem
             .insert("args", command_args)
             .take(),
     )
+}
+
+pub async fn rpc_call<T: for<'de> serde::Deserialize<'de>>(
+    url: &str,
+    method: &str,
+    params: serde_json::Value,
+) -> anyhow::Result<T> {
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params
+    });
+
+    let resp = reqwest::Client::new()
+        .post(url)
+        .json(&payload)
+        .send()
+        .await?
+        .error_for_status()?;
+
+    #[derive(serde::Deserialize)]
+    struct RpcEnvelope<R> {
+        #[allow(dead_code)]
+        jsonrpc: String,
+        #[allow(dead_code)]
+        id: serde_json::Value,
+        result: R,
+    }
+
+    let env: RpcEnvelope<T> = resp.json().await?;
+    Ok(env.result)
+}
+
+pub fn hex_to_bytes_opt(s: Option<&str>) -> Vec<u8> {
+    if let Some(hex) = s {
+        let h = hex.strip_prefix("0x").unwrap_or(hex);
+        if h.is_empty() {
+            return Vec::new();
+        }
+        hex::decode(h).unwrap_or_default()
+    } else {
+        Vec::new()
+    }
 }

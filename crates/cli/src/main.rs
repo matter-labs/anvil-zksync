@@ -1,6 +1,6 @@
 use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, PeriodicStateDumper};
-use crate::utils::update_with_fork_details;
+use crate::utils::{hex_to_bytes_opt, rpc_call, update_with_fork_details};
 use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::shell::{OutputMode, get_shell};
@@ -19,15 +19,21 @@ use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
     NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
+    traces::decoder::CallTraceDecoderBuilder,
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContractsBuilder;
 use anvil_zksync_l1_sidecar::L1Sidecar;
+use anvil_zksync_traces::format::debug_formatter::calls_from_debug_json;
 use anvil_zksync_traces::identifier::SignaturesIdentifier;
+use anvil_zksync_traces::{
+    build_call_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
+};
 use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
+use serde_json::{Value, json};
 use std::fmt::Write;
 use std::fs::File;
 use std::future::Future;
@@ -42,6 +48,7 @@ use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::anvil_zksync::generic::{generic_error, to_domain};
 use zksync_error::{ICustomError, IError as _};
+use zksync_multivm::interface::{ExecutionResult, Halt, VmExecutionResultAndLogs};
 use zksync_telemetry::{TelemetryProps, get_telemetry, init_telemetry};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{
@@ -161,6 +168,7 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
             update_with_fork_details(&mut config, &fork_client.details).await;
             (Some(fork_client), earlier_txs)
         }
+        Command::DebugTrace(_) => (None, Vec::new()),
     };
 
     // Ensure that system_contracts_path is only used with Local.
@@ -528,6 +536,94 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
             }
         }
     }
+
+    // Use `debug-trace` command to get debug info for a transaction
+    // TODO: clean this up and move to a separate function?
+    if let Command::DebugTrace(args) = command {
+        let params = if args.only_top {
+            json!([args.tx, { "tracer": "callTracer", "tracerConfig": { "onlyTopCall": true } }])
+        } else {
+            json!([args.tx])
+        };
+
+        let rpc_url = args.rpc_url.to_config().url.to_string();
+        let result_value: serde_json::Value =
+            match rpc_call::<serde_json::Value>(&rpc_url, "debug_traceTransaction", params).await {
+                Ok(v) => v,
+                Err(e) => {
+                    sh_println!("debug_traceTransaction failed: {e}");
+                    return Ok(());
+                }
+            };
+
+        if result_value.is_null() {
+            sh_println!("No debug info found for tx {:#x}", args.tx);
+            return Ok(());
+        }
+
+        // TODO: add revertReason support
+        let exec_result = {
+            // TODO: this is a bit hacky, we need to properly parse the call tracer result
+            let out_bytes = hex_to_bytes_opt(result_value.get("output").and_then(Value::as_str));
+            if let Some(err) = result_value.get("error").and_then(Value::as_str) {
+                ExecutionResult::Halt {
+                    reason: Halt::TracerCustom(err.to_string()),
+                }
+            } else {
+                ExecutionResult::Success { output: out_bytes }
+            }
+        };
+        let tx_result_for_arena = VmExecutionResultAndLogs::mock(exec_result);
+
+        if args.raw {
+            sh_println!(
+                "Raw debug payload:\n{}",
+                serde_json::to_string_pretty(&result_value).unwrap_or_default()
+            );
+        }
+
+        let envelope = serde_json::json!({ "result": result_value });
+        let raw_str = serde_json::to_string(&envelope).unwrap();
+        let call_traces = match calls_from_debug_json(&raw_str) {
+            Ok(calls) => calls,
+            Err(err) => {
+                sh_println!("Failed to map debug JSON to internal Calls: {err}");
+                return Ok(());
+            }
+        };
+
+        let verbosity = get_shell().verbosity;
+        if !call_traces.is_empty() && verbosity >= 2 {
+            let mut builder = CallTraceDecoderBuilder::default();
+            builder = builder.with_signature_identifier(SignaturesIdentifier::global());
+            let decoder = builder.build();
+
+            let arena: anvil_zksync_types::traces::CallTraceArena =
+                futures::executor::block_on(async {
+                    let blocking_result = tokio::task::spawn_blocking(move || {
+                        let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
+                        let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+                        rt.block_on(async {
+                            anvil_zksync_traces::decode_trace_arena(&mut arena, &decoder).await;
+                        });
+                        arena
+                    })
+                    .await
+                    .expect("spawn_blocking failed");
+
+                    blocking_result
+                });
+
+            let filtered = filter_call_trace_arena(&arena, verbosity);
+            let out = render_trace_arena_inner(&filtered, false);
+            sh_println!("\nTraces:\n{}", out);
+        } else {
+            sh_println!("(No calls or verbosity < 2)");
+        }
+
+        return Ok(());
+    }
+
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 

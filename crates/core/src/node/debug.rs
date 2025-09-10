@@ -1,7 +1,17 @@
+use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{InMemoryNode, MAX_TX_SIZE};
 use crate::utils::create_debug_output;
+use anvil_zksync_common::sh_println;
+use anvil_zksync_common::shell::get_shell;
+use anvil_zksync_traces::build_call_trace_arena;
+use anvil_zksync_traces::decode_trace_arena;
+use anvil_zksync_traces::filter_call_trace_arena;
+use anvil_zksync_traces::identifier::SignaturesIdentifier;
+use anvil_zksync_traces::render_trace_arena_inner;
+use anvil_zksync_types::traces::CallTraceArena;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
+use zksync_error::anvil_zksync::node::AnvilNodeError;
 use zksync_multivm::interface::storage::StorageView;
 use zksync_multivm::interface::{VmFactory, VmInterface};
 use zksync_multivm::tracers::CallTracer;
@@ -110,7 +120,36 @@ impl InMemoryNode {
                 .unwrap_or_default()
         };
 
-        let debug = create_debug_output(&l2_tx.into(), &tx_result, call_traces)?;
+        let debug = create_debug_output(&l2_tx.into(), &tx_result, call_traces.clone())?;
+
+        let verbosity = get_shell().verbosity;
+        if !call_traces.is_empty() && verbosity >= 2 {
+            let tx_result_for_arena = tx_result.clone();
+            let mut builder = CallTraceDecoderBuilder::default();
+            builder = builder.with_signature_identifier(SignaturesIdentifier::global());
+
+            let decoder = builder.build();
+            let arena: CallTraceArena = futures::executor::block_on(async {
+                let blocking_result = tokio::task::spawn_blocking(move || {
+                    let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
+                    let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+                    rt.block_on(async {
+                        decode_trace_arena(&mut arena, &decoder).await;
+                        Ok(arena)
+                    })
+                })
+                .await;
+
+                let inner_result: Result<CallTraceArena, AnvilNodeError> =
+                    blocking_result.expect("spawn_blocking failed");
+                inner_result
+            })
+            .unwrap();
+
+            let filtered_arena = filter_call_trace_arena(&arena, verbosity);
+            let trace_output = render_trace_arena_inner(&filtered_arena, false);
+            sh_println!("\nTraces:\n{}", trace_output);
+        }
 
         Ok(api::CallTracerResult::CallTrace(debug))
     }
