@@ -401,7 +401,6 @@ pub struct ForkArgs {
     ///   • `cronos` / `cronos-testnet`
     ///   • `lens` / `lens-testnet`
     ///   • `openzk` / `openzk-testnet`
-    ///   • `wonderchain-testnet`
     ///   • `zkcandy`
     ///  - http://XXX:YY
     #[arg(
@@ -446,7 +445,6 @@ pub struct ReplayArgs {
     ///   • `cronos` / `cronos-testnet`
     ///   • `lens` / `lens-testnet`
     ///   • `openzk` / `openzk-testnet`
-    ///   • `wonderchain-testnet`
     ///   • `zkcandy`
     ///   • custom HTTP(S) URL
     ///  - http://XXX:YY
