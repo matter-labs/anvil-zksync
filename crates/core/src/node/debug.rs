@@ -120,7 +120,7 @@ impl InMemoryNode {
                 .unwrap_or_default()
         };
 
-        let debug = create_debug_output(&l2_tx.into(), &tx_result, call_traces.clone())?;
+        let debug = create_debug_output(&l2_tx.into(), &tx_result, call_traces)?;
 
         Ok(api::CallTracerResult::CallTrace(debug))
     }
