@@ -1,6 +1,6 @@
 use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, PeriodicStateDumper};
-use crate::utils::{hex_to_bytes_opt, rpc_call, update_with_fork_details};
+use crate::utils::{rpc_call, update_with_fork_details};
 use alloy::primitives::Bytes;
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::shell::{OutputMode, get_shell};
@@ -27,7 +27,7 @@ use anvil_zksync_l1_sidecar::L1Sidecar;
 use anvil_zksync_traces::format::debug_formatter::calls_from_debug_json;
 use anvil_zksync_traces::identifier::SignaturesIdentifier;
 use anvil_zksync_traces::{
-    build_call_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
+    build_call_trace_arena, decode_trace_arena, filter_call_trace_arena, render_trace_arena_inner,
 };
 use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
@@ -561,10 +561,15 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
             return Ok(());
         }
 
-        // TODO: add revertReason support
+        // TODO: add revert reason support
         let exec_result = {
-            // TODO: this is a bit hacky, we need to properly parse the call tracer result
-            let out_bytes = hex_to_bytes_opt(result_value.get("output").and_then(Value::as_str));
+            let out_bytes: Vec<u8> = result_value
+                .get("output")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<Bytes>().ok())
+                .map(|b| b.to_vec())
+                .unwrap_or_default();
+
             if let Some(err) = result_value.get("error").and_then(Value::as_str) {
                 ExecutionResult::Halt {
                     reason: Halt::TracerCustom(err.to_string()),
@@ -598,21 +603,8 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
             builder = builder.with_signature_identifier(SignaturesIdentifier::global());
             let decoder = builder.build();
 
-            let arena: anvil_zksync_types::traces::CallTraceArena =
-                futures::executor::block_on(async {
-                    let blocking_result = tokio::task::spawn_blocking(move || {
-                        let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
-                        let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
-                        rt.block_on(async {
-                            anvil_zksync_traces::decode_trace_arena(&mut arena, &decoder).await;
-                        });
-                        arena
-                    })
-                    .await
-                    .expect("spawn_blocking failed");
-
-                    blocking_result
-                });
+            let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
+            decode_trace_arena(&mut arena, &decoder).await;
 
             let filtered = filter_call_trace_arena(&arena, verbosity);
             let out = render_trace_arena_inner(&filtered, false);

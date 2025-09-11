@@ -1,9 +1,8 @@
-// NEW imports
-use alloy::primitives::{Address as AAddress, Bytes as ABytes, U256 as AU256};
+use anvil_zksync_types::serde_helpers::{bytes_hex, h160_hex, u64_hex, u256_hex};
 use serde::Deserialize;
 use zksync_multivm::interface::{Call, CallType};
 use zksync_types::zk_evm_types::FarCallOpcode;
-use zksync_types::{H160, U256 as ZkU256};
+use zksync_types::{H160, U256};
 
 #[derive(Debug, Deserialize)]
 pub struct DebugTraceEnvelope {
@@ -15,23 +14,25 @@ pub struct DebugCallNode {
     #[serde(default)]
     pub calls: Vec<DebugCallNode>,
 
-    pub from: AAddress,
-    pub to: AAddress,
+    #[serde(with = "h160_hex")]
+    pub from: H160,
+    #[serde(with = "h160_hex")]
+    pub to: H160,
 
-    #[serde(default)]
-    pub gas: AU256,
-    #[serde(default, rename = "gasUsed")]
-    pub gas_used: AU256,
-    #[serde(default)]
-    pub value: AU256,
+    #[serde(default, with = "u64_hex")]
+    pub gas: u64,
+    #[serde(default, rename = "gasUsed", with = "u64_hex")]
+    pub gas_used: u64,
+    #[serde(default, with = "u256_hex")]
+    pub value: U256,
 
     #[serde(rename = "type")]
     pub call_type: String,
 
-    #[serde(default)]
-    pub input: ABytes,
-    #[serde(default)]
-    pub output: ABytes,
+    #[serde(default, with = "bytes_hex")]
+    pub input: Vec<u8>,
+    #[serde(default, with = "bytes_hex")]
+    pub output: Vec<u8>,
 
     #[serde(default)]
     pub error: Option<String>,
@@ -39,33 +40,8 @@ pub struct DebugCallNode {
     pub revert_reason: Option<String>,
 }
 
-#[inline]
-fn addr_alloy_to_zk(a: &AAddress) -> H160 {
-    H160::from_slice(a.as_slice())
-}
-
-#[inline]
-fn u256_alloy_to_zk(a: AU256) -> ZkU256 {
-    let be = a.to_be_bytes::<32>();
-    ZkU256::from_big_endian(&be)
-}
-
-#[inline]
-fn u256_to_u64_sat(a: AU256) -> u64 {
-    let limbs = a.as_limbs();
-    if limbs[1] != 0 || limbs[2] != 0 || limbs[3] != 0 {
-        u64::MAX
-    } else {
-        limbs[0]
-    }
-}
-
 fn node_to_call(n: &DebugCallNode, parent_gas: u64) -> Call {
-    let subcalls: Vec<Call> = n
-        .calls
-        .iter()
-        .map(|c| node_to_call(c, u256_to_u64_sat(n.gas)))
-        .collect();
+    let subcalls = n.calls.iter().map(|c| node_to_call(c, n.gas)).collect();
 
     let call_type = match n.call_type.to_ascii_lowercase().as_str() {
         "call" => CallType::Call(FarCallOpcode::Normal),
@@ -77,14 +53,14 @@ fn node_to_call(n: &DebugCallNode, parent_gas: u64) -> Call {
 
     Call {
         r#type: call_type,
-        from: addr_alloy_to_zk(&n.from),
-        to: addr_alloy_to_zk(&n.to),
+        from: n.from,
+        to: n.to,
         parent_gas,
-        gas: u256_to_u64_sat(n.gas),
-        gas_used: u256_to_u64_sat(n.gas_used),
-        value: u256_alloy_to_zk(n.value),
-        input: n.input.to_vec(),
-        output: n.output.to_vec(),
+        gas: n.gas,
+        gas_used: n.gas_used,
+        value: n.value,
+        input: n.input.clone(),
+        output: n.output.clone(),
         error: n.error.clone(),
         revert_reason: n.revert_reason.clone(),
         calls: subcalls,
@@ -93,12 +69,11 @@ fn node_to_call(n: &DebugCallNode, parent_gas: u64) -> Call {
 
 pub fn calls_from_debug_json(json: &str) -> anyhow::Result<Vec<Call>> {
     let env: DebugTraceEnvelope = serde_json::from_str(json)?;
-    let root_gas_u64 = u256_to_u64_sat(env.result.gas);
-
+    let root_gas = env.result.gas;
     Ok(env
         .result
         .calls
         .iter()
-        .map(|c| node_to_call(c, root_gas_u64))
+        .map(|c| node_to_call(c, root_gas))
         .collect())
 }

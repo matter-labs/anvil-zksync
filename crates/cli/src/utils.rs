@@ -84,6 +84,7 @@ pub fn get_cli_command_telemetry_props(command: Option<Command>) -> Option<Telem
     )
 }
 
+/// Makes a JSON-RPC call to the given URL with the specified method and parameters.
 pub async fn rpc_call<T: for<'de> serde::Deserialize<'de>>(
     url: &str,
     method: &str,
@@ -114,16 +115,4 @@ pub async fn rpc_call<T: for<'de> serde::Deserialize<'de>>(
 
     let env: RpcEnvelope<T> = resp.json().await?;
     Ok(env.result)
-}
-
-pub fn hex_to_bytes_opt(s: Option<&str>) -> Vec<u8> {
-    if let Some(hex) = s {
-        let h = hex.strip_prefix("0x").unwrap_or(hex);
-        if h.is_empty() {
-            return Vec::new();
-        }
-        hex::decode(h).unwrap_or_default()
-    } else {
-        Vec::new()
-    }
 }
