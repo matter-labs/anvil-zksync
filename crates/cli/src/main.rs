@@ -15,6 +15,7 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::{ForkPrintInfo, L1Config};
 use anvil_zksync_core::filters::EthFilters;
+use anvil_zksync_core::node::error::format_revert_reason_hex;
 use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
@@ -48,7 +49,7 @@ use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::anvil_zksync::generic::{generic_error, to_domain};
 use zksync_error::{ICustomError, IError as _};
-use zksync_multivm::interface::{ExecutionResult, Halt, VmExecutionResultAndLogs};
+use zksync_multivm::interface::{ExecutionResult, Halt, VmExecutionResultAndLogs, VmRevertReason};
 use zksync_telemetry::{TelemetryProps, get_telemetry, init_telemetry};
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{
@@ -561,7 +562,7 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
             return Ok(());
         }
 
-        // TODO: add revert reason support
+        // TODO: add improved halt/revert handling
         let exec_result = {
             let out_bytes: Vec<u8> = result_value
                 .get("output")
@@ -573,6 +574,17 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
             if let Some(err) = result_value.get("error").and_then(Value::as_str) {
                 ExecutionResult::Halt {
                     reason: Halt::TracerCustom(err.to_string()),
+                }
+            } else if result_value
+                .get("reverted")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                ExecutionResult::Revert {
+                    output: VmRevertReason::General {
+                        msg: format_revert_reason_hex(&out_bytes),
+                        data: out_bytes.clone(),
+                    },
                 }
             } else {
                 ExecutionResult::Success { output: out_bytes }
