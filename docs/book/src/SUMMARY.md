@@ -10,6 +10,7 @@
   - [run](cli/run.md)
   - [fork](cli/fork.md)
   - [replay_tx](cli/replay_tx.md)
+  - [debug-trace](cli/debug_trace.md)
 
 - [Guides](guides/anvil_zksync_action.md)
   - [Local Hardhat Testing](guides/local_hardhat_testing.md)

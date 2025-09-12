@@ -10,7 +10,7 @@ impl CallTraceDecoderBuilder {
     /// Create a new builder starting from a CallTraceDecoder capable of
     /// decoding calls of DSTest-style logs
     #[inline]
-    pub fn default() -> CallTraceDecoderBuilderBase {
+    pub fn base() -> CallTraceDecoderBuilderBase {
         static INIT: OnceLock<CallTraceDecoder> = OnceLock::new();
         CallTraceDecoderBuilderBase::new(
             INIT.get_or_init(|| {

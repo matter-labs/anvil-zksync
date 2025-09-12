@@ -195,7 +195,7 @@ impl VmRunner {
         let mut trace_output = None;
 
         if !call_traces.is_empty() {
-            let mut builder = CallTraceDecoderBuilder::default();
+            let mut builder = CallTraceDecoderBuilder::base();
 
             builder = builder.with_signature_identifier(SignaturesIdentifier::global());
 

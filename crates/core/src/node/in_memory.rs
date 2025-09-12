@@ -454,7 +454,7 @@ impl InMemoryNode {
         let verbosity = get_shell().verbosity;
         if !call_traces.is_empty() && verbosity >= 2 {
             let tx_result_for_arena = tx_result.clone();
-            let mut builder = CallTraceDecoderBuilder::default();
+            let mut builder = CallTraceDecoderBuilder::base();
             builder = builder.with_signature_identifier(SignaturesIdentifier::global());
 
             let decoder = builder.build();
