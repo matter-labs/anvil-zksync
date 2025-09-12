@@ -53,7 +53,7 @@ pub mod u64_hex {
             Num::Str(s) => {
                 let s = s.strip_prefix("0x").unwrap_or(&s);
                 u64::from_str_radix(s, 16)
-                    .map_err(|_| D::Error::invalid_value(Unexpected::Str(&s), &"0x.. hex u64"))
+                    .map_err(|_| D::Error::invalid_value(Unexpected::Str(s), &"0x.. hex u64"))
             }
         }
     }
