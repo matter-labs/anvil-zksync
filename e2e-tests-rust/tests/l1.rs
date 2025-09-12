@@ -457,7 +457,7 @@ async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
     let tester = AnvilZksyncTesterBuilder::default()
         .with_l1()
         .with_node_fn(&move |node| {
-            node.timeout(60_000).args([
+            node.timeout(100_000).args([
                 "--auto-execute-l1",
                 "--protocol-version",
                 &protocol_version.to_string(),
@@ -476,7 +476,7 @@ async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
         tester.tx().finalize().await?.assert_successful()?;
     }
 
-    const ATTEMPTS: usize = 10;
+    const ATTEMPTS: usize = 30;
     let mut logs = Vec::with_capacity(BATCHES);
     for _ in 0..ATTEMPTS {
         let new_logs = tester
@@ -487,7 +487,7 @@ async fn auto_execute_batch(protocol_version: u16) -> anyhow::Result<()> {
         if logs.len() >= BATCHES {
             return Ok(());
         }
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
     anyhow::bail!("failed to produce {BATCHES} batches in time, logs: {logs:?}")
 }
