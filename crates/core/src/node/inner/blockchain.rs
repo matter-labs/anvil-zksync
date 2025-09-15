@@ -376,6 +376,10 @@ impl ReadBlockchain for Blockchain {
                 commit_tx_finality: None,
                 prove_tx_finality: None,
                 execute_tx_finality: None,
+                precommitted_at: None,
+                precommit_chain_id: None,
+                precommit_tx_finality: None,
+                precommit_tx_hash: None,
             },
             operator_address: Address::zero(),
             protocol_version: Some(self.protocol_version),
@@ -614,11 +618,11 @@ impl Blockchain {
 }
 
 impl Blockchain {
-    pub(super) async fn read(&self) -> RwLockReadGuard<BlockchainState> {
+    pub(super) async fn read(&self) -> RwLockReadGuard<'_, BlockchainState> {
         self.inner.read().await
     }
 
-    pub(super) async fn write(&self) -> RwLockWriteGuard<BlockchainState> {
+    pub(super) async fn write(&self) -> RwLockWriteGuard<'_, BlockchainState> {
         self.inner.write().await
     }
 }

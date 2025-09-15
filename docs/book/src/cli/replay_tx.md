@@ -33,7 +33,6 @@ Both parameters are **required**:
 | `lens-testnet`                    | `https://rpc.testnet.lens.xyz`                        |
 | `openzk`                          | `https://rpc.openzk.net`                              |
 | `openzk-testnet`                  | `https://openzk-testnet.rpc.caldera.xyz/http`         |
-| `wonderchain-testnet`             | `https://rpc.testnet.wonderchain.org`                 |
 | `zkcandy`                         | `https://rpc.zkcandy.io`                              |
 
 ## Arguments

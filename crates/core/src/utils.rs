@@ -44,6 +44,7 @@ pub fn to_human_size(input: U256) -> String {
 /// A [U64] representing the input block number.
 pub fn to_real_block_number(block_number: BlockNumber, latest_block_number: U64) -> U64 {
     match block_number {
+        // TODO: review FastFinalized
         BlockNumber::FastFinalized
         | BlockNumber::Finalized
         | BlockNumber::Pending
@@ -191,7 +192,7 @@ impl<T> ArcRLock<T> {
 
     /// Locks this `ArcRLock` with shared read access, causing the current task
     /// to yield until the lock has been acquired.
-    pub async fn read(&self) -> RwLockReadGuard<T> {
+    pub async fn read(&self) -> RwLockReadGuard<'_, T> {
         self.0.read().await
     }
 }

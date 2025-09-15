@@ -107,6 +107,10 @@ mod private_v28 {
     }
 }
 
+mod private_v28 {
+    alloy::sol!("src/contracts/sol/IExecutorV28.sol");
+}
+
 pub use self::private::IZKChain::NewPriorityRequest;
 use alloy::primitives::TxHash;
 

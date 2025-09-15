@@ -5,6 +5,15 @@ use zksync_error::anvil_zksync::halt::HaltError;
 use zksync_error::anvil_zksync::revert::RevertError;
 use zksync_multivm::interface::{Halt, VmRevertReason};
 
+#[inline]
+pub fn format_revert_reason_hex(data: &[u8]) -> String {
+    if data.is_empty() {
+        "revert (empty)".to_string()
+    } else {
+        format!("revert 0x{}", data.encode_hex())
+    }
+}
+
 async fn handle_vm_revert_reason(reason: &VmRevertReason) -> (String, &[u8]) {
     match reason {
         VmRevertReason::General { msg, data } => (msg.to_string(), data),

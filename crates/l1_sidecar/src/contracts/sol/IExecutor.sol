@@ -35,8 +35,6 @@ struct LogProcessingOutput {
     bytes32 dependencyRootsRollingHash;
 }
 
-/// @dev Maximal value that SystemLogKey variable can have.
-uint256 constant MAX_LOG_KEY = uint256(type(SystemLogKey).max);
 
 /// @notice The struct passed to the assetTracker.
 struct ProcessLogsInput {
@@ -48,13 +46,16 @@ struct ProcessLogsInput {
     bytes32 messageRoot;
 }
 
-/// @dev Offset used to pull Address From Log. Equal to 4 (bytes for isService)
+/// @dev Maximal value that SystemLogKey variable can have.
+uint256 constant MAX_LOG_KEY = uint256(type(SystemLogKey).max);
+
+/// @dev Offset used to pull Address From Log. Equal to 4 (bytes for shardId, isService and txNumberInBatch)
 uint256 constant L2_LOG_ADDRESS_OFFSET = 4;
 
-/// @dev Offset used to pull Key From Log. Equal to 4 (bytes for isService) + 20 (bytes for address)
+/// @dev Offset used to pull Key From Log. Equal to 4 (bytes for shardId, isService and txNumberInBatch) + 20 (bytes for address)
 uint256 constant L2_LOG_KEY_OFFSET = 24;
 
-/// @dev Offset used to pull Value From Log. Equal to 4 (bytes for isService) + 20 (bytes for address) + 32 (bytes for key)
+/// @dev Offset used to pull Value From Log. Equal to 4 (bytes for shardId, isService and txNumberInBatch) + 20 (bytes for address) + 32 (bytes for key)
 uint256 constant L2_LOG_VALUE_OFFSET = 56;
 
 /// @dev Max number of blobs currently supported
@@ -85,7 +86,7 @@ interface IExecutor is IZKChainBase {
         uint64 indexRepeatedStorageChanges;
         uint256 numberOfLayer1Txs;
         bytes32 priorityOperationsHash;
-        bytes32 dependencyRootsRollingHash; // kl todo we might have to include a new and old version of this struct for migration
+        bytes32 dependencyRootsRollingHash;
         bytes32 l2LogsTreeRoot;
         uint256 timestamp;
         bytes32 commitment;
@@ -139,10 +140,10 @@ interface IExecutor is IZKChainBase {
     /// @notice Container for a list of transaction statuses to precommit.
     /// @param txs A packed array of individual transaction status commitments for the batch. Each is expected to be
     /// of length 33 and have the following format: <32-byte tx hash, 1-byte status>. where status is either 0 (failed) or 1 (success).
-    /// @param untrustedLastMiniblockNumberHint The "hint" for what the last miniblock that these txs represent is.
+    /// @param untrustedLastL2BlockNumberHint The "hint" for what the last L2 block number that these txs represent is.
     struct PrecommitInfo {
         bytes packedTxsCommitments;
-        uint256 untrustedLastMiniblockNumberHint;
+        uint256 untrustedLastL2BlockNumberHint;
     }
 
     /// @notice Precommits the status of all L2 transactions for the next batch on the shared bridge.

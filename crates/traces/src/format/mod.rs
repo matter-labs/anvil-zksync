@@ -1,5 +1,6 @@
 pub mod numbers;
 
+pub mod debug_formatter;
 use anvil_zksync_common::utils::format::write_interspersed;
 use anvil_zksync_types::{numbers::SignedU256, traces::DecodedValue};
 use numbers::PrettyNumberExponentialRepr;
