@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use zksync_types::web3::Bytes;
 use zksync_types::U64;
+use zksync_types::web3::Bytes;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct DetailedTransaction {

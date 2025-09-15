@@ -143,6 +143,7 @@ pub fn create_genesis_from_json(
         timestamp,
         BaseSystemContractsHashes::default(),
         protocol_version,
+        SettlementLayer::L1(SLChainId(31337)), // TODO: Default chain ID for Anvil?
     );
 
     (genesis_block, genesis_batch_header)
@@ -185,6 +186,7 @@ pub fn create_genesis<TX>(
         timestamp,
         BaseSystemContractsHashes::default(),
         protocol_version,
+        SettlementLayer::L1(SLChainId(31337)), // TODO: Default chain ID for Anvil?
     );
 
     (genesis_block, genesis_batch_header)

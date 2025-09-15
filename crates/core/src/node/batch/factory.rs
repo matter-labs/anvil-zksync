@@ -12,13 +12,14 @@ use std::{fmt, marker::PhantomData, rc::Rc, sync::Arc};
 use tokio::sync::mpsc;
 use zksync_multivm::interface::{InspectExecutionMode, VmExecutionResultAndLogs};
 use zksync_multivm::{
+    FastVmInstance, LegacyVmInstance, MultiVmTracer,
     interface::{
+        BatchTransactionExecutionResult, Call, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
+        L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         executor::{BatchExecutor, BatchExecutorFactory},
         pubdata::PubdataBuilder,
         storage::{ReadStorage, StoragePtr, StorageView},
         utils::{DivergenceHandler, ShadowMut},
-        BatchTransactionExecutionResult, Call, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
-        L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     },
     is_supported_by_fast_vm,
     pubdata_builders::pubdata_params_to_builder,
@@ -26,10 +27,9 @@ use zksync_multivm::{
     vm_fast,
     vm_fast::FastValidationTracer,
     vm_latest::HistoryEnabled,
-    FastVmInstance, LegacyVmInstance, MultiVmTracer,
 };
 use zksync_types::ProtocolVersionId;
-use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
+use zksync_types::{Transaction, commitment::PubdataParams, vm::FastVmMode};
 
 #[doc(hidden)]
 pub trait CallTracingTracer: vm_fast::interface::Tracer + Default {

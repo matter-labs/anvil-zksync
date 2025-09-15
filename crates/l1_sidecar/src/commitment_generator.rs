@@ -11,7 +11,7 @@ use zksync_types::commitment::{
     L1BatchWithMetadata,
 };
 use zksync_types::writes::StateDiffRecord;
-use zksync_types::{Address, H256};
+use zksync_types::{Address, H256, settlement::SettlementLayer, SLChainId};
 
 /// Node component that can generate batch's metadata (with commitment) on demand.
 #[derive(Debug, Clone)]
@@ -45,6 +45,7 @@ impl CommitmentGenerator {
             0,
             base_system_contracts_hashes,
             zkstack_config.genesis.genesis_protocol_version,
+            SettlementLayer::L1(SLChainId(31337)), // TODO: Default chain ID for Anvil?
         );
         genesis_batch_header.fee_address = zkstack_config.genesis.fee_account;
         let commitment_input = CommitmentInput::for_genesis_batch(

@@ -7,9 +7,9 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
+    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv, VmExecutionResultAndLogs,
     executor::BatchExecutor,
     storage::{ReadStorage, StorageView},
-    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv, VmExecutionResultAndLogs,
 };
 use zksync_types::Transaction;
 

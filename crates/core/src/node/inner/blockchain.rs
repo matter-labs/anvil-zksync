@@ -21,8 +21,8 @@ use zksync_types::l2::L2Tx;
 use zksync_types::writes::StateDiffRecord;
 use zksync_types::{
     AccountTreeId, Address, ExecuteTransactionCommon, H256, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION, StorageKey, U64,
-    U256, api, api::BlockId, h256_to_u256, web3::Bytes,
+    ProtocolVersionId, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_BLOCK_INFO_POSITION, StorageKey, SLChainId, U64,
+    U256, api, api::BlockId, h256_to_u256, web3::Bytes, settlement::SettlementLayer,
 };
 
 /// Read-only view on blockchain state.
@@ -365,10 +365,6 @@ impl ReadBlockchain for Blockchain {
                 execute_tx_hash: None,
                 execute_chain_id: None,
                 executed_at: None,
-                precommit_tx_hash: None,
-                precommit_tx_finality: None,
-                precommitted_at: None,
-                precommit_chain_id: None,
                 l1_gas_price: 0,
                 l2_fair_gas_price,
                 fair_pubdata_price,
@@ -786,6 +782,7 @@ impl BlockchainState {
             fee_address: Default::default(), // TODO: Use real fee address
             batch_fee_input: Default::default(), // TODO: Use real batch fee input
             pubdata_limit: Default::default(), // TODO: Use real pubdata limit
+            settlement_layer: SettlementLayer::L1(SLChainId(31337)), // TODO: Default chain ID for Anvil?
         };
         let batch_info = StoredL1BatchInfo {
             header,
