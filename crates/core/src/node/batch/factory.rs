@@ -145,8 +145,8 @@ impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
             executor.run(
                 storage,
                 l1_batch_params,
-                system_env,
-                pubdata_params_to_builder(pubdata_params),
+                system_env.clone(),
+pubdata_params_to_builder(pubdata_params, system_env.version),
                 iterable_storage,
             )
         });

@@ -71,7 +71,7 @@ use zksync_types::web3::{keccak256, Index};
 use zksync_types::{
     api, h256_to_u256, u256_to_h256, AccountTreeId, Address, Bloom, BloomInput,
     ExecuteTransactionCommon, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageValue,
-    Transaction, H160, H256, L2_MESSAGE_ROOT_ADDRESS, MAX_L2_TX_GAS_LIMIT, U256, U64,
+    Transaction, H160, H256, L2_MESSAGE_ROOT_ADDRESS, MAX_L2_TX_GAS_LIMIT, U256, U64, settlement::SettlementLayer, SLChainId
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -203,6 +203,7 @@ impl InMemoryNodeInner {
                 max_virtual_blocks_to_create: 1,
                 interop_roots: vec![],
             },
+            settlement_layer: SettlementLayer::L1(SLChainId(9)),
         };
 
         (batch_env, block_ctx)

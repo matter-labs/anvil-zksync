@@ -39,7 +39,7 @@ use std::{
 use tokio::time::{Instant, Interval};
 use url::Url;
 use zksync_telemetry::TelemetryProps;
-use zksync_types::fee_model::BaseTokenConversionRatio;
+use zksync_types::fee_model::{BaseTokenConversionRatio, ConversionRatio};
 use zksync_types::{ProtocolVersionId, H256, U256};
 
 const DEFAULT_PORT: &str = "8011";
@@ -749,12 +749,12 @@ impl Cli {
                 let ratio = self.base_token_ratio.unwrap_or(Ratio::ONE);
                 BaseTokenConfig {
                     symbol: self.base_token_symbol.unwrap_or("ETH".to_string()),
-                    ratio: BaseTokenConversionRatio {
+                    ratio: BaseTokenConversionRatio::new_simple(ConversionRatio {
                         numerator: NonZeroU64::new(*ratio.numer())
                             .expect("base token conversion ratio cannot have 0 as numerator"),
                         denominator: NonZeroU64::new(*ratio.denom())
                             .expect("base token conversion ratio cannot have 0 as denominator"),
-                    },
+                    }),
                 }
             });
 
