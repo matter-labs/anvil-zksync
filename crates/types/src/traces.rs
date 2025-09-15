@@ -1,9 +1,9 @@
 use anvil_zksync_common::{address_map, utils::format::write_interspersed};
 use zksync_multivm::interface::{Call, Halt, VmEvent};
 use zksync_types::{
-    Address, H160, H256, U256,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     web3::Bytes,
+    Address, H160, H256, U256,
 };
 
 use crate::numbers::SignedU256;

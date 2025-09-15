@@ -1,7 +1,7 @@
 use crate::bootloader_debug::BootloaderDebug;
 use crate::formatter;
 use crate::formatter::errors::view::ExecutionErrorReport;
-use crate::formatter::log::{compute_gas_details, Formatter};
+use crate::formatter::log::{Formatter, compute_gas_details};
 use crate::formatter::transaction::summary::TransactionSummary;
 use crate::node::batch::{MainBatchExecutorFactory, TraceCalls};
 use crate::node::diagnostics::transaction::known_addresses_after_transaction;
@@ -14,7 +14,7 @@ use crate::node::storage_logs::print_storage_logs_details;
 use crate::node::time::Time;
 use crate::node::traces::decoder::CallTraceDecoderBuilder;
 use crate::node::{
-    compute_hash, InMemoryNodeInner, StorageKeyLayout, TransactionResult, TxBatch, TxExecutionInfo,
+    InMemoryNodeInner, StorageKeyLayout, TransactionResult, TxBatch, TxExecutionInfo, compute_hash,
 };
 use crate::system_contracts::SystemContracts;
 use crate::utils::create_debug_output;
@@ -40,15 +40,15 @@ use zksync_multivm::interface::{
     TxExecutionMode, VmEvent, VmExecutionResultAndLogs,
 };
 use zksync_multivm::utils::get_batch_base_fee;
-use zksync_multivm::zk_evm_latest::ethereum_types::{Address, H160, U256, U64};
+use zksync_multivm::zk_evm_latest::ethereum_types::{Address, H160, U64, U256};
 use zksync_types::block::L2BlockHasher;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::commitment::{PubdataParams, PubdataType};
 use zksync_types::fee_model::FeeModelConfigV2;
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    api, h256_to_address, h256_to_u256, u256_to_h256, ExecuteTransactionCommon, L2BlockNumber,
-    L2TxCommonData, StorageKey, StorageValue, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    ACCOUNT_CODE_STORAGE_ADDRESS, ExecuteTransactionCommon, L2BlockNumber, L2TxCommonData,
+    StorageKey, StorageValue, Transaction, api, h256_to_address, h256_to_u256, u256_to_h256,
 };
 
 pub struct VmRunner {
@@ -651,9 +651,9 @@ fn contract_address_from_tx_result(execution_result: &VmExecutionResultAndLogs) 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::node::fork::{Fork, ForkClient, ForkDetails};
     use crate::node::TestNodeFeeInputProvider;
-    use crate::testing::{TransactionBuilder, STORAGE_CONTRACT_BYTECODE};
+    use crate::node::fork::{Fork, ForkClient, ForkDetails};
+    use crate::testing::{STORAGE_CONTRACT_BYTECODE, TransactionBuilder};
     use alloy::dyn_abi::{DynSolType, DynSolValue};
     use alloy::primitives::U256 as AlloyU256;
     use anvil_zksync::node::AnvilNodeResult;
@@ -675,7 +675,7 @@ mod test {
     use zksync_types::l2::{L2Tx, TransactionType};
     use zksync_types::utils::deployed_address_create;
     use zksync_types::{
-        u256_to_h256, K256PrivateKey, L1BatchNumber, L2ChainId, Nonce, ProtocolVersionId, H256,
+        H256, K256PrivateKey, L1BatchNumber, L2ChainId, Nonce, ProtocolVersionId, u256_to_h256,
     };
 
     struct VmRunnerTester {

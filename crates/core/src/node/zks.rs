@@ -2,16 +2,16 @@ use crate::node::InMemoryNode;
 use anyhow::Context;
 use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_types::L1BatchNumber;
 use zksync_types::api;
 use zksync_types::fee::Fee;
-use zksync_types::hasher::Hasher;
 use zksync_types::hasher::keccak::KeccakHasher;
+use zksync_types::hasher::Hasher;
 use zksync_types::l2_to_l1_log::{
-    L2ToL1Log, LOG_PROOF_SUPPORTED_METADATA_VERSION, l2_to_l1_logs_tree_size,
+    l2_to_l1_logs_tree_size, L2ToL1Log, LOG_PROOF_SUPPORTED_METADATA_VERSION,
 };
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::{Address, H160, H256, L2BlockNumber, Transaction, U256};
+use zksync_types::L1BatchNumber;
+use zksync_types::{Address, L2BlockNumber, Transaction, H160, H256, U256};
 use zksync_web3_decl::error::Web3Error;
 
 impl InMemoryNode {
@@ -203,11 +203,11 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use zksync_types::L1BatchNumber;
-    use zksync_types::{H160, H256, ProtocolVersionId, api, transaction_request::CallRequest};
+    use zksync_types::{api, transaction_request::CallRequest, ProtocolVersionId, H160, H256};
 
     use super::*;
-    use crate::node::TransactionResult;
     use crate::node::fork::{ForkClient, ForkConfig};
+    use crate::node::TransactionResult;
     use crate::{
         node::InMemoryNode,
         testing,

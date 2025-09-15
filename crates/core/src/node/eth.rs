@@ -10,18 +10,17 @@ use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::utils::decompose_full_nonce;
 use zksync_types::{
-    api,
+    Address, H160, H256, U64, U256,
+    web3::{self, Bytes},
+};
+use zksync_types::{
+    MAX_L1_TRANSACTION_GAS_LIMIT, PackedEthSignature, api,
     api::{Block, BlockIdVariant, BlockNumber, TransactionVariant},
     get_code_key, get_is_account_key,
     l2::L2Tx,
     transaction_request::TransactionRequest,
-    PackedEthSignature, MAX_L1_TRANSACTION_GAS_LIMIT,
 };
-use zksync_types::{h256_to_u256, Transaction};
-use zksync_types::{
-    web3::{self, Bytes},
-    Address, H160, H256, U256, U64,
-};
+use zksync_types::{Transaction, h256_to_u256};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{FeeHistory, Filter, FilterChanges, SyncState},
@@ -575,13 +574,13 @@ impl InMemoryNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::fork::{ForkClient, ForkConfig};
     use crate::node::TransactionResult;
+    use crate::node::fork::{ForkClient, ForkConfig};
     use crate::{
         node::InMemoryNode,
         testing::{
-            self, default_tx_debug_info, ForkBlockConfig, LogBuilder, MockServer,
-            TransactionResponseBuilder,
+            self, ForkBlockConfig, LogBuilder, MockServer, TransactionResponseBuilder,
+            default_tx_debug_info,
         },
     };
     use anvil_zksync_config::constants::{
@@ -593,13 +592,12 @@ mod tests {
     use zksync_types::block::L2BlockHasher;
     use zksync_types::l2::TransactionType;
     use zksync_types::vm::VmVersion;
+    use zksync_types::{AccountTreeId, Nonce, u256_to_h256, web3};
     use zksync_types::{
-        api,
+        Bloom, EMPTY_UNCLES_HASH, K256PrivateKey, L2BlockNumber, StorageKey, api,
         api::{BlockHashObject, BlockNumber, BlockNumberObject, TransactionReceipt},
         utils::deployed_address_create,
-        Bloom, K256PrivateKey, L2BlockNumber, StorageKey, EMPTY_UNCLES_HASH,
     };
-    use zksync_types::{u256_to_h256, web3, AccountTreeId, Nonce};
     use zksync_web3_decl::types::{SyncState, ValueOrArray};
 
     async fn test_node(url: Url) -> InMemoryNode {
@@ -1719,9 +1717,11 @@ mod tests {
                         info: testing::default_tx_execution_info(),
                         new_bytecodes: vec![],
                         receipt: TransactionReceipt {
-                            logs: vec![LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa1))
-                                .build()],
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                            ],
                             ..Default::default()
                         },
                         debug: default_tx_debug_info(),
@@ -1783,9 +1783,11 @@ mod tests {
                         info: testing::default_tx_execution_info(),
                         new_bytecodes: vec![],
                         receipt: TransactionReceipt {
-                            logs: vec![LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa1))
-                                .build()],
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                            ],
                             ..Default::default()
                         },
                         debug: default_tx_debug_info(),
@@ -1814,9 +1816,11 @@ mod tests {
                         info: testing::default_tx_execution_info(),
                         new_bytecodes: vec![],
                         receipt: TransactionReceipt {
-                            logs: vec![LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa1))
-                                .build()],
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                            ],
                             ..Default::default()
                         },
                         debug: testing::default_tx_debug_info(),

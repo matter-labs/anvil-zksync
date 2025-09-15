@@ -1,8 +1,8 @@
-use super::InMemoryNode;
 use super::pool::TxBatch;
 use super::sealer::BlockSealerMode;
+use super::InMemoryNode;
 use anvil_zksync_types::api::{DetailedTransaction, ResetRequest};
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow, Context};
 use std::str::FromStr;
 use std::time::Duration;
 use url::Url;
@@ -10,7 +10,7 @@ use zksync_error::anvil_zksync::node::AnvilNodeResult;
 use zksync_types::api::{Block, TransactionVariant};
 use zksync_types::bytecode::{BytecodeHash, BytecodeMarker};
 use zksync_types::u256_to_h256;
-use zksync_types::{AccountTreeId, Address, H256, L2BlockNumber, StorageKey, U64, U256};
+use zksync_types::{AccountTreeId, Address, L2BlockNumber, StorageKey, H256, U256, U64};
 
 type Result<T> = anyhow::Result<T>;
 
@@ -420,8 +420,8 @@ mod tests {
     use crate::testing::TransactionBuilder;
     use std::str::FromStr;
     use zksync_multivm::interface::storage::ReadStorage;
-    use zksync_types::{H256, L2ChainId, h256_to_u256};
-    use zksync_types::{L1BatchNumber, Transaction, api};
+    use zksync_types::{api, L1BatchNumber, Transaction};
+    use zksync_types::{h256_to_u256, L2ChainId, H256};
 
     #[tokio::test]
     async fn test_set_balance() {
