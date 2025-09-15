@@ -14,9 +14,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Start anvil-zksync
-        uses: dutterbutter/anvil-zksync-action@v1.1
+        uses: dutterbutter/anvil-zksync-action@v1.3.0
         with:
           mode: run
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run tests
         run: |
@@ -28,12 +29,13 @@ jobs:
 
 ```yaml
 - name: Start anvil-zksync in fork mode
-  uses: dutterbutter/anvil-zksync-action@v1.1
+  uses: dutterbutter/anvil-zksync-action@v1.3.0
   with:
     mode: fork
     forkUrl: mainnet
     forkBlockNumber: 59_485_781
     port: 8015
+    token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## Inputs

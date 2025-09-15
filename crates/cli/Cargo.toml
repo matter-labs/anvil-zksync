@@ -1,5 +1,5 @@
 [package]
-name = "anvil-zksync" # Compatible with the legacy bin crate name
+name = "anvil-zksync"            # Compatible with the legacy bin crate name
 description = "anvil-zksync CLI"
 version.workspace = true
 edition.workspace = true
@@ -11,18 +11,22 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-anvil_zksync_api_server.workspace = true
 anvil_zksync_config.workspace = true
-anvil_zksync_core.workspace = true
-anvil_zksync_l1_sidecar.workspace = true
+anvil_zksync_api_server = { workspace = true, default-features = false }
+anvil_zksync_core = { workspace = true, default-features = false }
+anvil_zksync_l1_sidecar = { workspace = true, default-features = false }
 anvil_zksync_types.workspace = true
 zksync_error.workspace = true
 
 anvil_zksync_common.workspace = true
+anvil_zksync_traces.workspace = true
 
 zksync_types.workspace = true
 zksync_telemetry.workspace = true
-alloy = { workspace = true, default-features = false, features = ["signer-mnemonic", "reqwest-rustls-tls"] }
+alloy = { workspace = true, default-features = false, features = [
+    "signer-mnemonic",
+    "reqwest-rustls-tls",
+] }
 anyhow.workspace = true
 clap.workspace = true
 eyre.workspace = true
@@ -45,3 +49,7 @@ num.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[features]
+default = ["zksync-os"]
+zksync-os = ["anvil_zksync_core/zksync-os"]

@@ -1,6 +1,6 @@
-use crate::http_middleware::HttpWithMiddleware;
-use crate::utils::{get_node_binary_path, LockedPort};
 use crate::ReceiptExt;
+use crate::http_middleware::HttpWithMiddleware;
+use crate::utils::{LockedPort, get_node_binary_path};
 use alloy::network::primitives::HeaderResponse as _;
 use alloy::network::{Ethereum, Network, ReceiptResponse as _, TransactionBuilder};
 use alloy::primitives::{Address, U256};
@@ -12,13 +12,13 @@ use alloy::rpc::{
     client::RpcClient,
     types::{Block, TransactionRequest},
 };
-use alloy::signers::local::LocalSigner;
 use alloy::signers::Signer;
+use alloy::signers::local::LocalSigner;
 use alloy::transports::{RpcError, TransportErrorKind};
+use alloy_zksync::network::Zksync;
 use alloy_zksync::network::header_response::HeaderResponse;
 use alloy_zksync::network::receipt_response::ReceiptResponse;
 use alloy_zksync::network::transaction_response::TransactionResponse;
-use alloy_zksync::network::Zksync;
 use alloy_zksync::node_bindings::{AnvilZKsync, AnvilZKsyncError::NoKeysAvailable};
 use alloy_zksync::provider::{layers::anvil_zksync::AnvilZKsyncLayer, zksync_provider};
 use alloy_zksync::wallet::ZksyncWallet;
@@ -82,7 +82,10 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
         self
     }
 
-    pub fn with_node_fn(mut self, node_fn: &'a dyn Fn(AnvilZKsync) -> AnvilZKsync) -> Self {
+    pub fn with_node_fn(
+        mut self,
+        node_fn: &'a (dyn Fn(AnvilZKsync) -> AnvilZKsync + 'static),
+    ) -> Self {
         self.node_fn = Some(node_fn);
         self
     }
@@ -105,18 +108,19 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
         self
     }
 
-    pub async fn build(self) -> anyhow::Result<AnvilZksyncTester<impl FullZksyncProvider>> {
+    pub async fn build(self) -> anyhow::Result<AnvilZksyncTester<impl FullZksyncProvider + use<>>> {
         let node_fn = self.node_fn.unwrap_or(&identity);
         let client_fn = self.client_fn.unwrap_or(&identity);
         let client_middleware_fn = self.client_middleware_fn.unwrap_or(&identity);
 
         let (l1_provider, l1_address) = if self.spawn_l1 {
             let l1_locked_port = LockedPort::acquire_unused().await?;
-            let l1_provider = ProviderBuilder::new().on_anvil_with_wallet_and_config(|anvil| {
-                anvil
-                    .port(l1_locked_port.port)
-                    .arg("--no-request-size-limit")
-            })?;
+            let l1_provider =
+                ProviderBuilder::new().connect_anvil_with_wallet_and_config(|anvil| {
+                    anvil
+                        .port(l1_locked_port.port)
+                        .arg("--no-request-size-limit")
+                })?;
             let l1_address = format!("http://localhost:{}", l1_locked_port.port);
             (Some(DynProvider::new(l1_provider)), Some(l1_address))
         } else {
@@ -157,7 +161,7 @@ impl<'a> AnvilZksyncTesterBuilder<'a> {
             .with_recommended_fillers()
             .wallet(wallet.clone())
             .layer(node_layer)
-            .on_client(rpc_client);
+            .connect_client(rpc_client);
         let l2_evm_provider = DynProvider::new(
             ProviderBuilder::new()
                 .wallet(wallet)
@@ -193,7 +197,7 @@ where
         *self
             .rich_accounts
             .get(index)
-            .unwrap_or_else(|| panic!("not enough rich accounts (#{} was requested)", index,))
+            .unwrap_or_else(|| panic!("not enough rich accounts (#{index} was requested)",))
     }
 
     pub fn l1_provider(&self) -> DynProvider<Ethereum> {
@@ -282,7 +286,7 @@ where
             .get_block_by_hash(receipt.block_hash_ext()?)
             .full()
             .await?
-            .with_context(|| format!("block (hash={}) not found", hash))
+            .with_context(|| format!("block (hash={hash}) not found"))
     }
 
     pub async fn get_blocks_by_receipts(

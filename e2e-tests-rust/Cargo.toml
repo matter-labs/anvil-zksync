@@ -1,6 +1,6 @@
 [package]
 name = "anvil-zksync_e2e_tests"
-edition = "2021"
+edition = "2024"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 homepage = "https://zksync.io/"
 repository = "https://github.com/matter-labs/anvil-zksync"
@@ -11,8 +11,17 @@ publish = false
 
 [dependencies]
 # Keep `alloy-zksync` version in sync with base `alloy` crate to avoid two different sets of dependencies
-alloy-zksync = "0.12.5"
-alloy = { version = "0.12.5", features = ["full", "rlp", "serde", "getrandom", "provider-anvil-api", "provider-anvil-node", "json-rpc", "contract"] }
+alloy-zksync = "=1.0.7-alpha.1"
+alloy = { version = "=1.0.7", features = [
+    "full",
+    "rlp",
+    "serde",
+    "getrandom",
+    "provider-anvil-api",
+    "provider-anvil-node",
+    "json-rpc",
+    "contract",
+] }
 
 anyhow = "1.0"
 fs2 = "0.4.3"

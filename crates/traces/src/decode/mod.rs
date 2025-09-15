@@ -7,11 +7,11 @@
 // Note: These methods are used under the terms of the original project's license.                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-use crate::identifier::SingleSignaturesIdentifier;
+use crate::identifier::SignaturesIdentifier;
 use alloy::dyn_abi::{DecodedEvent, DynSolValue, EventExt, FunctionExt, JsonAbiExt};
 use alloy::json_abi::{Event, Function};
-use alloy::primitives::{LogData, Selector, Sign, B256};
-use anvil_zksync_common::address_map::KNOWN_ADDRESSES;
+use alloy::primitives::{B256, LogData, Selector, Sign};
+use anvil_zksync_common::address_map::{KNOWN_ADDRESSES, is_precompile};
 use anvil_zksync_types::numbers::SignedU256;
 use anvil_zksync_types::traces::{
     CallTrace, CallTraceNode, DecodedCallData, DecodedCallEvent, DecodedCallTrace,
@@ -63,7 +63,7 @@ impl CallTraceDecoderBuilderBase {
 
     /// Sets the signature identifier for events and functions.
     #[inline]
-    pub fn with_signature_identifier(mut self, identifier: SingleSignaturesIdentifier) -> Self {
+    pub fn with_signature_identifier(mut self, identifier: SignaturesIdentifier) -> Self {
         self.decoder.signature_identifier = Some(identifier);
         self
     }
@@ -98,7 +98,7 @@ pub struct CallTraceDecoder {
     /// All known functions.
     pub functions: HashMap<Selector, Vec<Function>>,
     /// A signature identifier for events and functions.
-    pub signature_identifier: Option<SingleSignaturesIdentifier>,
+    pub signature_identifier: Option<SignaturesIdentifier>,
 }
 
 impl CallTraceDecoder {
@@ -142,16 +142,14 @@ impl CallTraceDecoder {
         let label = self.labels.get(&trace.address).cloned();
         let cdata = &trace.call.input;
 
-        if cdata.len() >= SELECTOR_LEN {
+        if !is_precompile(&trace.address) && cdata.len() >= SELECTOR_LEN {
             let selector = &cdata[..SELECTOR_LEN];
             let mut functions = Vec::new();
             let functions = match self.functions.get(selector) {
                 Some(fs) => fs,
                 None => {
                     if let Some(identifier) = &self.signature_identifier {
-                        if let Some(function) =
-                            identifier.write().await.identify_function(selector).await
-                        {
+                        if let Some(function) = identifier.identify_function(selector).await {
                             functions.push(function);
                         }
                     }
@@ -205,7 +203,7 @@ impl CallTraceDecoder {
     fn decode_function_input(&self, trace: &CallTrace, func: &Function) -> DecodedCallData {
         let mut args = None;
         if trace.call.input.len() >= SELECTOR_LEN && args.is_none() {
-            if let Ok(v) = func.abi_decode_input(&trace.call.input[SELECTOR_LEN..], false) {
+            if let Ok(v) = func.abi_decode_input(&trace.call.input[SELECTOR_LEN..]) {
                 args = Some(
                     v.into_iter()
                         .map(|value| -> DecodedValue {
@@ -230,7 +228,7 @@ impl CallTraceDecoder {
 
         if let Some(values) = funcs
             .iter()
-            .find_map(|func| func.abi_decode_output(&trace.call.output, false).ok())
+            .find_map(|func| func.abi_decode_output(&trace.call.output).ok())
         {
             // Functions coming from an external database do not have any outputs specified,
             // and will lead to returning an empty list of values.
@@ -264,7 +262,7 @@ impl CallTraceDecoder {
             Some(es) => es,
             None => {
                 if let Some(identifier) = &self.signature_identifier {
-                    if let Some(event) = identifier.write().await.identify_event(&t0[..]).await {
+                    if let Some(event) = identifier.identify_event(&t0[..]).await {
                         events.push(get_indexed_event_from_vm_event(event, vm_event));
                     }
                 }
@@ -273,7 +271,7 @@ impl CallTraceDecoder {
         };
         let log_data = vm_event_to_log_data(vm_event);
         for event in events {
-            if let Ok(decoded) = event.decode_log(&log_data, false) {
+            if let Ok(decoded) = event.decode_log(&log_data) {
                 let params = reconstruct_params(event, &decoded);
                 return DecodedCallEvent {
                     name: Some(event.name.clone()),
@@ -314,14 +312,15 @@ impl CallTraceDecoder {
             })
             .unique()
             .collect();
-        identifier.write().await.identify_events(events).await;
+        identifier.identify_events(events).await;
 
         let funcs: Vec<_> = nodes
             .iter()
+            .filter(|&t| !is_precompile(&t.trace.address))
             .filter_map(|n| n.trace.call.input.get(..SELECTOR_LEN).map(|s| s.to_vec()))
             .filter(|s| !self.functions.contains_key(s.as_slice()))
             .collect();
-        identifier.write().await.identify_functions(funcs).await;
+        identifier.identify_functions(funcs).await;
 
         // Need to decode revert reasons and errors as well
     }
@@ -399,7 +398,7 @@ pub fn decode_value(value: DynSolValue) -> DecodedValue {
             DecodedValue::FixedBytes(word32, size)
         }
         DynSolValue::Address(addr) => {
-            let address = Address::from(addr.0 .0);
+            let address = Address::from(addr.0.0);
             DecodedValue::Address(LabeledAddress {
                 label: None,
                 address,

@@ -116,8 +116,11 @@ impl Shell {
     ///
     /// If colors are enabled, the “Warning:” prefix is printed in yellow.
     pub fn warn(&mut self, args: Arguments) -> io::Result<()> {
+        if self.output_mode == OutputMode::Quiet {
+            return Ok(());
+        }
         if self.should_color() {
-            write!(self.stderr, "{}Warning:{} ", WARN, Reset)?;
+            write!(self.stderr, "{WARN}Warning:{Reset} ")?;
         } else {
             write!(self.stderr, "Warning: ")?;
         }
@@ -131,7 +134,7 @@ impl Shell {
     /// If colors are enabled, the “Error:” prefix is printed in red.
     pub fn error(&mut self, args: Arguments) -> io::Result<()> {
         if self.should_color() {
-            write!(self.stderr, "{}Error:{} ", ERROR, Reset)?;
+            write!(self.stderr, "{ERROR}Error:{Reset} ")?;
         } else {
             write!(self.stderr, "Error: ")?;
         }

@@ -20,7 +20,31 @@
                 }
             },
             "args": [
-                "run"
+                "run",
+            ],
+            "env": {
+                "CARGO_PROFILE_DEV": "true"
+            },
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug anvil-zksync with zksyncos",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=anvil-zksync",
+                    "--package=anvil-zksync"
+                ],
+                "filter": {
+                    "name": "anvil-zksync",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--use-zksync-os",
+                "run",
             ],
             "env": {
                 "CARGO_PROFILE_DEV": "true"

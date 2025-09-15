@@ -3,6 +3,41 @@
 //
 #![allow(non_camel_case_types)]
 #![allow(unused)]
+#![allow(clippy::uninlined_format_args)]
+#![doc = r"# Domains"]
+#![doc = "- anvil_zksync"]
+#![doc = "   - env"]
+#![doc = "   - generic"]
+#![doc = "   - node"]
+#![doc = "   - gas_estim"]
+#![doc = "   - halt"]
+#![doc = "   - revert"]
+#![doc = "   - state"]
+#![doc = "   - tx_invalid"]
+#![doc = "- compiler"]
+#![doc = "   - llvm_evm"]
+#![doc = "   - llvm_era"]
+#![doc = "   - solc"]
+#![doc = "   - solc_fork"]
+#![doc = "   - zksolc"]
+#![doc = "   - zkvyper"]
+#![doc = "- core"]
+#![doc = "   - api"]
+#![doc = "   - eravm"]
+#![doc = "   - exec"]
+#![doc = "   - seq"]
+#![doc = "- foundry"]
+#![doc = "   - upstream"]
+#![doc = "   - zksync"]
+#![doc = "- hardhat"]
+#![doc = "   - upstream"]
+#![doc = "   - zksync"]
+#![cfg_attr(not(feature = "std"), no_std)]
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+#[cfg(not(feature = "std"))]
+use alloc::format;
+#[cfg(feature = "runtime_documentation")]
 pub mod documentation;
 pub(crate) mod error;
 pub use error::CustomErrorMessage;
@@ -16,13 +51,31 @@ pub use identifier::Identifying;
 pub use identifier::StructuredErrorCode;
 pub(crate) mod kind;
 pub use kind::Kind;
+#[cfg(feature = "packed_errors")]
 pub mod packed;
+#[cfg(feature = "serialized_errors")]
 pub mod serialized;
+#[cfg(feature = "serialized_errors")]
 pub mod untyped;
 pub use crate::error::domains::ZksyncError;
+#[doc = "AnvilZksyncError"]
+#[doc = "   - env"]
+#[doc = "   - generic"]
+#[doc = "   - node"]
+#[doc = "   - gas_estim"]
+#[doc = "   - halt"]
+#[doc = "   - revert"]
+#[doc = "   - state"]
+#[doc = "   - tx_invalid"]
 pub mod anvil_zksync {
     pub use crate::error::domains::AnvilZksync as AnvilZksyncError;
     pub use crate::error::domains::AnvilZksyncCode;
+    #[doc = "# AnvilEnvironment"]
+    #[doc = "   - InvalidArguments"]
+    #[doc = "   - ServerStartupFailed"]
+    #[doc = "   - LogFileAccessFailed"]
+    #[doc = "   - LogFileWriteFailed"]
+    #[doc = "   - GenericError"]
     pub mod env {
         pub use crate::error::definitions::AnvilEnvironment as AnvilEnvironmentError;
         pub type AnvilEnvironmentResult<T> = core::result::Result<T, AnvilEnvironmentError>;
@@ -32,61 +85,136 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::AnvilEnvironment::LogFileWriteFailed;
         pub use crate::error::definitions::AnvilEnvironment::ServerStartupFailed;
         pub use crate::error::definitions::AnvilEnvironmentCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! anvil_zksync_env_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: env :: AnvilEnvironmentError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::anvil_zksync_env_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> AnvilEnvironmentError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> AnvilEnvironmentError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::AnvilEnvironment(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
-    pub mod gen {
+    #[doc = "# AnvilGeneric"]
+    #[doc = "   - GenericError"]
+    pub mod generic {
         pub use crate::error::definitions::AnvilGeneric as AnvilGenericError;
         pub type AnvilGenericResult<T> = core::result::Result<T, AnvilGenericError>;
         pub use crate::error::definitions::AnvilGeneric::GenericError;
         pub use crate::error::definitions::AnvilGenericCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
-        macro_rules ! anvil_zksync_gen_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: gen :: AnvilGenericError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
-        pub use crate::anvil_zksync_gen_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> AnvilGenericError {
+        macro_rules ! anvil_zksync_generic_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: generic :: AnvilGenericError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zksync_generic_generic_error as generic_error;
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> AnvilGenericError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::AnvilGeneric(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# AnvilNode"]
+    #[doc = "   - TransactionHalt"]
+    #[doc = "   - TransactionValidationFailed"]
+    #[doc = "   - TransactionGasEstimationFailed"]
+    #[doc = "   - TimestampBackwardsError"]
+    #[doc = "   - SerializationError"]
+    #[doc = "   - GenericError"]
     pub mod node {
         pub use crate::error::definitions::AnvilNode as AnvilNodeError;
         pub type AnvilNodeResult<T> = core::result::Result<T, AnvilNodeError>;
         pub use crate::error::definitions::AnvilNode::GenericError;
+        pub use crate::error::definitions::AnvilNode::SerializationError;
         pub use crate::error::definitions::AnvilNode::TimestampBackwardsError;
+        pub use crate::error::definitions::AnvilNode::TransactionGasEstimationFailed;
         pub use crate::error::definitions::AnvilNode::TransactionHalt;
         pub use crate::error::definitions::AnvilNode::TransactionValidationFailed;
         pub use crate::error::definitions::AnvilNodeCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! anvil_zksync_node_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: node :: AnvilNodeError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::anvil_zksync_node_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> AnvilNodeError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> AnvilNodeError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::AnvilNode(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# GasEstimation"]
+    #[doc = "   - ExceedsLimitForPublishedPubdata"]
+    #[doc = "   - ExceedsBlockGasLimit"]
+    #[doc = "   - TransactionHalt"]
+    #[doc = "   - TransactionRevert"]
+    #[doc = "   - TransactionAlwaysHalts"]
+    #[doc = "   - TransactionAlwaysReverts"]
+    #[doc = "   - GenericError"]
+    pub mod gas_estim {
+        pub use crate::error::definitions::GasEstimation as GasEstimationError;
+        pub type GasEstimationResult<T> = core::result::Result<T, GasEstimationError>;
+        pub use crate::error::definitions::GasEstimation::ExceedsBlockGasLimit;
+        pub use crate::error::definitions::GasEstimation::ExceedsLimitForPublishedPubdata;
+        pub use crate::error::definitions::GasEstimation::GenericError;
+        pub use crate::error::definitions::GasEstimation::TransactionAlwaysHalts;
+        pub use crate::error::definitions::GasEstimation::TransactionAlwaysReverts;
+        pub use crate::error::definitions::GasEstimation::TransactionHalt;
+        pub use crate::error::definitions::GasEstimation::TransactionRevert;
+        pub use crate::error::definitions::GasEstimationCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
+        #[macro_export]
+        macro_rules ! anvil_zksync_gas_estim_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: gas_estim :: GasEstimationError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
+        pub use crate::anvil_zksync_gas_estim_generic_error as generic_error;
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> GasEstimationError {
+            GenericError {
+                message: format!("{}", err),
+            }
+        }
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
+            super::AnvilZksyncError::GasEstimation(GenericError {
+                message: format!("{}", err),
+            })
+        }
+    }
+    #[doc = "# Halt"]
+    #[doc = "   - ValidationFailed"]
+    #[doc = "   - PaymasterValidationFailed"]
+    #[doc = "   - PrePaymasterPreparationFailed"]
+    #[doc = "   - PayForTxFailed"]
+    #[doc = "   - FailedToMarkFactoryDependencies"]
+    #[doc = "   - FailedToChargeFee"]
+    #[doc = "   - FromIsNotAnAccount"]
+    #[doc = "   - InnerTxError"]
+    #[doc = "   - Unknown"]
+    #[doc = "   - UnexpectedVMBehavior"]
+    #[doc = "   - BootloaderOutOfGas"]
+    #[doc = "   - ValidationOutOfGas"]
+    #[doc = "   - TooBigGasLimit"]
+    #[doc = "   - NotEnoughGasProvided"]
+    #[doc = "   - MissingInvocationLimitReached"]
+    #[doc = "   - FailedToSetL2Block"]
+    #[doc = "   - FailedToAppendTransactionToL2Block"]
+    #[doc = "   - VMPanic"]
+    #[doc = "   - TracerCustom"]
+    #[doc = "   - FailedToPublishCompressedBytecodes"]
+    #[doc = "   - FailedBlockTimestampAssertion"]
+    #[doc = "   - GenericError"]
     pub mod halt {
         pub use crate::error::definitions::Halt as HaltError;
         pub type HaltResult<T> = core::result::Result<T, HaltError>;
@@ -113,20 +241,28 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::Halt::ValidationFailed;
         pub use crate::error::definitions::Halt::ValidationOutOfGas;
         pub use crate::error::definitions::HaltCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! anvil_zksync_halt_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: halt :: HaltError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::anvil_zksync_halt_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> HaltError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> HaltError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::Halt(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# Revert"]
+    #[doc = "   - General"]
+    #[doc = "   - InnerTxError"]
+    #[doc = "   - VmError"]
+    #[doc = "   - Unknown"]
+    #[doc = "   - GenericError"]
     pub mod revert {
         pub use crate::error::definitions::Revert as RevertError;
         pub type RevertResult<T> = core::result::Result<T, RevertError>;
@@ -136,20 +272,30 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::Revert::Unknown;
         pub use crate::error::definitions::Revert::VmError;
         pub use crate::error::definitions::RevertCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! anvil_zksync_revert_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: revert :: RevertError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::anvil_zksync_revert_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> RevertError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> RevertError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::Revert(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# StateLoader"]
+    #[doc = "   - LoadingStateOverExistingState"]
+    #[doc = "   - LoadEmptyState"]
+    #[doc = "   - StateDecompression"]
+    #[doc = "   - StateDeserialization"]
+    #[doc = "   - UnknownStateVersion"]
+    #[doc = "   - StateFileAccess"]
+    #[doc = "   - GenericError"]
     pub mod state {
         pub use crate::error::definitions::StateLoader as StateLoaderError;
         pub type StateLoaderResult<T> = core::result::Result<T, StateLoaderError>;
@@ -161,20 +307,28 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::StateLoader::StateFileAccess;
         pub use crate::error::definitions::StateLoader::UnknownStateVersion;
         pub use crate::error::definitions::StateLoaderCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! anvil_zksync_state_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: state :: StateLoaderError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::anvil_zksync_state_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> StateLoaderError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> StateLoaderError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::StateLoader(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# TransactionValidation"]
+    #[doc = "   - InvalidGasLimit"]
+    #[doc = "   - GasPerPubdataLimit"]
+    #[doc = "   - MaxFeePerGasTooLow"]
+    #[doc = "   - MaxPriorityFeeGreaterThanMaxFee"]
+    #[doc = "   - GenericError"]
     pub mod tx_invalid {
         pub use crate::error::definitions::TransactionValidation as TransactionValidationError;
         pub type TransactionValidationResult<T> =
@@ -185,300 +339,377 @@ pub mod anvil_zksync {
         pub use crate::error::definitions::TransactionValidation::MaxFeePerGasTooLow;
         pub use crate::error::definitions::TransactionValidation::MaxPriorityFeeGreaterThanMaxFee;
         pub use crate::error::definitions::TransactionValidationCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! anvil_zksync_tx_invalid_generic_error { ($ ($ arg : tt) *) => { zksync_error :: anvil_zksync :: tx_invalid :: TransactionValidationError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::anvil_zksync_tx_invalid_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> TransactionValidationError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> TransactionValidationError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::AnvilZksyncError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::AnvilZksyncError {
             super::AnvilZksyncError::TransactionValidation(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
 }
+#[doc = "CompilerError"]
+#[doc = "   - llvm_evm"]
+#[doc = "   - llvm_era"]
+#[doc = "   - solc"]
+#[doc = "   - solc_fork"]
+#[doc = "   - zksolc"]
+#[doc = "   - zkvyper"]
 pub mod compiler {
     pub use crate::error::domains::Compiler as CompilerError;
     pub use crate::error::domains::CompilerCode;
+    #[doc = "# LLVM_EVM"]
+    #[doc = "   - GenericError"]
     pub mod llvm_evm {
         pub use crate::error::definitions::LLVM_EVM as LLVM_EVMError;
         pub type LLVM_EVMResult<T> = core::result::Result<T, LLVM_EVMError>;
-        pub use crate::error::definitions::LLVM_EVMCode as ErrorCode;
         pub use crate::error::definitions::LLVM_EVM::GenericError;
+        pub use crate::error::definitions::LLVM_EVMCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! compiler_llvm_evm_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: llvm_evm :: LLVM_EVMError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_llvm_evm_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> LLVM_EVMError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> LLVM_EVMError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CompilerError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::LLVM_EVM(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# LLVM_Era"]
+    #[doc = "   - GenericError"]
     pub mod llvm_era {
         pub use crate::error::definitions::LLVM_Era as LLVM_EraError;
         pub type LLVM_EraResult<T> = core::result::Result<T, LLVM_EraError>;
         pub use crate::error::definitions::LLVM_Era::GenericError;
         pub use crate::error::definitions::LLVM_EraCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! compiler_llvm_era_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: llvm_era :: LLVM_EraError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_llvm_era_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> LLVM_EraError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> LLVM_EraError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CompilerError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::LLVM_Era(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# Solc"]
+    #[doc = "   - GenericError"]
     pub mod solc {
         pub use crate::error::definitions::Solc as SolcError;
         pub type SolcResult<T> = core::result::Result<T, SolcError>;
         pub use crate::error::definitions::Solc::GenericError;
         pub use crate::error::definitions::SolcCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! compiler_solc_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: solc :: SolcError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_solc_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> SolcError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> SolcError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CompilerError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::Solc(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# SolcFork"]
+    #[doc = "   - GenericError"]
     pub mod solc_fork {
         pub use crate::error::definitions::SolcFork as SolcForkError;
         pub type SolcForkResult<T> = core::result::Result<T, SolcForkError>;
         pub use crate::error::definitions::SolcFork::GenericError;
         pub use crate::error::definitions::SolcForkCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! compiler_solc_fork_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: solc_fork :: SolcForkError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_solc_fork_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> SolcForkError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> SolcForkError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CompilerError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::SolcFork(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# Zksolc"]
+    #[doc = "   - GenericError"]
     pub mod zksolc {
         pub use crate::error::definitions::Zksolc as ZksolcError;
         pub type ZksolcResult<T> = core::result::Result<T, ZksolcError>;
         pub use crate::error::definitions::Zksolc::GenericError;
         pub use crate::error::definitions::ZksolcCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! compiler_zksolc_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: zksolc :: ZksolcError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_zksolc_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> ZksolcError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> ZksolcError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CompilerError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::Zksolc(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# Zkvyper"]
+    #[doc = "   - GenericError"]
     pub mod zkvyper {
         pub use crate::error::definitions::Zkvyper as ZkvyperError;
         pub type ZkvyperResult<T> = core::result::Result<T, ZkvyperError>;
         pub use crate::error::definitions::Zkvyper::GenericError;
         pub use crate::error::definitions::ZkvyperCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! compiler_zkvyper_generic_error { ($ ($ arg : tt) *) => { zksync_error :: compiler :: zkvyper :: ZkvyperError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::compiler_zkvyper_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> ZkvyperError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> ZkvyperError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CompilerError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CompilerError {
             super::CompilerError::Zkvyper(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
 }
+#[doc = "CoreError"]
+#[doc = "   - api"]
+#[doc = "   - eravm"]
+#[doc = "   - exec"]
+#[doc = "   - seq"]
 pub mod core {
     pub use crate::error::domains::Core as CoreError;
     pub use crate::error::domains::CoreCode;
+    #[doc = "# API"]
+    #[doc = "   - GenericError"]
     pub mod api {
         pub use crate::error::definitions::API as APIError;
         pub type APIResult<T> = core::result::Result<T, APIError>;
-        pub use crate::error::definitions::APICode as ErrorCode;
         pub use crate::error::definitions::API::GenericError;
+        pub use crate::error::definitions::APICode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! core_api_generic_error { ($ ($ arg : tt) *) => { zksync_error :: core :: api :: APIError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::core_api_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> APIError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> APIError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CoreError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CoreError {
             super::CoreError::API(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# EraVM"]
+    #[doc = "   - GenericError"]
     pub mod eravm {
         pub use crate::error::definitions::EraVM as EraVMError;
         pub type EraVMResult<T> = core::result::Result<T, EraVMError>;
         pub use crate::error::definitions::EraVM::GenericError;
         pub use crate::error::definitions::EraVMCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! core_eravm_generic_error { ($ ($ arg : tt) *) => { zksync_error :: core :: eravm :: EraVMError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::core_eravm_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> EraVMError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> EraVMError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CoreError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CoreError {
             super::CoreError::EraVM(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# ExecutionPlatform"]
+    #[doc = "   - GenericError"]
     pub mod exec {
         pub use crate::error::definitions::ExecutionPlatform as ExecutionPlatformError;
         pub type ExecutionPlatformResult<T> = core::result::Result<T, ExecutionPlatformError>;
         pub use crate::error::definitions::ExecutionPlatform::GenericError;
         pub use crate::error::definitions::ExecutionPlatformCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! core_exec_generic_error { ($ ($ arg : tt) *) => { zksync_error :: core :: exec :: ExecutionPlatformError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::core_exec_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> ExecutionPlatformError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> ExecutionPlatformError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CoreError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CoreError {
             super::CoreError::ExecutionPlatform(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# Sequencer"]
+    #[doc = "   - GenericSequencerError"]
+    #[doc = "   - GenericError"]
     pub mod seq {
         pub use crate::error::definitions::Sequencer as SequencerError;
         pub type SequencerResult<T> = core::result::Result<T, SequencerError>;
         pub use crate::error::definitions::Sequencer::GenericError;
         pub use crate::error::definitions::Sequencer::GenericSequencerError;
         pub use crate::error::definitions::SequencerCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! core_seq_generic_error { ($ ($ arg : tt) *) => { zksync_error :: core :: seq :: SequencerError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::core_seq_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> SequencerError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> SequencerError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::CoreError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::CoreError {
             super::CoreError::Sequencer(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
 }
+#[doc = "FoundryError"]
+#[doc = "   - upstream"]
+#[doc = "   - zksync"]
 pub mod foundry {
     pub use crate::error::domains::Foundry as FoundryError;
     pub use crate::error::domains::FoundryCode;
+    #[doc = "# FoundryUpstream"]
+    #[doc = "   - GenericError"]
     pub mod upstream {
         pub use crate::error::definitions::FoundryUpstream as FoundryUpstreamError;
         pub type FoundryUpstreamResult<T> = core::result::Result<T, FoundryUpstreamError>;
         pub use crate::error::definitions::FoundryUpstream::GenericError;
         pub use crate::error::definitions::FoundryUpstreamCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! foundry_upstream_generic_error { ($ ($ arg : tt) *) => { zksync_error :: foundry :: upstream :: FoundryUpstreamError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::foundry_upstream_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> FoundryUpstreamError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> FoundryUpstreamError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::FoundryError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::FoundryError {
             super::FoundryError::FoundryUpstream(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# FoundryZksync"]
+    #[doc = "   - GenericError"]
     pub mod zksync {
         pub use crate::error::definitions::FoundryZksync as FoundryZksyncError;
         pub type FoundryZksyncResult<T> = core::result::Result<T, FoundryZksyncError>;
         pub use crate::error::definitions::FoundryZksync::GenericError;
         pub use crate::error::definitions::FoundryZksyncCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! foundry_zksync_generic_error { ($ ($ arg : tt) *) => { zksync_error :: foundry :: zksync :: FoundryZksyncError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::foundry_zksync_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> FoundryZksyncError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> FoundryZksyncError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::FoundryError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::FoundryError {
             super::FoundryError::FoundryZksync(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
 }
+#[doc = "HardhatError"]
+#[doc = "   - upstream"]
+#[doc = "   - zksync"]
 pub mod hardhat {
     pub use crate::error::domains::Hardhat as HardhatError;
     pub use crate::error::domains::HardhatCode;
+    #[doc = "# HardhatUpstream"]
+    #[doc = "   - GenericError"]
     pub mod upstream {
         pub use crate::error::definitions::HardhatUpstream as HardhatUpstreamError;
         pub type HardhatUpstreamResult<T> = core::result::Result<T, HardhatUpstreamError>;
         pub use crate::error::definitions::HardhatUpstream::GenericError;
         pub use crate::error::definitions::HardhatUpstreamCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! hardhat_upstream_generic_error { ($ ($ arg : tt) *) => { zksync_error :: hardhat :: upstream :: HardhatUpstreamError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::hardhat_upstream_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> HardhatUpstreamError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> HardhatUpstreamError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::HardhatError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::HardhatError {
             super::HardhatError::HardhatUpstream(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }
+    #[doc = "# HardhatZksync"]
+    #[doc = "   - GenericError"]
     pub mod zksync {
         pub use crate::error::definitions::HardhatZksync as HardhatZksyncError;
         pub type HardhatZksyncResult<T> = core::result::Result<T, HardhatZksyncError>;
         pub use crate::error::definitions::HardhatZksync::GenericError;
         pub use crate::error::definitions::HardhatZksyncCode as ErrorCode;
+        #[cfg(not(feature = "std"))]
+        use alloc::format;
         #[macro_export]
         macro_rules ! hardhat_zksync_generic_error { ($ ($ arg : tt) *) => { zksync_error :: hardhat :: zksync :: HardhatZksyncError :: GenericError { message : format ! ($ ($ arg) *) } } ; }
         pub use crate::hardhat_zksync_generic_error as generic_error;
-        pub fn to_generic<T: std::fmt::Display>(err: T) -> HardhatZksyncError {
+        pub fn to_generic<T: core::fmt::Display>(err: T) -> HardhatZksyncError {
             GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             }
         }
-        pub fn to_domain<T: std::fmt::Display>(err: T) -> super::HardhatError {
+        pub fn to_domain<T: core::fmt::Display>(err: T) -> super::HardhatError {
             super::HardhatError::HardhatZksync(GenericError {
-                message: err.to_string(),
+                message: format!("{}", err),
             })
         }
     }

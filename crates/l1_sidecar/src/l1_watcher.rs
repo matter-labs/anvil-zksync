@@ -1,19 +1,18 @@
 use crate::contracts::NewPriorityRequest;
 use crate::zkstack_config::ZkstackConfig;
 use alloy::eips::BlockId;
-use alloy::providers::Provider;
+use alloy::providers::{DynProvider, Provider};
 use alloy::rpc::types::Filter;
 use alloy::sol_types::SolEvent;
 use anvil_zksync_core::node::TxPool;
 use anyhow::Context;
-use std::sync::Arc;
 use std::time::Duration;
 use zksync_types::l1::L1Tx;
-use zksync_types::{PriorityOpId, L2_MESSAGE_ROOT_ADDRESS};
+use zksync_types::{L2_MESSAGE_ROOT_ADDRESS, PriorityOpId};
 
 /// Node component responsible for saving new priority L1 transactions to transaction pool.
 pub struct L1Watcher {
-    provider: Arc<dyn Provider + 'static>,
+    provider: DynProvider,
     pool: TxPool,
     addresses: Vec<alloy::primitives::Address>,
 
@@ -22,11 +21,7 @@ pub struct L1Watcher {
 }
 
 impl L1Watcher {
-    pub fn new(
-        zkstack_config: &ZkstackConfig,
-        provider: Arc<dyn Provider + 'static>,
-        pool: TxPool,
-    ) -> Self {
+    pub fn new(zkstack_config: &ZkstackConfig, provider: DynProvider, pool: TxPool) -> Self {
         let addresses = vec![
             alloy::primitives::Address::from(zkstack_config.contracts.l1.diamond_proxy_addr.0),
             alloy::primitives::Address::from(zkstack_config.contracts.l1.governance_addr.0),

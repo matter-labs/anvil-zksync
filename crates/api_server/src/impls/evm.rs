@@ -1,6 +1,6 @@
 use anvil_zksync_api_decl::EvmNamespaceServer;
 use anvil_zksync_core::node::InMemoryNode;
-use jsonrpsee::core::{async_trait, RpcResult};
+use jsonrpsee::core::{RpcResult, async_trait};
 
 use crate::error::RpcErrorAdapter;
 

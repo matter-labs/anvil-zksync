@@ -6,13 +6,13 @@ use crate::node::keys::StorageKeyLayout;
 use crate::node::pool::TxBatch;
 use indicatif::ProgressBar;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::{RwLock, mpsc, oneshot};
 use url::Url;
 use zksync_error::anvil_zksync;
 use zksync_error::anvil_zksync::node::{AnvilNodeError, AnvilNodeResult};
-use zksync_types::bytecode::{pad_evm_bytecode, BytecodeHash, BytecodeMarker};
+use zksync_types::bytecode::{BytecodeHash, BytecodeMarker, pad_evm_bytecode};
 use zksync_types::utils::nonces_to_full_nonce;
-use zksync_types::{get_code_key, u256_to_h256, Address, L2BlockNumber, StorageKey, U256};
+use zksync_types::{Address, L2BlockNumber, StorageKey, U256, get_code_key, u256_to_h256};
 
 pub struct NodeExecutor {
     node_inner: Arc<RwLock<InMemoryNodeInner>>,

@@ -9,7 +9,7 @@ use anvil_zksync_types::{
     LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
 use colored::{Colorize, CustomColor};
-use serde_json::{json, to_writer, Value};
+use serde_json::{Value, json, to_writer};
 use std::collections::HashMap;
 use std::fs::File;
 use std::net::{IpAddr, Ipv4Addr};
@@ -22,7 +22,7 @@ pub const VERSION_MESSAGE: &str = concat!(env!("CARGO_PKG_VERSION"));
 
 /// Protocol version that is used in anvil-zksync by default. Should match what is currently
 /// deployed to mainnet.
-pub const DEFAULT_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version30;
+pub const DEFAULT_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version28;
 
 const BANNER: &str = r#"
                       _  _         _____ _  __
@@ -74,8 +74,8 @@ pub struct TestNodeConfig {
     pub bytecode_compression: bool,
     /// Enables EVM interpreter mode
     pub use_evm_interpreter: bool,
-    /// Enables BoojumOS mode (experimental)
-    pub boojum: BoojumConfig,
+    /// Enables ZKsyncOS mode (experimental)
+    pub zksync_os: ZKsyncOsConfig,
     /// Optional chain ID for the node
     pub chain_id: Option<u32>,
     /// L1 gas price (optional override)
@@ -181,7 +181,9 @@ impl Default for BaseTokenConfig {
 impl Default for TestNodeConfig {
     fn default() -> Self {
         // generate some random wallets
-        let genesis_accounts = AccountGenerator::new(10).phrase(DEFAULT_MNEMONIC).gen();
+        let genesis_accounts = AccountGenerator::new(10)
+            .phrase(DEFAULT_MNEMONIC)
+            .generate();
         Self {
             // Node configuration defaults
             config_out: None,
@@ -198,7 +200,7 @@ impl Default for TestNodeConfig {
             override_bytecodes_dir: None,
             bytecode_compression: false,
             use_evm_interpreter: false,
-            boojum: Default::default(),
+            zksync_os: Default::default(),
             chain_id: None,
 
             // Gas configuration defaults
@@ -287,7 +289,7 @@ impl TestNodeConfig {
         // Banner, version and repository section.
         sh_println!(
             r#"
-{} 
+{}
 Version:        {}
 Repository:     {}
 
@@ -316,7 +318,7 @@ Rich Accounts
         let mut private_keys = String::new();
         for (idx, account) in self.genesis_accounts.iter().enumerate() {
             let private_key = hex::encode(account.credential().to_bytes());
-            private_keys.push_str(&format!("({}) 0x{}\n", idx, private_key));
+            private_keys.push_str(&format!("({idx}) 0x{private_key}\n"));
         }
         sh_println!(
             r#"
@@ -433,7 +435,7 @@ Node Configuration
 Port:                  {}
 EVM Interpreter:       {}
 Health Check Endpoint: {}
-BoojumOS:              {}
+ZKsync OS:             {}
 L1:                    {}
 "#,
             self.port,
@@ -447,7 +449,7 @@ L1:                    {}
             } else {
                 "Disabled".red()
             },
-            if self.boojum.use_boojum {
+            if self.zksync_os.zksync_os {
                 "Enabled".green()
             } else {
                 "Disabled".red()
@@ -506,9 +508,9 @@ Address: {address}
             private_keys.push(format!("0x{}", hex::encode(wallet.credential().to_bytes())));
         }
 
-        if let Some(ref gen) = self.account_generator {
-            let phrase = gen.get_phrase().to_string();
-            let derivation_path = gen.get_derivation_path().to_string();
+        if let Some(generator) = &self.account_generator {
+            let phrase = generator.get_phrase().to_string();
+            let derivation_path = generator.get_derivation_path().to_string();
 
             wallet_description.insert("derivation_path".to_string(), derivation_path);
             wallet_description.insert("mnemonic".to_string(), phrase);
@@ -654,10 +656,10 @@ Address: {address}
         self
     }
 
-    /// Enable or disable Boojum
+    /// Enable or disable ZKsync OS
     #[must_use]
-    pub fn with_boojum(mut self, boojum: BoojumConfig) -> Self {
-        self.boojum = boojum;
+    pub fn with_zksync_os(mut self, zksync_os: ZKsyncOsConfig) -> Self {
+        self.zksync_os = zksync_os;
         self
     }
 
@@ -919,7 +921,7 @@ Address: {address}
     /// so that `genesis_accounts == accounts`
     #[must_use]
     pub fn with_account_generator(mut self, generator: AccountGenerator) -> Self {
-        let accounts = generator.gen();
+        let accounts = generator.generate();
         self.account_generator = Some(generator);
         self.with_signer_accounts(accounts.clone())
             .with_genesis_accounts(accounts)

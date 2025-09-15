@@ -9,10 +9,10 @@ use zksync_multivm::vm_latest::constants::ETH_CALL_GAS_LIMIT;
 use zksync_multivm::vm_latest::{HistoryDisabled, ToTracerPointer, Vm};
 use zksync_types::l2::L2Tx;
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::{api, api::BlockId, web3::Bytes, PackedEthSignature, Transaction, H256};
+use zksync_types::{H256, PackedEthSignature, Transaction, api, web3::Bytes};
 use zksync_web3_decl::error::Web3Error;
 
-use super::boojumos::BOOJUM_CALL_GAS_LIMIT;
+use super::zksync_os::ZkSyncOSHelpers;
 
 impl InMemoryNode {
     pub async fn trace_block_impl(
@@ -84,8 +84,8 @@ impl InMemoryNode {
         // Match behavior of zksync_core:
         // Protection against infinite-loop eth_calls and alike:
         // limiting the amount of gas the call can use.
-        if self.system_contracts.boojum.use_boojum {
-            l2_tx.common_data.fee.gas_limit = BOOJUM_CALL_GAS_LIMIT.into();
+        if self.system_contracts.zksync_os.zksync_os {
+            l2_tx.common_data.fee.gas_limit = ZkSyncOSHelpers::call_gas_limit().into();
         } else {
             l2_tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
         }
@@ -146,8 +146,8 @@ mod tests {
     use alloy::primitives::{Address as AlloyAddress, U256 as AlloyU256};
     use anvil_zksync_config::constants::DEFAULT_ACCOUNT_BALANCE;
     use zksync_types::{
-        transaction_request::CallRequestBuilder, utils::deployed_address_create, Address,
-        K256PrivateKey, L2BlockNumber, Nonce, H160, U256,
+        Address, H160, K256PrivateKey, L2BlockNumber, Nonce, U256,
+        transaction_request::CallRequestBuilder, utils::deployed_address_create,
     };
 
     use super::*;
@@ -248,7 +248,7 @@ mod tests {
 
         // check that the call was successful
         let output = func
-            .abi_decode_output(trace.output.0.as_slice(), true)
+            .abi_decode_output(trace.output.0.as_slice())
             .expect("failed to decode output");
         assert_eq!(
             output[0],
@@ -372,9 +372,11 @@ mod tests {
                         info: testing::default_tx_execution_info(),
                         new_bytecodes: vec![],
                         receipt: api::TransactionReceipt {
-                            logs: vec![LogBuilder::new()
-                                .set_address(H160::repeat_byte(0xa1))
-                                .build()],
+                            logs: vec![
+                                LogBuilder::new()
+                                    .set_address(H160::repeat_byte(0xa1))
+                                    .build(),
+                            ],
                             ..Default::default()
                         },
                         debug: testing::default_tx_debug_info(),
@@ -403,9 +405,11 @@ mod tests {
                     info: testing::default_tx_execution_info(),
                     new_bytecodes: vec![],
                     receipt: api::TransactionReceipt {
-                        logs: vec![LogBuilder::new()
-                            .set_address(H160::repeat_byte(0xa1))
-                            .build()],
+                        logs: vec![
+                            LogBuilder::new()
+                                .set_address(H160::repeat_byte(0xa1))
+                                .build(),
+                        ],
                         ..Default::default()
                     },
                     debug: testing::default_tx_debug_info(),

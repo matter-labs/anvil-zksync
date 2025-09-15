@@ -7,9 +7,9 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_multivm::interface::{
+    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv, VmExecutionResultAndLogs,
     executor::BatchExecutor,
     storage::{ReadStorage, StorageView},
-    BatchTransactionExecutionResult, FinishedL1Batch, L2BlockEnv, VmExecutionResultAndLogs,
 };
 use zksync_types::Transaction;
 
@@ -181,14 +181,12 @@ where
         Ok((finished_batch, storage_view))
     }
 
-    #[tracing::instrument(skip_all)]
-    async fn commit_l2_block(&mut self) -> anyhow::Result<()> {
-        Ok(())
+    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
+        todo!();
     }
 
-    #[tracing::instrument(skip_all)]
-    async fn rollback_l2_block(&mut self) -> anyhow::Result<()> {
-        Ok(())
+    async fn commit_l2_block(&mut self) -> anyhow::Result<()> {
+        todo!();
     }
 }
 

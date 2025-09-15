@@ -1,6 +1,6 @@
-use alloy::primitives::{hex, Address};
+use alloy::primitives::{Address, hex};
 use alloy::{sol, sol_types::SolCall};
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 

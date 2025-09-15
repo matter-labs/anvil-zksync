@@ -1,9 +1,9 @@
+use crate::error::{RpcErrorAdapter, rpc_unsupported};
 use anvil_zksync_api_decl::ZksNamespaceServer;
 use anvil_zksync_core::node::InMemoryNode;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use function_name::named;
-use jsonrpsee::core::{async_trait, RpcResult};
-use std::collections::HashMap;
+use jsonrpsee::core::{RpcResult, async_trait};
 use zksync_types::api::state_override::StateOverride;
 use zksync_types::api::{
     BlockDetails, BridgeAddresses, InteropMode, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -12,10 +12,7 @@ use zksync_types::api::{
 use zksync_types::fee::Fee;
 use zksync_types::fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput};
 use zksync_types::transaction_request::CallRequest;
-use zksync_types::{Address, L1BatchNumber, L2BlockNumber, Transaction, H256, U256, U64};
-use zksync_web3_decl::types::Token;
-
-use crate::error::{rpc_unsupported, RpcErrorAdapter};
+use zksync_types::{Address, H256, L1BatchNumber, L2BlockNumber, Transaction, U64, U256};
 
 pub struct ZksNamespace {
     node: InMemoryNode,
@@ -170,6 +167,13 @@ impl ZksNamespaceServer for ZksNamespace {
     async fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>> {
         self.node
             .get_bytecode_by_hash_impl(hash)
+            .await
+            .map_err(RpcErrorAdapter::into)
+    }
+
+    async fn gas_per_pubdata(&self) -> RpcResult<U256> {
+        self.node
+            .gas_per_pubdata_impl()
             .await
             .map_err(RpcErrorAdapter::into)
     }

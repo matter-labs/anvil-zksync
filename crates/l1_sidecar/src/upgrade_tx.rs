@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::collections::HashMap;
-use zksync_types::{Address, Execute, ProtocolVersionId, H256};
+use zksync_types::{Address, Execute, H256, ProtocolVersionId};
 
 static BUILTIN_UPGRADE_TXS: Lazy<HashMap<ProtocolVersionId, UpgradeTx>> = Lazy::new(|| {
     HashMap::from_iter([
@@ -23,6 +23,13 @@ static BUILTIN_UPGRADE_TXS: Lazy<HashMap<ProtocolVersionId, UpgradeTx>> = Lazy::
             ProtocolVersionId::Version28,
             serde_json::from_slice::<UpgradeTx>(include_bytes!(
                 "../../../l1-setup/state/v28-l2-upgrade-tx.json"
+            ))
+            .unwrap(),
+        ),
+        (
+            ProtocolVersionId::Version29,
+            serde_json::from_slice::<UpgradeTx>(include_bytes!(
+                "../../../l1-setup/state/v29-l2-upgrade-tx.json"
             ))
             .unwrap(),
         ),
