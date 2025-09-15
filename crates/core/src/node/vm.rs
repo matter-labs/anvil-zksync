@@ -1,4 +1,4 @@
-use zksync_multivm::{HistoryMode, interface::storage::WriteStorage, vm_latest::Vm};
+use zksync_multivm::{interface::storage::WriteStorage, vm_latest::Vm, HistoryMode};
 
 use super::zksync_os::ZKsyncOsVM;
 

@@ -8,12 +8,12 @@ use anvil_zksync_types::ShowStorageLogs;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_types::h256_to_u256;
 use zksync_types::{
-    BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, StorageKey,
     utils::storage_key_for_eth_balance,
     writes::{
-        BYTES_PER_DERIVED_KEY, BYTES_PER_ENUMERATION_INDEX,
-        compression::compress_with_best_strategy,
+        compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
+        BYTES_PER_ENUMERATION_INDEX,
     },
+    StorageKey, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{StorageLogKind, StorageLogWithPreviousValue};
 

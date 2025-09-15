@@ -20,8 +20,8 @@ use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::bytecode::BytecodeHash;
 use zksync_types::web3::Bytes;
 use zksync_types::{
-    H256, L2BlockNumber, L2ChainId, ProtocolVersionId, SLChainId, SYSTEM_CONTEXT_CHAIN_ID_POSITION,
-    StorageKey, StorageValue, get_system_context_key, h256_to_u256,
+    get_system_context_key, h256_to_u256, L2BlockNumber, L2ChainId, ProtocolVersionId, SLChainId,
+    StorageKey, StorageValue, H256, SYSTEM_CONTEXT_CHAIN_ID_POSITION,
 };
 
 /// In memory storage, that allows 'forking' from other network.
@@ -299,7 +299,7 @@ mod serde_from {
     use std::collections::BTreeMap;
     use std::convert::TryFrom;
     use zksync_types::web3::Bytes;
-    use zksync_types::{AccountTreeId, Address, H256, StorageKey, StorageValue};
+    use zksync_types::{AccountTreeId, Address, StorageKey, StorageValue, H256};
 
     impl From<BTreeMap<SerializableStorageKey, StorageValue>> for SerializableStorage {
         fn from(value: BTreeMap<SerializableStorageKey, StorageValue>) -> Self {
@@ -365,11 +365,11 @@ mod tests {
     };
     use anvil_zksync_config::types::SystemContractsOptions;
     use zksync_multivm::interface::storage::ReadStorage;
+    use zksync_types::{api::TransactionVariant, L2BlockNumber, ProtocolVersionId, StorageKey};
     use zksync_types::{
-        AccountTreeId, H256, L1BatchNumber, L2ChainId, SYSTEM_CONTEXT_CHAIN_ID_POSITION,
-        get_system_context_key,
+        get_system_context_key, AccountTreeId, L1BatchNumber, L2ChainId, H256,
+        SYSTEM_CONTEXT_CHAIN_ID_POSITION,
     };
-    use zksync_types::{L2BlockNumber, ProtocolVersionId, StorageKey, api::TransactionVariant};
 
     #[test]
     fn test_initial_writes() {

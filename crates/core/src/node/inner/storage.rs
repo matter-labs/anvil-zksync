@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use zksync_multivm::interface::storage::ReadStorage;
-use zksync_types::{H256, StorageKey, StorageValue};
+use zksync_types::{StorageKey, StorageValue, H256};
 
 #[async_trait]
 pub trait ReadStorageDyn: ReadStorage + Send + Sync {

@@ -1,8 +1,8 @@
-use super::TransactionResult;
 use super::inner::{SerializableForkStorage, SerializableStorage};
+use super::TransactionResult;
 use serde::{Deserialize, Serialize};
-use zksync_types::H256;
 use zksync_types::api::{Block, TransactionVariant};
+use zksync_types::H256;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]

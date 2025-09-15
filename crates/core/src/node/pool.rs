@@ -1,10 +1,10 @@
 use crate::node::impersonate::ImpersonationManager;
 use anvil_zksync_types::{TransactionOrder, TransactionPriority};
-use futures::channel::mpsc::{Receiver, Sender, channel};
+use futures::channel::mpsc::{channel, Receiver, Sender};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard};
-use zksync_types::{H256, Transaction};
+use zksync_types::{Transaction, H256};
 
 #[derive(Debug, Clone)]
 pub struct TxPool {

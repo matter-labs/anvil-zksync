@@ -3,10 +3,10 @@ use std::collections::HashMap;
 
 use anvil_zksync_common::address_map;
 use anvil_zksync_types::traces::LabeledAddress;
+use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::Address;
 use zksync_types::StorageKey;
 use zksync_types::U256;
-use zksync_types::utils::storage_key_for_eth_balance;
 
 ///
 /// Holds a part of account state before and after transaction.
@@ -54,7 +54,7 @@ pub fn extract_balance_diffs(
 
 mod internal {
     use anvil_zksync_types::traces::LabeledAddress;
-    use zksync_types::{Address, H256, h256_to_u256};
+    use zksync_types::{h256_to_u256, Address, H256};
 
     use super::BalanceDiff;
 

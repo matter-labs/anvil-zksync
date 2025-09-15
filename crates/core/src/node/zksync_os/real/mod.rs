@@ -5,14 +5,14 @@ use std::vec;
 use anvil_zksync_config::types::ZKsyncOsConfig;
 use forward_system::run::test_impl::{InMemoryPreimageSource, InMemoryTree};
 use zksync_multivm::{
-    HistoryMode,
     interface::{
+        storage::{StoragePtr, WriteStorage},
         ExecutionResult, InspectExecutionMode, L1BatchEnv, PushTransactionResult, SystemEnv,
         TxExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
-        storage::{StoragePtr, WriteStorage},
     },
     tracers::TracerDispatcher,
     vm_latest::TracerPointer,
+    HistoryMode,
 };
 
 use zksync_multivm::MultiVmTracerPointer;
@@ -24,8 +24,8 @@ mod helpers;
 
 // Only put things that _have_ to be public here.
 pub use self::helpers::{
-    ZKSYNC_OS_CALL_GAS_LIMIT, zksync_os_get_batch_witness, zksync_os_get_nonce_key,
-    zksync_os_storage_key_for_eth_balance,
+    zksync_os_get_batch_witness, zksync_os_get_nonce_key, zksync_os_storage_key_for_eth_balance,
+    ZKSYNC_OS_CALL_GAS_LIMIT,
 };
 
 use self::helpers::*;
