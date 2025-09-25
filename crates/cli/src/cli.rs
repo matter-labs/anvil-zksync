@@ -383,7 +383,6 @@ pub enum Command {
     /// Starts a local network that is a fork of another network, and replays a given TX on it.
     #[command(name = "replay_tx")]
     ReplayTx(ReplayArgs),
-
     /// Fetches debug_traceTransaction for a TX and prints formatted traces (respects -v).
     #[command(name = "debug-trace")]
     DebugTrace(DebugTxArgs),
@@ -469,7 +468,7 @@ pub struct DebugTxArgs {
         value_enum,
         help = "Which network to fork (builtins) or an HTTP(S) URL"
     )]
-    pub rpc_url: ForkUrl,
+    pub fork_url: ForkUrl,
 
     /// Transaction hash to debug.
     pub tx: H256,
@@ -782,7 +781,7 @@ impl Cli {
 
         if let Some(Command::DebugTrace(args)) = &self.command {
             let dt = DebugTraceConfig {
-                rpc_url: args.rpc_url.to_config().url.to_string(),
+                fork_url: args.fork_url.to_config().url.to_string(),
                 tx: args.tx,
                 only_top: args.only_top,
             };

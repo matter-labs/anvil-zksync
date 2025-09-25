@@ -44,7 +44,7 @@ pub struct ForkPrintInfo {
 
 #[derive(Debug, Clone)]
 pub struct DebugTraceConfig {
-    pub rpc_url: String,
+    pub fork_url: String,
     pub tx: H256,
     pub only_top: bool,
 }

@@ -32,7 +32,6 @@ colorchoice.workspace = true
 itertools.workspace = true
 eyre.workspace = true
 once_cell.workspace = true
-serde_json.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

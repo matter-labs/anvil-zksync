@@ -175,7 +175,7 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
             (Some(fork_client), earlier_txs)
         }
         Command::DebugTrace(args) => {
-            let rpc_url = args.rpc_url.to_config().url.to_string();
+            let rpc_url = args.fork_url.to_config().url.to_string();
             let provider = ProviderBuilder::new().connect_http(rpc_url.parse().unwrap());
 
             let call_cfg = CallConfig {
@@ -603,7 +603,6 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
             }
         }
     }
-
     let any_server_stopped =
         futures::future::select_all(server_handles.into_iter().map(|h| Box::pin(h.stopped())));
 

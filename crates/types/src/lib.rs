@@ -2,7 +2,7 @@ pub mod api;
 mod l2_tx_builder;
 mod log;
 pub mod numbers;
-pub mod serde_helpers;
+mod serde_helpers;
 mod show_details;
 pub mod traces;
 mod transaction_order;
