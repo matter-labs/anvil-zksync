@@ -10,6 +10,7 @@ use anvil_zksync_common::{
 use anvil_zksync_config::types::{AccountGenerator, Genesis, SystemContractsOptions};
 use anvil_zksync_config::{BaseTokenConfig, L1Config, TestNodeConfig};
 use anvil_zksync_config::{
+    DebugTraceConfig,
     constants::{DEFAULT_MNEMONIC, TEST_NODE_NETWORK_ID},
     types::ZKsyncOsConfig,
 };
@@ -476,10 +477,6 @@ pub struct DebugTxArgs {
     /// Only top-level call from debug API (passes through to `only_top_call`).
     #[arg(long)]
     pub only_top: bool,
-
-    /// Also print raw debug JSON before the formatted trace.
-    #[arg(long)]
-    pub raw: bool,
 }
 
 // Elastic Network ZK Chains
@@ -694,7 +691,7 @@ impl Cli {
         let debug_self_repr = format!("{self:#?}");
 
         let genesis_balance = U256::from(self.balance as u128 * 10u128.pow(18));
-        let config = TestNodeConfig::default()
+        let mut config = TestNodeConfig::default()
             .with_port(self.port)
             .with_offline(if self.offline { Some(true) } else { None })
             .with_l1_gas_price(self.l1_gas_price)
@@ -781,6 +778,15 @@ impl Cli {
                 details: "EVM interpreter requires protocol version 27 or higher".into(),
                 arguments: debug_self_repr,
             });
+        }
+
+        if let Some(Command::DebugTrace(args)) = &self.command {
+            let dt = DebugTraceConfig {
+                rpc_url: args.rpc_url.to_config().url.to_string(),
+                tx: args.tx,
+                only_top: args.only_top,
+            };
+            config = config.with_debug_trace(Some(dt));
         }
 
         Ok(config)
