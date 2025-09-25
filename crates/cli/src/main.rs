@@ -1,5 +1,5 @@
 use crate::bytecode_override::override_bytecodes;
-use crate::cli::{Cli, Command, DebugTxArgs, PeriodicStateDumper};
+use crate::cli::{Cli, Command, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
 use alloy::primitives::{B256, Bytes};
 use alloy::providers::ProviderBuilder;

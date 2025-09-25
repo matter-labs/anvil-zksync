@@ -1,5 +1,4 @@
-use serde::de::{Error as DeError, Unexpected};
-use serde::{Deserialize, Deserializer, Serializer};
+use serde::Deserialize;
 use zksync_types::U64;
 
 /// Helper type to be able to parse both integers (as `u64`) and hex strings (as `U64`) depending on
