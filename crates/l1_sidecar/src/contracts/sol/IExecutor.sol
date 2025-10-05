@@ -3,6 +3,7 @@
 pragma solidity ^0.8.21;
 
 import {IZKChainBase} from "./IZKChainBase.sol";
+import {L2Log} from "../../common/Messaging.sol";
 
 /// @dev Enum used by L2 System Contracts to differentiate logs.
 enum SystemLogKey {
@@ -32,6 +33,17 @@ struct LogProcessingOutput {
     bytes32 l2DAValidatorOutputHash;
     bytes32 l2TxsStatusRollingHash;
     bytes32 dependencyRootsRollingHash;
+}
+
+
+/// @notice The struct passed to the assetTracker.
+struct ProcessLogsInput {
+    L2Log[] logs;
+    bytes[] messages;
+    uint256 chainId;
+    uint256 batchNumber;
+    bytes32 chainBatchRoot;
+    bytes32 messageRoot;
 }
 
 /// @dev Maximal value that SystemLogKey variable can have.
@@ -228,12 +240,12 @@ interface IExecutor is IZKChainBase {
 
     /// @notice Emitted when a new precommitment is set for a batch.
     /// @param batchNumber The batch number for which the precommitment was recorded.
-    /// @param untrustedLastL2BlockNumberHint The hint to what L2 block number the precommitment should correspond to. Note, that there are no
+    /// @param untrustedLastMiniblockHint The hint to what miniblock the precommitment should correspond to. Note, that there are no
     /// guarantees on its correctness, it is just a way for the server to make external nodes' indexing simpler.
     /// @param precommitment The resulting rolling hash of all transaction statuses.
     event BatchPrecommitmentSet(
         uint256 indexed batchNumber,
-        uint256 indexed untrustedLastL2BlockNumberHint,
+        uint256 indexed untrustedLastMiniblockHint,
         bytes32 precommitment
     );
 }

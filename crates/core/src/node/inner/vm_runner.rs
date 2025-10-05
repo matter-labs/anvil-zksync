@@ -195,7 +195,7 @@ impl VmRunner {
         let mut trace_output = None;
 
         if !call_traces.is_empty() {
-            let mut builder = CallTraceDecoderBuilder::default();
+            let mut builder = CallTraceDecoderBuilder::base();
 
             builder = builder.with_signature_identifier(SignaturesIdentifier::global());
 
@@ -435,10 +435,11 @@ impl VmRunner {
             ));
         };
 
-        let pubdata_params = PubdataParams {
-            l2_da_validator_address: Address::zero(),
-            pubdata_type: PubdataType::Rollup,
-        };
+        let pubdata_params = PubdataParams::new(
+            L2PubdataValidator::CommitmentScheme(L2DACommitmentScheme::BlobsAndPubdataKeccak256),
+            PubdataType::Rollup,
+        )
+        .unwrap();
         let mut executor = if self.system_contracts.zksync_os.zksync_os {
             self.executor_factory.init_main_batch(
                 self.fork_storage.clone(),

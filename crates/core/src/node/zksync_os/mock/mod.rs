@@ -3,17 +3,17 @@
 
 use anvil_zksync_config::types::ZKsyncOsConfig;
 use zksync_multivm::{
-    HistoryMode,
     interface::{
-        L1BatchEnv, SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
         storage::{StoragePtr, WriteStorage},
+        L1BatchEnv, SystemEnv, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::TracerDispatcher,
     vm_latest::TracerPointer,
+    HistoryMode,
 };
 
 use zksync_multivm::MultiVmTracerPointer;
-use zksync_types::{StorageKey, Transaction};
+use zksync_types::{Address, StorageKey, Transaction};
 
 use crate::deps::InMemoryStorage;
 

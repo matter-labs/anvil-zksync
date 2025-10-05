@@ -35,14 +35,14 @@ categories = ["cryptography"]
 #########################
 # ZKsync dependencies  #
 #########################
-zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
-zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
-zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
-zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
-zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
-zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
-zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
-zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
+zksync_mini_merkle_tree = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
+zksync_multivm = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
+zksync_contracts = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
+zksync_basic_types = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
+zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
+zksync_types = { git = "http://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
+zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
+zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", branch = "kl/medium-interop-support" }
 zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "3f8c749249d29786e22208ece7baebd169a722c4", default-features = false }
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "3f8c749249d29786e22208ece7baebd169a722c4" }
@@ -82,7 +82,7 @@ lazy_static = "1.4"
 num = "0.4.3"
 once_cell = "1.7"
 rand = "0.8"
-reqwest = { version = "0.12.12", default-features = false }
+reqwest = { version = "0.12.12", default-features = false, features = ["json", "rustls-tls"] }
 rustc-hash = "1.1.0"
 semver = "1.0.26"
 serde = { version = "1.0", features = ["derive"] }

@@ -23,7 +23,7 @@ mod private {
     alloy::sol!(
         #[sol(rpc)]
         IBridgehub,
-        "src/contracts/artifacts/IBridgehub.json"
+        "src/contracts/artifacts/IBridgehubBase.json"
     );
 
     alloy::sol!(

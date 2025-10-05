@@ -7,7 +7,7 @@ WALLETS_PATH="${BASH_SOURCE%/*}/wallets.yaml"
 # ~75k ETH
 DEFAULT_FUND_AMOUNT=0x10000000000000000000
 
-PROTOCOL_VERSION=${1:-v29}
+PROTOCOL_VERSION=${1:-v30}
 case $PROTOCOL_VERSION in
   v26)
     # HEAD of anvil-zksync-0.4.x-release-v26
@@ -30,6 +30,14 @@ case $PROTOCOL_VERSION in
     ERA_CONTRACTS_GIT_COMMIT=db63f0257db849aa8517101633a23cf530fe34d3
     # HEAD of draft-v29
     ERA_TAG=core-v29.0.0
+    ;;
+  v30)
+    # TODO: update commit hash to HEAD of anvil-zksync-0.6.x-draft-v30
+    # Currently https://github.com/matter-labs/era-contracts/commit/7d9275f48be1e31c26186b8149db28fbd63bb43c ?
+    ERA_CONTRACTS_GIT_COMMIT=7d9275f48be1e31c26186b8149db28fbd63bb43c
+    # HEAD of draft-v30
+    # TODO: update to core-v30.0.0 when it is released
+    ERA_TAG=kl/medium-interop-support
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"

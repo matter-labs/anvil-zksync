@@ -1,7 +1,7 @@
 #!/bin/bash
 set -xe
 
-PROTOCOL_VERSION=${1:-v29}
+PROTOCOL_VERSION=${1:-v30}
 case $PROTOCOL_VERSION in
   v26)
     # HEAD of anvil-zksync-0.4.x-release-v26
@@ -18,6 +18,14 @@ case $PROTOCOL_VERSION in
   v29)
     # HEAD of anvil-zksync-0.6.x-draft-v29
     ERA_CONTRACTS_GIT_COMMIT=db63f0257db849aa8517101633a23cf530fe34d3
+    ;;
+  v29)
+    # HEAD of anvil-zksync-0.6.x-draft-v29
+    ERA_CONTRACTS_GIT_COMMIT=4691b728fa9c411f1286bb574d2698a0aa841f70
+    ;;
+  v30)
+    # TODO: update commit hash so its HEAD of anvil-zksync-0.6.x-draft-v30
+    ERA_CONTRACTS_GIT_COMMIT=e1864ce18b77a9e75ab54da688e4fb23aec9851b
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
@@ -44,7 +52,7 @@ L1_ARTIFACTS_SRC_DIR=contracts/l1-contracts/zkout
 L2_ARTIFACTS_SRC_DIR=contracts/l2-contracts/zkout
 SYSTEM_ARTIFACTS_SRC_DIR=contracts/system-contracts/zkout
 
-l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "L2NativeTokenVault" "L2WrappedBaseToken")
+l1_artifacts=("L2MessageRoot" "L2Bridgehub" "L2AssetRouter" "InteropCenter" "L1AssetTracker" "L2AssetTracker" "InteropHandler" "L2NativeTokenVault" "L2WrappedBaseToken" "L2MessageVerification" "L2ChainAssetHandler")
 l2_artifacts=("TimestampAsserter")
 system_contracts_sol=(
   "AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount"

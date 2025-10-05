@@ -67,12 +67,13 @@ use zksync_types::fee::Fee;
 use zksync_types::fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput};
 use zksync_types::l1::L1Tx;
 use zksync_types::l2::{L2Tx, TransactionType};
+use zksync_types::settlement::SettlementLayer;
 use zksync_types::transaction_request::CallRequest;
 use zksync_types::utils::decompose_full_nonce;
 use zksync_types::web3::{Index, keccak256};
 use zksync_types::{
     AccountTreeId, Address, Bloom, BloomInput, ExecuteTransactionCommon, H160, H256, L1BatchNumber,
-    L2_MESSAGE_ROOT_ADDRESS, L2BlockNumber, L2ChainId, MAX_L2_TX_GAS_LIMIT, StorageKey,
+    L2_MESSAGE_ROOT_ADDRESS, L2BlockNumber, L2ChainId, MAX_L2_TX_GAS_LIMIT, SLChainId, StorageKey,
     StorageValue, Transaction, U64, U256, api, h256_to_u256, u256_to_h256,
 };
 use zksync_web3_decl::error::Web3Error;
@@ -205,6 +206,7 @@ impl InMemoryNodeInner {
                 max_virtual_blocks_to_create: 1,
                 interop_roots: vec![],
             },
+            settlement_layer: SettlementLayer::L1(SLChainId(31337)), // TODO: this is anvil default chainID?
         };
 
         (batch_env, block_ctx)
@@ -941,7 +943,7 @@ impl InMemoryNodeInner {
             }
 
             if !call_traces.is_empty() && verbosity >= 2 {
-                let mut builder = CallTraceDecoderBuilder::default();
+                let mut builder = CallTraceDecoderBuilder::base();
 
                 builder = builder.with_signature_identifier(SignaturesIdentifier::global());
 
