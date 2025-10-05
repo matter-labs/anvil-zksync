@@ -153,8 +153,9 @@ impl CommitmentGenerator {
         let root_hash = commitment_input.common().rollup_root_hash;
         let rollup_last_leaf_index = commitment_input.common().rollup_last_leaf_index;
 
-        let commitment = L1BatchCommitment::new(commitment_input);
-        let mut commitment_artifacts = commitment.artifacts();
+        let commitment = L1BatchCommitment::new(commitment_input, true);
+        let commitment_unwrapped = commitment.unwrap();
+        let mut commitment_artifacts = commitment_unwrapped.artifacts().unwrap();
         if header.number == L1BatchNumber(0) {
             // `l2_l1_merkle_root` for genesis batch is set to 0 on L1 contract, same must be here.
             commitment_artifacts.l2_l1_merkle_root = H256::zero();
@@ -172,7 +173,7 @@ impl CommitmentGenerator {
             repeated_writes_compressed: commitment_artifacts.compressed_repeated_writes,
             commitment: commitment_artifacts.commitment_hash.commitment,
             l2_l1_merkle_root: commitment_artifacts.l2_l1_merkle_root,
-            block_meta_params: commitment.meta_parameters(),
+            block_meta_params: commitment_unwrapped.meta_parameters(),
             aux_data_hash: commitment_artifacts.commitment_hash.aux_output,
             meta_parameters_hash: commitment_artifacts.commitment_hash.meta_parameters,
             pass_through_data_hash: commitment_artifacts.commitment_hash.pass_through_data,

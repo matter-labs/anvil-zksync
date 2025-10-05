@@ -25,7 +25,7 @@ case $PROTOCOL_VERSION in
     ;;
   v30)
     # TODO: update commit hash so its HEAD of anvil-zksync-0.6.x-draft-v30
-    ERA_CONTRACTS_GIT_COMMIT=309deb4739bb712b778159853c8d1449b4ce387e
+    ERA_CONTRACTS_GIT_COMMIT=e1864ce18b77a9e75ab54da688e4fb23aec9851b
     ;;
   *)
     echo "Unrecognized/unsupported protocol version: $PROTOCOL_VERSION"
@@ -52,7 +52,7 @@ L1_ARTIFACTS_SRC_DIR=contracts/l1-contracts/zkout
 L2_ARTIFACTS_SRC_DIR=contracts/l2-contracts/zkout
 SYSTEM_ARTIFACTS_SRC_DIR=contracts/system-contracts/zkout
 
-l1_artifacts=("MessageRoot" "Bridgehub" "L2AssetRouter" "InteropCenter" "L1AssetTracker" "L2AssetTracker" "InteropHandler" "L2NativeTokenVault" "L2WrappedBaseToken" "L2MessageVerification" "ChainAssetHandler")
+l1_artifacts=("L2MessageRoot" "L2Bridgehub" "L2AssetRouter" "InteropCenter" "L1AssetTracker" "L2AssetTracker" "InteropHandler" "L2NativeTokenVault" "L2WrappedBaseToken" "L2MessageVerification" "L2ChainAssetHandler")
 l2_artifacts=("TimestampAsserter")
 system_contracts_sol=(
   "AccountCodeStorage" "BootloaderUtilities" "Compressor" "ComplexUpgrader" "ContractDeployer" "DefaultAccount"

@@ -192,7 +192,7 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 44] = [
     // *************************************************
     ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
     ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
-    ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
+    ("L2Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
     ("L2AssetRouter", L2_ASSET_ROUTER_ADDRESS, V26),
     ("L2NativeTokenVault", L2_NATIVE_TOKEN_VAULT_ADDRESS, V26),
     ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
@@ -241,7 +241,7 @@ static BUILTIN_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 44] = [
 pub static NON_KERNEL_CONTRACT_LOCATIONS: [(&str, Address, ProtocolVersionId); 11] = [
     ("Create2Factory", CREATE2_FACTORY_ADDRESS, V26),
     ("L2GenesisUpgrade", L2_GENESIS_UPGRADE_ADDRESS, V26),
-    ("Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
+    ("L2Bridgehub", L2_BRIDGEHUB_ADDRESS, V26),
     ("L2AssetRouter", L2_ASSET_ROUTER_ADDRESS, V26),
     ("L2NativeTokenVault", L2_NATIVE_TOKEN_VAULT_ADDRESS, V26),
     ("MessageRoot", L2_MESSAGE_ROOT_ADDRESS, V26),
