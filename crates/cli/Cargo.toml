@@ -22,6 +22,7 @@ anvil_zksync_common.workspace = true
 anvil_zksync_traces.workspace = true
 
 zksync_types.workspace = true
+zksync_multivm.workspace = true
 zksync_telemetry.workspace = true
 alloy = { workspace = true, default-features = false, features = [
     "signer-mnemonic",

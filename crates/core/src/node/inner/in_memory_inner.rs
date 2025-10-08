@@ -941,7 +941,7 @@ impl InMemoryNodeInner {
             }
 
             if !call_traces.is_empty() && verbosity >= 2 {
-                let mut builder = CallTraceDecoderBuilder::default();
+                let mut builder = CallTraceDecoderBuilder::base();
 
                 builder = builder.with_signature_identifier(SignaturesIdentifier::global());
 

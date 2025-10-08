@@ -1,7 +1,10 @@
 use crate::bytecode_override::override_bytecodes;
 use crate::cli::{Cli, Command, PeriodicStateDumper};
 use crate::utils::update_with_fork_details;
-use alloy::primitives::Bytes;
+use alloy::primitives::{B256, Bytes};
+use alloy::providers::ProviderBuilder;
+use alloy::providers::ext::DebugApi;
+use alloy::rpc::types::trace::geth::{GethDebugTracingOptions, call::CallConfig};
 use anvil_zksync_api_server::NodeServerBuilder;
 use anvil_zksync_common::shell::{OutputMode, get_shell};
 use anvil_zksync_common::utils::predeploys::PREDEPLOYS;
@@ -15,15 +18,21 @@ use anvil_zksync_config::constants::{
 use anvil_zksync_config::types::SystemContractsOptions;
 use anvil_zksync_config::{ForkPrintInfo, L1Config};
 use anvil_zksync_core::filters::EthFilters;
+use anvil_zksync_core::node::error::format_revert_reason_hex;
 use anvil_zksync_core::node::fork::ForkClient;
 use anvil_zksync_core::node::{
     BlockSealer, BlockSealerMode, ImpersonationManager, InMemoryNode, InMemoryNodeInner,
     NodeExecutor, StorageKeyLayout, TestNodeFeeInputProvider, TxBatch, TxPool,
+    traces::decoder::CallTraceDecoderBuilder,
 };
 use anvil_zksync_core::observability::Observability;
 use anvil_zksync_core::system_contracts::SystemContractsBuilder;
 use anvil_zksync_l1_sidecar::L1Sidecar;
 use anvil_zksync_traces::identifier::SignaturesIdentifier;
+use anvil_zksync_traces::{
+    build_call_trace_arena, convert_debug_call_to_call, decode_trace_arena,
+    filter_call_trace_arena, render_trace_arena_inner, u256_to_u64_sat,
+};
 use anvil_zksync_types::L2TxBuilder;
 use anyhow::Context;
 use clap::Parser;
@@ -42,7 +51,11 @@ use tracing_subscriber::filter::LevelFilter;
 use zksync_error::anvil_zksync::AnvilZksyncError;
 use zksync_error::anvil_zksync::generic::{generic_error, to_domain};
 use zksync_error::{ICustomError, IError as _};
+use zksync_multivm::interface::{
+    Call, ExecutionResult, Halt, VmExecutionResultAndLogs, VmRevertReason,
+};
 use zksync_telemetry::{TelemetryProps, get_telemetry, init_telemetry};
+use zksync_types::api::DebugCall;
 use zksync_types::fee_model::{FeeModelConfigV2, FeeParams};
 use zksync_types::{
     CONTRACT_DEPLOYER_ADDRESS, EVM_PREDEPLOYS_MANAGER_ADDRESS, H160, L2BlockNumber, Nonce, U256,
@@ -160,6 +173,68 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
 
             update_with_fork_details(&mut config, &fork_client.details).await;
             (Some(fork_client), earlier_txs)
+        }
+        Command::DebugTrace(args) => {
+            let rpc_url = args.fork_url.to_config().url.to_string();
+            let provider = ProviderBuilder::new().connect_http(rpc_url.parse().unwrap());
+
+            let call_cfg = CallConfig {
+                only_top_call: Some(args.only_top),
+                with_log: Some(true),
+            };
+            let opts = GethDebugTracingOptions::call_tracer(call_cfg);
+
+            let tx_hash = B256::from(args.tx.0);
+            let root: DebugCall = provider
+                .debug_trace_transaction_as::<DebugCall>(tx_hash, opts)
+                .await
+                .unwrap();
+            let call_traces: Vec<Call> = root
+                .calls
+                .iter()
+                .map(|c| convert_debug_call_to_call(c, u256_to_u64_sat(&root.gas)))
+                .collect();
+
+            // TODO: handle this better
+            let top_output: Vec<u8> = root.output.0.clone();
+            let exec_result = if let Some(err) = &root.error {
+                ExecutionResult::Halt {
+                    reason: Halt::TracerCustom(err.clone()),
+                }
+            } else if root.revert_reason.is_some() {
+                ExecutionResult::Revert {
+                    output: VmRevertReason::General {
+                        msg: format_revert_reason_hex(&top_output),
+                        data: top_output.clone(),
+                    },
+                }
+            } else {
+                ExecutionResult::Success { output: top_output }
+            };
+
+            let verbosity = get_shell().verbosity;
+
+            let tx_result_for_arena = VmExecutionResultAndLogs::mock(exec_result);
+            if !call_traces.is_empty() && verbosity >= 2 {
+                let builder = CallTraceDecoderBuilder::base()
+                    .with_signature_identifier(SignaturesIdentifier::global());
+                let decoder = builder.build();
+
+                let mut arena = build_call_trace_arena(&call_traces, &tx_result_for_arena);
+                decode_trace_arena(&mut arena, &decoder).await;
+
+                let filtered = filter_call_trace_arena(&arena, verbosity);
+                let out = render_trace_arena_inner(&filtered, false);
+                sh_println!("\nTraces:\n{out}");
+                if verbosity >= 5 {
+                    let pretty = serde_json::to_string_pretty(&root).unwrap();
+                    sh_println!("Raw CallTracer root:\n{pretty}");
+                }
+            } else {
+                sh_println!("(No calls or verbosity < 2)");
+            }
+
+            return Ok(());
         }
     };
 

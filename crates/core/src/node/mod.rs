@@ -16,7 +16,7 @@ mod sealer;
 mod state;
 mod state_override;
 mod storage_logs;
-mod traces;
+pub mod traces;
 mod vm;
 mod zks;
 mod zksync_os;
