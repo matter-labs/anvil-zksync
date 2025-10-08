@@ -64,6 +64,13 @@ pub fn get_cli_command_telemetry_props(command: Option<Command>) -> Option<Telem
                 .take();
             (Some("replay_tx"), Some(command_args))
         }
+        Some(Command::DebugTrace(args)) => {
+            let command_args = TelemetryProps::new()
+                .insert_with("tx", args.tx, |_| Some(TELEMETRY_SENSITIVE_VALUE))
+                .insert_with("fork_url", args.fork_url, get_sensitive_fork_url)
+                .take();
+            (Some("debug_trace"), Some(command_args))
+        }
         None => (None, None),
     };
 

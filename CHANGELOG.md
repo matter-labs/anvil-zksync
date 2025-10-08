@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.11](https://github.com/matter-labs/anvil-zksync/compare/v0.6.10...v0.6.11) (2025-10-08)
+
+
+### Features
+
+* adds support for debug-trace subcommand ([#772](https://github.com/matter-labs/anvil-zksync/issues/772)) ([8935676](https://github.com/matter-labs/anvil-zksync/commit/89356760d531d0f4865af248b716d4a3e8fdabf9))
+
+
+### Bug Fixes
+
+* adjust timeout for autoexecute e2e test ([#770](https://github.com/matter-labs/anvil-zksync/issues/770)) ([3b59c0f](https://github.com/matter-labs/anvil-zksync/commit/3b59c0f6d336b05ac4b8656d981493bf6f5411c9))
+* update era-contracts to latest hash ([#766](https://github.com/matter-labs/anvil-zksync/issues/766)) ([e83071c](https://github.com/matter-labs/anvil-zksync/commit/e83071cd60c61a9a09d3be9da25449ce0aacf421))
+
 ## [0.6.10](https://github.com/matter-labs/anvil-zksync/compare/v0.6.9...v0.6.10) (2025-08-12)
 
 

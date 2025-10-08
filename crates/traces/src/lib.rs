@@ -5,8 +5,10 @@ use anvil_zksync_types::traces::{
 };
 use decode::CallTraceDecoder;
 use writer::TraceWriter;
+use zksync_multivm::interface::CallType;
 use zksync_multivm::interface::{Call, Halt, VmExecutionResultAndLogs};
-use zksync_types::H160;
+use zksync_types::zk_evm_types::FarCallOpcode;
+use zksync_types::{H160, U256, api::DebugCall};
 
 pub mod abi_utils;
 pub mod decode;
@@ -46,6 +48,31 @@ fn convert_call_to_call_trace(call: &Call) -> CallTrace {
             ..Default::default()
         },
         call: call.clone(),
+    }
+}
+
+/// Recursively converts a DebugCall tree into a Call tree.
+pub fn convert_debug_call_to_call(node: &DebugCall, parent_gas: u64) -> Call {
+    let this_gas = u256_to_u64_sat(&node.gas);
+    let calls = node
+        .calls
+        .iter()
+        .map(|c| convert_debug_call_to_call(c, this_gas))
+        .collect();
+
+    Call {
+        r#type: map_call_type(&node.r#type),
+        from: node.from,
+        to: node.to,
+        parent_gas,
+        gas: this_gas,
+        gas_used: u256_to_u64_sat(&node.gas_used),
+        value: node.value,
+        input: node.input.0.clone(),
+        output: node.output.0.clone(),
+        error: node.error.clone(),
+        revert_reason: node.revert_reason.clone(),
+        calls,
     }
 }
 
@@ -256,5 +283,24 @@ fn rebuild_ordering(node: &mut CallTraceNode) {
     }
     for i in 0..node.children.len() {
         node.ordering.push(TraceMemberOrder::Call(i));
+    }
+}
+
+#[inline]
+pub fn u256_to_u64_sat(x: &U256) -> u64 {
+    if *x > U256::from(u64::MAX) {
+        u64::MAX
+    } else {
+        x.as_u64()
+    }
+}
+
+#[inline]
+fn map_call_type(t: &zksync_types::api::DebugCallType) -> CallType {
+    use zksync_types::api::DebugCallType as D;
+    match t {
+        D::Call => CallType::Call(FarCallOpcode::Normal),
+        D::DelegateCall => CallType::Call(FarCallOpcode::Delegate),
+        D::Create => CallType::Create,
     }
 }
