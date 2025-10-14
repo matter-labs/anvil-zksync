@@ -1,8 +1,7 @@
 {
-	"recommendations": [
-		"rust-lang.rust-analyzer",
-		"humao.rest-client",
-		"vadimcn.vscode-lldb",
-		"github.vscode-github-actions"
-	],
+    "recommendations": [
+        "myml.vscode-markdown-plantuml-preview",
+        "esbenp.prettier-vscode",
+        "jebbs.plantuml"
+    ]
 }

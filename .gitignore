@@ -9,10 +9,6 @@ etc/system-contracts/.yarnrc.yml
 etc/system-contracts/bootloader/build
 
 etc/**/*.zbin
-.vscode/*
-!.vscode/extensions.json
-!.vscode/launch.json
-!.vscode/tasks.json
 .idea
 
 *.log
@@ -22,3 +18,7 @@ zkout/
 cache/
 example.json
 state.json
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore

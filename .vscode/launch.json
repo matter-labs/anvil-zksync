@@ -1,93 +1,50 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug anvil-zksync",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=anvil-zksync",
-                    "--package=anvil-zksync"
-                ],
-                "filter": {
-                    "name": "anvil-zksync",
-                    "kind": "bin"
-                }
-            },
-            "args": [
-                "run",
-            ],
-            "env": {
-                "CARGO_PROFILE_DEV": "true"
-            },
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug anvil-zksync with zksyncos",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=anvil-zksync",
-                    "--package=anvil-zksync"
-                ],
-                "filter": {
-                    "name": "anvil-zksync",
-                    "kind": "bin"
-                }
-            },
-            "args": [
-                "--use-zksync-os",
-                "run",
-            ],
-            "env": {
-                "CARGO_PROFILE_DEV": "true"
-            },
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug anvil-zksync w/ system-contracts",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=anvil-zksync",
-                    "--package=anvil-zksync"
-                ],
-                "filter": {
-                    "name": "anvil-zksync",
-                    "kind": "bin"
-                }
-            },
-            "env": {
-                "CARGO_PROFILE_DEV": "true",
-                "RUST_LOG": "vm=trace",
-                "ZKSYNC_HOME": "${workspaceFolder}"
-            },
-            "args": [
-                "--dev-system-contracts=local",
-                "run"
-            ],
-            "preLaunchTask": "rebuild-contracts",
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "name": "E2E Tests",
-            "type": "node",
-            "request": "launch",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/e2e-tests",
-            "runtimeExecutable": "yarn",
-            "runtimeArgs": [
-                "test"
-            ]
-        },
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug SST",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/sst",
+      "runtimeArgs": ["dev", "--increase-timeout"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      // sourceMapRenames helps with the loading spinner when debugging and viewing local variables
+      "sourceMapRenames": false,
+      "env": {
+        "AWS_PROFILE": "flo-ct-flo360"
+      }
+    },
+    {
+      "name": "Debug Tests - Unit",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/sst",
+      "runtimeArgs": ["bind", "yarn", "\"jest\"", "\"--watch\"", "\"--config\"", "\"./jest.unit.config.cjs\"", "\"${input:scopeTestsFileName}\""],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "AWS_PROFILE": "flo-ct-flo360"
+      },
+    },
+    {
+      "name": "Debug Tests - E2E",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/sst",
+      "runtimeArgs": ["bind", "yarn", "\"vitest\"", "\"--config\"", "\"./vitest.e2e.config.ts\"", "\"${input:scopeTestsFileName}\""],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "AWS_PROFILE": "flo-ct-flo360"
+      },
+    },
+  ],
+  "inputs": [
+    {
+      "id": "scopeTestsFileName",
+      "type": "promptString",
+      "description": "Partial file name to scope test debugging to. ex. arena. Leave blank to run all tests.",
+    }
+  ]
 }
