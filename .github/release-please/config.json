@@ -1,6 +1,6 @@
 {
   "bump-minor-pre-major": true,
-  "bump-patch-for-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
   "release-type": "simple",
   "include-component-in-tag": false,
   "group-pull-request-title-pattern": "chore: release ${component} ${version}",
