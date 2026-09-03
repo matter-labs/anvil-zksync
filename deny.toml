@@ -28,6 +28,19 @@ ignore = [
     { id = "RUSTSEC-2025-0074", reason = "`unic-segment` is unmaintained; pulled in by `tera` via `zksync-error-codegen` (build time only)" },
     { id = "RUSTSEC-2025-0104", reason = "`unic-ucd-segment` is unmaintained; pulled in by `tera` via `zksync-error-codegen` (build time only)" },
     { id = "RUSTSEC-2025-0098", reason = "`unic-ucd-version` is unmaintained; pulled in by `tera` via `zksync-error-codegen` (build time only)" },
+    # Vulnerability advisories that cannot be fixed by a semver-compatible update on the pinned
+    # toolchain (nightly-2025-03-19 / rustc 1.87). Each entry names what blocks the fix; drop the entry
+    # once the blocker is gone.
+    { id = "RUSTSEC-2025-0137", reason = "`ruint` < 1.17.1; fixed releases require rustc >= 1.90 (toolchain bump needed). anvil-zksync does not call `reciprocal_mg10`" },
+    { id = "RUSTSEC-2026-0220", reason = "`ruint` < 1.20.0; fixed release requires rustc >= 1.90 (toolchain bump needed)" },
+    { id = "RUSTSEC-2026-0009", reason = "`time` < 0.3.55; the fixed release requires rustc >= 1.88 (toolchain bump needed). anvil-zksync does not parse untrusted time strings" },
+    { id = "RUSTSEC-2025-0073", reason = "`alloy-dyn-abi` 1.3.x; the fix needs the whole `alloy-core` family >= 1.4, i.e. an `alloy` bump. anvil-zksync does not hash EIP-712 `TypedData`" },
+    { id = "RUSTSEC-2026-0194", reason = "`quick-xml` 0.38 via `plist` <- `os_info` <- `posthog-rs`; `plist` >= 1.10 (quick-xml 0.41) requires rustc >= 1.88. Only parses local OS-version plist files for telemetry" },
+    { id = "RUSTSEC-2026-0195", reason = "`quick-xml` 0.38 via `plist` <- `os_info` <- `posthog-rs`; `plist` >= 1.10 (quick-xml 0.41) requires rustc >= 1.88. Only parses local OS-version plist files for telemetry" },
+    { id = "RUSTSEC-2026-0258", reason = "`h2` 0.3 via `reqwest` 0.11 <- `posthog-rs` fork pinned by `zksync_telemetry`; needs zksync-telemetry to move to a newer posthog-rs. Client-only use for opt-in telemetry" },
+    { id = "RUSTSEC-2026-0098", reason = "`rustls-webpki` 0.101 via `rustls` 0.21 <- `reqwest` 0.11 <- `posthog-rs` fork pinned by `zksync_telemetry`; needs zksync-telemetry to move to a newer posthog-rs" },
+    { id = "RUSTSEC-2026-0099", reason = "`rustls-webpki` 0.101 via `rustls` 0.21 <- `reqwest` 0.11 <- `posthog-rs` fork pinned by `zksync_telemetry`; needs zksync-telemetry to move to a newer posthog-rs" },
+    { id = "RUSTSEC-2026-0104", reason = "`rustls-webpki` 0.101 via `rustls` 0.21 <- `reqwest` 0.11 <- `posthog-rs` fork pinned by `zksync_telemetry`; needs zksync-telemetry to move to a newer posthog-rs" },
 ]
 
 [licenses]
