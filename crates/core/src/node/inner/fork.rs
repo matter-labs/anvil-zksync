@@ -865,11 +865,14 @@ impl ForkSource for Fork {
 struct SupportedProtocolVersions;
 
 impl SupportedProtocolVersions {
-    const SUPPORTED_VERSIONS: [ProtocolVersionId; 4] = [
+    const SUPPORTED_VERSIONS: [ProtocolVersionId; 5] = [
         ProtocolVersionId::Version26,
         ProtocolVersionId::Version27,
         ProtocolVersionId::Version28,
         ProtocolVersionId::Version29,
+        // v30 on Era chains is an L1-side protocol bump: the bootloader, default account and EVM
+        // emulator hashes are identical to v29, so it is served with the v29 built-in contracts.
+        ProtocolVersionId::Version30,
     ];
 
     fn is_supported(version: ProtocolVersionId) -> bool {

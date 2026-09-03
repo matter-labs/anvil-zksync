@@ -19,7 +19,7 @@ use anvil_zksync_core::node::{InMemoryNode, VersionedState};
 use anvil_zksync_types::{
     LogLevel, ShowGasDetails, ShowStorageLogs, ShowVMDetails, TransactionOrder,
 };
-use clap::{ArgAction, Parser, Subcommand, ValueEnum, arg, command};
+use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use flate2::read::GzDecoder;
 use futures::FutureExt;
 use num::rational::Ratio;

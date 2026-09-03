@@ -155,7 +155,12 @@ impl InMemoryNode {
         }
         if tx.nonce.is_none() {
             let nonce_key = self.storage_key_layout.get_nonce_key(&tx.from.unwrap());
-            tx.nonce = Some(h256_to_u256(self.storage.read_value_alt(&nonce_key).await?) + 1);
+            // Only the account nonce is relevant here. Using the full nonce would pull in the
+            // deployment nonce (stored in the upper 128 bits), which for contract accounts that
+            // have deployed something makes the value overflow `Nonce` ("nonce has max value").
+            let full_nonce = h256_to_u256(self.storage.read_value_alt(&nonce_key).await?);
+            let (account_nonce, _) = decompose_full_nonce(full_nonce);
+            tx.nonce = Some(account_nonce + 1);
         }
 
         let mut tx_req = TransactionRequest::from(tx.clone());

@@ -26,7 +26,7 @@ pub async fn override_bytecodes(node: &InMemoryNode, bytecodes_dir: String) -> a
         if path.is_file() {
             let filename = match path.file_name().and_then(|name| name.to_str()) {
                 Some(name) => name,
-                None => anyhow::bail!("Invalid filename {}", path.display().to_string()),
+                None => anyhow::bail!("Invalid filename {}", path.display()),
             };
 
             // Look only at .json files.
