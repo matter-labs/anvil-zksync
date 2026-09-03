@@ -31,7 +31,7 @@ pub const TIMESTAMP_ASSERTER_ADDRESS: Address = H160([
     0x00, 0x80, 0x80, 0x12,
 ]);
 
-static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 4] = [
+static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 5] = [
     (
         ProtocolVersionId::Version26,
         include_bytes!("contracts/builtin-contracts-v26.tar.gz"),
@@ -46,6 +46,13 @@ static BUILTIN_CONTRACT_ARCHIVES: [(ProtocolVersionId, &[u8]); 4] = [
     ),
     (
         ProtocolVersionId::Version29,
+        include_bytes!("contracts/builtin-contracts-v29.tar.gz"),
+    ),
+    // Protocol version 30 did not change the base system contracts on Era chains (`zks_getProtocolVersion`
+    // on ZKsync Era mainnet reports the same bootloader/default AA/EVM emulator hashes for v29 and v30),
+    // so the v29 artifacts are reused verbatim.
+    (
+        ProtocolVersionId::Version30,
         include_bytes!("contracts/builtin-contracts-v29.tar.gz"),
     ),
 ];
@@ -293,6 +300,19 @@ mod tests {
         assert_eq!(
             contracts.len(),
             count_protocol_contracts(ProtocolVersionId::Version27)
+        );
+    }
+
+    #[test]
+    fn load_v30_contracts() {
+        let contracts = get_deployed_contracts(
+            SystemContractsOptions::BuiltIn,
+            ProtocolVersionId::Version30,
+            None,
+        );
+        assert_eq!(
+            contracts.len(),
+            count_protocol_contracts(ProtocolVersionId::Version30)
         );
     }
 
