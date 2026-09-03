@@ -14,7 +14,20 @@ feature-depth = 1
 [advisories]
 ignore = [
     { id = "RUSTSEC-2024-0388", reason = '`derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it' },
-    { id = "RUSTSEC-2024-0436", reason = "`paste` is unmaintained, but is still widely used" }
+    { id = "RUSTSEC-2024-0436", reason = "`paste` is unmaintained, but is still widely used" },
+    # Unmaintained transitive dependencies with no drop-in replacement. None of them is used on a
+    # network- or user-input-facing path; revisit when the parent crates are bumped.
+    { id = "RUSTSEC-2025-0141", reason = "`bincode` 1.x is unmaintained; pulled in by zksync-os crates (`forward_system`, `cs`, `prover_examples`)" },
+    { id = "RUSTSEC-2025-0119", reason = "`number_prefix` is unmaintained; pulled in by `indicatif` (progress bars)" },
+    { id = "RUSTSEC-2026-0173", reason = "`proc-macro-error2` is unmaintained; pulled in by `alloy-sol-macro` and `tabled_derive` (proc macros, compile time only)" },
+    { id = "RUSTSEC-2025-0134", reason = "`rustls-pemfile` is unmaintained; pulled in by `reqwest` 0.11" },
+    { id = "RUSTSEC-2026-0249", reason = "`smartstring` is unmaintained; pulled in by `rhai` via `super-seq-macro` (proc macro, compile time only)" },
+    { id = "RUSTSEC-2025-0081", reason = "`unic-char-property` is unmaintained; pulled in by `tera` via `zksync-error-codegen` (build time only)" },
+    { id = "RUSTSEC-2025-0075", reason = "`unic-char-range` is unmaintained; pulled in by `tera` via `zksync-error-codegen` (build time only)" },
+    { id = "RUSTSEC-2025-0080", reason = "`unic-common` is unmaintained; pulled in by `tera` via `zksync-error-codegen` (build time only)" },
+    { id = "RUSTSEC-2025-0074", reason = "`unic-segment` is unmaintained; pulled in by `tera` via `zksync-error-codegen` (build time only)" },
+    { id = "RUSTSEC-2025-0104", reason = "`unic-ucd-segment` is unmaintained; pulled in by `tera` via `zksync-error-codegen` (build time only)" },
+    { id = "RUSTSEC-2025-0098", reason = "`unic-ucd-version` is unmaintained; pulled in by `tera` via `zksync-error-codegen` (build time only)" },
 ]
 
 [licenses]
