@@ -12,7 +12,7 @@ members = [
     "crates/console",
     "crates/traces",
 ]
-resolver = "2"
+resolver = "3"
 
 [profile.dev]
 debug = 2
@@ -43,7 +43,8 @@ zksync_system_constants = { git = "https://github.com/matter-labs/zksync-era", r
 zksync_types = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
 zksync_vm_interface = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
 zksync_web3_decl = { git = "https://github.com/matter-labs/zksync-era", rev = "core-v29.0.0" }
-zksync_telemetry = { git = "https://github.com/matter-labs/zksync-telemetry.git", rev = "f6d8618d870a09467ff24ea32ef57e01af8f311e" }
+# TODO: point back at matter-labs/zksync-telemetry once https://github.com/matter-labs/zksync-telemetry/pull/11 is merged.
+zksync_telemetry = { git = "https://github.com/vladbochok/zksync-telemetry.git", rev = "d8bada789c33c283a0aaccaa1e1f238e7facfb1f" }
 zksync-error-codegen = { git = "https://github.com/matter-labs/zksync-error", rev = "3f8c749249d29786e22208ece7baebd169a722c4", default-features = false }
 zksync-error-description = { git = "https://github.com/matter-labs/zksync-error", rev = "3f8c749249d29786e22208ece7baebd169a722c4" }
 zk_evm_abstractions = "=0.152.3"
@@ -92,7 +93,7 @@ strum = "0.26.3"
 strum_macros = "0.26.4"
 serde_yaml = "0.9.33"
 tar = "0.4.44"
-tabled = "0.18.0"
+tabled = "0.22.0"
 tempfile = { version = "3.16.0", default-features = false }
 thiserror = "1"
 time = "0.3.36"
@@ -111,7 +112,7 @@ url = "2.5.4"
 colorchoice = "1.0"
 anstream = "0.6.18"
 anstyle = "1.0.10"
-indicatif = "0.17"
+indicatif = "0.18"
 
 #########################
 # Test dependencies    #
