@@ -12,9 +12,12 @@ no-default-features = false
 feature-depth = 1
 
 [advisories]
+unmaintained = "none" # This usually create a lot of non-actionable noise.
 ignore = [
-    { id = "RUSTSEC-2024-0388", reason = '`derivative` is unmaintained, crypto dependenicies (boojum, circuit_encodings and others) rely on it' },
-    { id = "RUSTSEC-2024-0436", reason = "`paste` is unmaintained, but is still widely used" }
+    # Vulnerability advisories whose fixed releases need a newer rustc than the pinned toolchain
+    # (rust-toolchain.toml). Each entry names what blocks the fix; drop the entry once the blocker is gone.
+    { id = "RUSTSEC-2026-0220", reason = "`ruint` < 1.20.0; the fixed release requires rustc >= 1.90, but zksync-airbender v0.3.1 (via zksync-os) does not build on nightlies that recent (`let_chains` on edition 2021, removed `array_chunks`), so this needs a zksync-os bump first" },
+    { id = "RUSTSEC-2026-0009", reason = "`time` < 0.3.55; the fixed release requires rustc >= 1.88 (toolchain bump needed). anvil-zksync does not parse untrusted time strings" },
 ]
 
 [licenses]
