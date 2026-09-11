@@ -72,6 +72,9 @@ pub struct TestNodeConfig {
     pub system_contracts_options: SystemContractsOptions,
     /// Path to the system contracts directory
     pub system_contracts_path: Option<PathBuf>,
+    /// Path to a compiled EVM emulator artifact, overriding the one that the system contracts
+    /// choice would otherwise supply
+    pub evm_emulator_path: Option<PathBuf>,
     /// Protocol version to use for new blocks. Also affects revision of built-in contracts that
     /// will get deployed (if applicable)
     pub protocol_version: Option<ProtocolVersionId>,
@@ -205,6 +208,7 @@ impl Default for TestNodeConfig {
             silent: false,
             system_contracts_options: Default::default(),
             system_contracts_path: None,
+            evm_emulator_path: None,
             protocol_version: None,
             override_bytecodes_dir: None,
             bytecode_compression: false,
@@ -615,6 +619,15 @@ Address: {address}
     pub fn with_system_contracts_path(mut self, path: Option<PathBuf>) -> Self {
         if let Some(path) = path {
             self.system_contracts_path = Some(path);
+        }
+        self
+    }
+
+    /// Set the EVM emulator artifact path
+    #[must_use]
+    pub fn with_evm_emulator_path(mut self, path: Option<PathBuf>) -> Self {
+        if let Some(path) = path {
+            self.evm_emulator_path = Some(path);
         }
         self
     }
