@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::deps::system_contracts::load_builtin_contract;
+use crate::deps::system_contracts::{bytecode_from_slice, load_builtin_contract};
 use crate::node::ImpersonationManager;
 use anvil_zksync_config::types::{SystemContractsOptions, ZKsyncOsConfig};
 use zksync_contracts::{
@@ -16,6 +16,7 @@ use zksync_types::{Address, ProtocolVersionId};
 pub struct SystemContractsBuilder {
     system_contracts_options: Option<SystemContractsOptions>,
     system_contracts_path: Option<PathBuf>,
+    evm_emulator_path: Option<PathBuf>,
     protocol_version: Option<ProtocolVersionId>,
     use_evm_interpreter: bool,
     zksync_os: ZKsyncOsConfig,
@@ -36,6 +37,13 @@ impl SystemContractsBuilder {
     /// Set the system contracts path
     pub fn system_contracts_path(mut self, path: Option<PathBuf>) -> Self {
         self.system_contracts_path = path;
+        self
+    }
+
+    /// Override the EVM emulator bytecode with an explicit artifact, independently of the
+    /// system contracts choice.
+    pub fn evm_emulator_path(mut self, path: Option<PathBuf>) -> Self {
+        self.evm_emulator_path = path;
         self
     }
 
@@ -77,6 +85,7 @@ impl SystemContractsBuilder {
         SystemContracts::from_options(
             options,
             self.system_contracts_path,
+            self.evm_emulator_path,
             protocol_version,
             self.use_evm_interpreter,
             self.zksync_os,
@@ -111,6 +120,7 @@ impl SystemContracts {
     pub fn from_options(
         options: SystemContractsOptions,
         system_contracts_path: Option<PathBuf>,
+        evm_emulator_path: Option<PathBuf>,
         protocol_version: ProtocolVersionId,
         use_evm_emulator: bool,
         zksync_os: ZKsyncOsConfig,
@@ -122,6 +132,7 @@ impl SystemContracts {
             "initializing system contracts"
         );
         let path = system_contracts_path.unwrap_or_else(|| SystemContractsRepo::default().root);
+        let emulator_path = evm_emulator_path.as_deref();
         Self {
             protocol_version,
             baseline_contracts: baseline_contracts(
@@ -129,25 +140,35 @@ impl SystemContracts {
                 protocol_version,
                 use_evm_emulator,
                 &path,
+                emulator_path,
             ),
-            playground_contracts: playground(options, protocol_version, use_evm_emulator, &path),
+            playground_contracts: playground(
+                options,
+                protocol_version,
+                use_evm_emulator,
+                &path,
+                emulator_path,
+            ),
             fee_estimate_contracts: fee_estimate_contracts(
                 options,
                 protocol_version,
                 use_evm_emulator,
                 &path,
+                emulator_path,
             ),
             baseline_impersonating_contracts: baseline_impersonating_contracts(
                 options,
                 protocol_version,
                 use_evm_emulator,
                 &path,
+                emulator_path,
             ),
             fee_estimate_impersonating_contracts: fee_estimate_impersonating_contracts(
                 options,
                 protocol_version,
                 use_evm_emulator,
                 &path,
+                emulator_path,
             ),
             use_evm_emulator,
             zksync_os,
@@ -216,6 +237,7 @@ fn bsc_load_with_bootloader(
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     system_contracts_path: &Path,
+    evm_emulator_path: Option<&Path>,
 ) -> BaseSystemContracts {
     let repo = system_contracts_repo(system_contracts_path);
     let hash = BytecodeHash::for_bytecode(&bootloader_bytecode);
@@ -244,11 +266,13 @@ fn bsc_load_with_bootloader(
     };
 
     let evm_emulator = if use_evm_emulator {
-        let evm_emulator_bytecode = match options {
-            SystemContractsOptions::Local => {
+        let evm_emulator_bytecode = match (evm_emulator_path, options) {
+            (Some(path), _) => read_evm_emulator_artifact(path),
+            (None, SystemContractsOptions::Local) => {
                 repo.read_sys_contract_bytecode("", "EvmEmulator", None, ContractLanguage::Yul)
             }
-            SystemContractsOptions::BuiltIn | SystemContractsOptions::BuiltInWithoutSecurity => {
+            (None, SystemContractsOptions::BuiltIn)
+            | (None, SystemContractsOptions::BuiltInWithoutSecurity) => {
                 load_builtin_contract(protocol_version, "EvmEmulator")
             }
         };
@@ -274,6 +298,7 @@ fn playground(
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     system_contracts_path: &Path,
+    evm_emulator_path: Option<&Path>,
 ) -> BaseSystemContracts {
     let repo = system_contracts_repo(system_contracts_path);
     let bootloader_bytecode = match options {
@@ -294,6 +319,7 @@ fn playground(
         protocol_version,
         use_evm_emulator,
         system_contracts_path,
+        evm_emulator_path,
     )
 }
 
@@ -308,6 +334,7 @@ fn fee_estimate_contracts(
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     system_contracts_path: &Path,
+    evm_emulator_path: Option<&Path>,
 ) -> BaseSystemContracts {
     let repo = system_contracts_repo(system_contracts_path);
     let bootloader_bytecode = match options {
@@ -328,6 +355,7 @@ fn fee_estimate_contracts(
         protocol_version,
         use_evm_emulator,
         system_contracts_path,
+        evm_emulator_path,
     )
 }
 
@@ -336,6 +364,7 @@ fn fee_estimate_impersonating_contracts(
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     system_contracts_path: &Path,
+    evm_emulator_path: Option<&Path>,
 ) -> BaseSystemContracts {
     let repo = system_contracts_repo(system_contracts_path);
     let bootloader_bytecode = match options {
@@ -357,6 +386,7 @@ fn fee_estimate_impersonating_contracts(
         protocol_version,
         use_evm_emulator,
         system_contracts_path,
+        evm_emulator_path,
     )
 }
 
@@ -365,6 +395,7 @@ fn baseline_contracts(
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     system_contracts_path: &Path,
+    evm_emulator_path: Option<&Path>,
 ) -> BaseSystemContracts {
     let repo = system_contracts_repo(system_contracts_path);
     let bootloader_bytecode = match options {
@@ -384,6 +415,7 @@ fn baseline_contracts(
         protocol_version,
         use_evm_emulator,
         system_contracts_path,
+        evm_emulator_path,
     )
 }
 
@@ -392,6 +424,7 @@ fn baseline_impersonating_contracts(
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     system_contracts_path: &Path,
+    evm_emulator_path: Option<&Path>,
 ) -> BaseSystemContracts {
     let repo = system_contracts_repo(system_contracts_path);
     let bootloader_bytecode = match options {
@@ -412,11 +445,77 @@ fn baseline_impersonating_contracts(
         protocol_version,
         use_evm_emulator,
         system_contracts_path,
+        evm_emulator_path,
     )
+}
+
+/// Reads EVM emulator bytecode from a compiled artifact, so a locally built emulator can be
+/// paired with any choice of system contracts.
+fn read_evm_emulator_artifact(path: &Path) -> Vec<u8> {
+    let contents = std::fs::read(path)
+        .unwrap_or_else(|err| panic!("failed to read EVM emulator artifact {path:?}: {err}"));
+    bytecode_from_slice("EvmEmulator", &contents)
 }
 
 fn system_contracts_repo(root: &Path) -> SystemContractsRepo {
     SystemContractsRepo {
         root: root.to_path_buf(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use zksync_types::H256;
+
+    const TEST_VERSION: ProtocolVersionId = ProtocolVersionId::Version29;
+
+    fn artifact_with_bytecode(bytecode: &[u8]) -> tempfile::NamedTempFile {
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        let artifact = serde_json::json!({ "bytecode": { "object": hex::encode(bytecode) } });
+        file.write_all(artifact.to_string().as_bytes()).unwrap();
+        file.flush().unwrap();
+        file
+    }
+
+    fn emulator_hash(evm_emulator_path: Option<PathBuf>) -> H256 {
+        SystemContracts::from_options(
+            SystemContractsOptions::BuiltIn,
+            None,
+            evm_emulator_path,
+            TEST_VERSION,
+            true,
+            ZKsyncOsConfig::default(),
+        )
+        .baseline_contracts
+        .evm_emulator
+        .expect("emulator is enabled")
+        .hash
+    }
+
+    #[test]
+    fn evm_emulator_path_is_read_from_the_artifact() {
+        let builtin = load_builtin_contract(TEST_VERSION, "EvmEmulator");
+        let artifact = artifact_with_bytecode(&builtin);
+        assert_eq!(
+            emulator_hash(Some(artifact.path().to_path_buf())),
+            emulator_hash(None),
+            "an artifact carrying the built-in bytecode should hash to the built-in emulator"
+        );
+    }
+
+    #[test]
+    fn evm_emulator_path_overrides_the_builtin_emulator() {
+        let mut bytecode = load_builtin_contract(TEST_VERSION, "EvmEmulator");
+        // Pad by whole words, and by an even number of them, to keep the length parity that
+        // EraVM bytecode hashing requires.
+        bytecode.extend_from_slice(&[0u8; 64]);
+        let artifact = artifact_with_bytecode(&bytecode);
+        assert_ne!(
+            emulator_hash(Some(artifact.path().to_path_buf())),
+            emulator_hash(None),
+            "--evm-emulator-path should take precedence over the built-in emulator"
+        );
     }
 }

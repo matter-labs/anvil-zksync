@@ -315,6 +315,7 @@ async fn start_program(opt: Cli) -> Result<(), AnvilZksyncError> {
     let system_contracts = SystemContractsBuilder::new()
         .system_contracts_options(config.system_contracts_options)
         .system_contracts_path(config.system_contracts_path.clone())
+        .evm_emulator_path(config.evm_emulator_path.clone())
         .protocol_version(config.protocol_version())
         .with_evm_interpreter(config.use_evm_interpreter)
         .with_zksync_os(config.zksync_os.clone())
