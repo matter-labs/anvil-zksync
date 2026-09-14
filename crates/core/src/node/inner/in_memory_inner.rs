@@ -1282,6 +1282,7 @@ pub mod testing {
             let system_contracts = SystemContracts::from_options(
                 config.system_contracts_options,
                 config.system_contracts_path.clone(),
+                config.evm_emulator_path.clone(),
                 ProtocolVersionId::latest(),
                 config.use_evm_interpreter,
                 config.zksync_os.clone(),
