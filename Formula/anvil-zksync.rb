@@ -1,25 +1,25 @@
 class AnvilZksync < Formula
     desc "An in-memory ZKSync node for fast Elastic Network ZK chain development"
     homepage "https://github.com/matter-labs/anvil-zksync"
-  version "0.6.9"
+  version "0.8.0"
   
     on_macos do
       if Hardware::CPU.arm?
         url "https://github.com/matter-labs/anvil-zksync/releases/download/v#{version}/anvil-zksync-v#{version}-aarch64-apple-darwin.tar.gz"
-        sha256 "b05aed9dae4dbaabe8bb5ab03de37ce3d4c16786728deca07aca3979036ba3a7"
+        sha256 "e41c7991b310b0a38cd84c75e7457f6309838087d0ab4881157cc4fb15638e46"
       else
         url "https://github.com/matter-labs/anvil-zksync/releases/download/v#{version}/anvil-zksync-v#{version}-x86_64-apple-darwin.tar.gz"
-        sha256 "517717eafbd521b396ab9f6e59c6a8bb9697a07d056fe034e776ceb3dd314c14"
+        sha256 "1c55d89316bc2a919c6240bc948657516816a8cce322f1f68ebb462cdeeff8b3"
       end
     end
   
     on_linux do
       if Hardware::CPU.arm?
         url "https://github.com/matter-labs/anvil-zksync/releases/download/v#{version}/anvil-zksync-v#{version}-aarch64-unknown-linux-gnu.tar.gz"
-        sha256 "652e0b1e55edd390297de4f409c1d69d9e31f4e9dbf82390175671fabf8ff4cd"
+        sha256 "9b95eda4a7b8c87ed545746fd169328cd4791e070a10d076a93b394ed5b7324e"
       else
         url "https://github.com/matter-labs/anvil-zksync/releases/download/v#{version}/anvil-zksync-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
-        sha256 "3baaaa79686cff26a645a1efce1d2511dd78925dc79757a774937c9c491f9536"
+        sha256 "5f8bb311d0a1da743ab5d9111a6230d5692e6f94f399c5c6fd918a42bb8b18ba"
       end
     end
   
